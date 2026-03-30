@@ -31,6 +31,7 @@ import {
   Share2,
   CalendarDays,
   Zap,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -144,6 +145,30 @@ export default function ContentPage() {
   const [tone, setTone] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("3");
   const [topic, setTopic] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generatedResults, setGeneratedResults] = useState<{ title: string; body: string }[]>([]);
+  const [genError, setGenError] = useState("");
+
+  const handleGenerate = async () => {
+    if (!topic.trim()) { setGenError("请输入内容主题"); return; }
+    setGenerating(true);
+    setGenError("");
+    setGeneratedResults([]);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform: platform || "xiaohongshu", topic, tone: tone || "casual", quantity }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "生成失败");
+      setGeneratedResults(data.results || []);
+    } catch (err: unknown) {
+      setGenError(err instanceof Error ? err.message : "生成失败，请稍后重试");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -335,12 +360,65 @@ export default function ContentPage() {
                 />
               </div>
 
-              <Button className="w-full sm:w-auto">
-                <Zap className="h-4 w-4" data-icon="inline-start" />
-                开始生成
+              {genError && (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+                  {genError}
+                </div>
+              )}
+
+              <Button className="w-full sm:w-auto" onClick={handleGenerate} disabled={generating}>
+                {generating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" data-icon="inline-start" />
+                    AI 生成中...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" data-icon="inline-start" />
+                    开始生成
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
+
+          {/* Generated results */}
+          {generatedResults.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="flex items-center gap-2 text-sm font-medium">
+                <Sparkles className="h-4 w-4 text-primary" />
+                生成结果（{generatedResults.length} 条）
+              </h3>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {generatedResults.map((item, idx) => (
+                  <Card key={idx} className="transition-shadow hover:shadow-sm">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary" className="text-xs">#{idx + 1}</Badge>
+                        <Badge variant="outline" className="text-xs text-primary border-primary/20">AI 生成</Badge>
+                      </div>
+                      <CardTitle className="mt-2 text-sm font-medium leading-snug">
+                        {item.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap line-clamp-6">
+                        {item.body}
+                      </p>
+                      <div className="mt-3 flex gap-2">
+                        <Button variant="outline" size="sm" className="text-xs" onClick={() => navigator.clipboard.writeText(`${item.title}\n\n${item.body}`)}>
+                          复制
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-xs">
+                          编辑
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* 模板库 */}
