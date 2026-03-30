@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 
@@ -31,7 +32,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
-            {children}
+            <AuthProvider>
+              {children}
+            </AuthProvider>
           </TooltipProvider>
         </ThemeProvider>
       </body>

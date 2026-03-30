@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
 import { ChartCard } from "@/components/shared/chart-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,6 +94,7 @@ function getDateString() {
 
 function GreetingBanner() {
   const [mounted, setMounted] = useState(false);
+  const { user } = useAuth();
   useEffect(() => setMounted(true), []);
 
   const greeting = getGreeting();
@@ -136,7 +138,7 @@ function GreetingBanner() {
             <div>
               <p className="text-xs font-medium text-white/60">{date}</p>
               <h1 className="text-2xl font-bold text-white sm:text-3xl">
-                {greeting.text}，Alex
+                {greeting.text}，{user?.user_metadata?.full_name || user?.email?.split("@")[0] || "你好"}
               </h1>
             </div>
           </div>
