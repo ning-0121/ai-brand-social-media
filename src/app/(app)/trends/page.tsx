@@ -37,13 +37,13 @@ import {
 } from "recharts";
 import { formatNumber } from "@/lib/format";
 import {
-  trendsKPIs,
   mockHotProducts,
   categoryTrendData,
   mockCompetitors,
 } from "@/modules/trends/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
-import { getHotProducts, getCompetitors } from "@/lib/supabase-queries";
+import { getHotProducts, getCompetitors, getTrendsKPIs } from "@/lib/supabase-queries";
+import { KPIData } from "@/lib/types";
 
 const CATEGORY_COLORS: Record<string, string> = {
   美妆护肤: "#f472b6",
@@ -63,6 +63,14 @@ const PLATFORM_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export default function TrendsPage() {
+  const { data: kpiData } = useSupabase(getTrendsKPIs, { categories: 0, trending: 0, avgGrowth: 0, competitors: 0 });
+  const trendsKPIs: KPIData[] = [
+    { label: "热门品类数", value: kpiData.categories, trend: "up", trendPercent: 5, icon: "Layers", format: "number" },
+    { label: "本周爆款", value: kpiData.trending, trend: "up", trendPercent: 20, icon: "Flame", format: "number" },
+    { label: "平均增长率", value: kpiData.avgGrowth, trend: "up", trendPercent: 3.5, icon: "TrendingUp", format: "percent" },
+    { label: "竞品数", value: kpiData.competitors, trend: "flat", trendPercent: 0, icon: "Target", format: "number" },
+  ];
+
   const [search, setSearch] = useState("");
   const [platformFilter, setPlatformFilter] = useState("all");
 

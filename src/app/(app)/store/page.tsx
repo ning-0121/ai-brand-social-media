@@ -35,13 +35,13 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  storeKPIs,
   mockProducts,
   mockSEOScore,
   storeHealthData,
 } from "@/modules/store/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
-import { getProducts } from "@/lib/supabase-queries";
+import { getProducts, getStoreKPIs } from "@/lib/supabase-queries";
+import { KPIData } from "@/lib/types";
 import { createProduct, deleteProduct } from "@/lib/supabase-mutations";
 import {
   LineChart,
@@ -155,6 +155,14 @@ function OverallScoreRing({ score }: { score: number }) {
 }
 
 export default function StorePage() {
+  const { data: kpiData } = useSupabase(getStoreKPIs, { healthScore: 0, avgSEO: 0, totalProducts: 0, outOfStock: 0 });
+  const storeKPIs: KPIData[] = [
+    { label: "店铺健康分", value: kpiData.healthScore, trend: "up", trendPercent: 3, icon: "HeartPulse", format: "number" },
+    { label: "SEO 得分", value: kpiData.avgSEO, trend: "up", trendPercent: 5, icon: "Search", format: "number" },
+    { label: "商品总数", value: kpiData.totalProducts, trend: "up", trendPercent: 10, icon: "Package", format: "number" },
+    { label: "缺货商品", value: kpiData.outOfStock, trend: "down", trendPercent: 2, icon: "AlertTriangle", format: "number" },
+  ];
+
   const { data: initialProducts, loading: loadingProducts } = useSupabase(getProducts, mockProducts);
   const [localProducts, setLocalProducts] = useState<typeof mockProducts | null>(null);
   const products = localProducts ?? initialProducts;

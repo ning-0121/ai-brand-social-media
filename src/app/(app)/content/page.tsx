@@ -25,11 +25,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { contentKPIs, mockContents, mockTemplates } from "@/modules/content/mock-data";
+import { mockContents, mockTemplates } from "@/modules/content/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
-import { getContents, getContentTemplates } from "@/lib/supabase-queries";
+import { getContents, getContentTemplates, getContentKPIs } from "@/lib/supabase-queries";
 import { createContent, deleteContent } from "@/lib/supabase-mutations";
-import { Platform } from "@/lib/types";
+import { Platform, KPIData } from "@/lib/types";
 
 import {
   Plus,
@@ -149,6 +149,14 @@ function TemplateCardSkeleton() {
 }
 
 export default function ContentPage() {
+  const { data: kpiData } = useSupabase(getContentKPIs, { total: 0, published: 0, pending: 0, avgEngagement: 0 });
+  const contentKPIs: KPIData[] = [
+    { label: "内容总数", value: kpiData.total, trend: "up", trendPercent: 12, icon: "FileText", format: "number" },
+    { label: "已发布", value: kpiData.published, trend: "up", trendPercent: 8, icon: "CheckCircle", format: "number" },
+    { label: "待审核", value: kpiData.pending, trend: "flat", trendPercent: 0, icon: "Clock", format: "number" },
+    { label: "平均互动率", value: kpiData.avgEngagement, trend: "up", trendPercent: 2.1, icon: "Heart", format: "percent" },
+  ];
+
   const { data: initialContents, loading: loadingContents } = useSupabase(getContents, mockContents);
   const { data: templates, loading: loadingTemplates } = useSupabase(getContentTemplates, mockTemplates);
   const [localContents, setLocalContents] = useState<typeof mockContents | null>(null);

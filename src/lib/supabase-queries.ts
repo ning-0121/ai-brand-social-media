@@ -80,24 +80,92 @@ export async function getSkillPacks() {
   return data;
 }
 
-// Dashboard aggregations
-export async function getDashboardStats() {
+// ============ KPI Aggregations ============
+
+// Content KPIs
+export async function getContentKPIs() {
   const [
-    { count: totalProducts },
-    { count: totalContents },
-    { count: publishedContents },
-    { count: pendingPosts },
+    { count: total },
+    { count: published },
+    { count: pending },
+    { data: publishedItems },
   ] = await Promise.all([
-    supabase.from("products").select("*", { count: "exact", head: true }),
     supabase.from("contents").select("*", { count: "exact", head: true }),
     supabase.from("contents").select("*", { count: "exact", head: true }).eq("status", "published"),
-    supabase.from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "queued"),
+    supabase.from("contents").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("contents").select("views, likes, comments, shares").eq("status", "published"),
   ]);
-
+  const totalViews = publishedItems?.reduce((sum, i) => sum + (i.views || 0), 0) || 0;
+  const totalLikes = publishedItems?.reduce((sum, i) => sum + (i.likes || 0), 0) || 0;
+  const avgEngagement = totalViews > 0 ? ((totalLikes / totalViews) * 100) : 0;
   return {
-    totalProducts: totalProducts || 0,
-    totalContents: totalContents || 0,
-    publishedContents: publishedContents || 0,
-    pendingPosts: pendingPosts || 0,
+    total: total || 0,
+    published: published || 0,
+    pending: pending || 0,
+    avgEngagement: Math.round(avgEngagement * 10) / 10,
+  };
+}
+
+// Store KPIs
+export async function getStoreKPIs() {
+  const { data: products } = await supabase.from("products").select("seo_score, stock, status");
+  if (!products?.length) return { healthScore: 0, avgSEO: 0, totalProducts: 0, outOfStock: 0 };
+  const avgSEO = Math.round(products.reduce((s, p) => s + (p.seo_score || 0), 0) / products.length);
+  const outOfStock = products.filter(p => p.status === "out_of_stock").length;
+  return {
+    healthScore: Math.min(100, avgSEO + 10),
+    avgSEO,
+    totalProducts: products.length,
+    outOfStock,
+  };
+}
+
+// Social KPIs
+export async function getSocialKPIs() {
+  const [
+    { count: totalAccounts },
+    { count: connectedAccounts },
+    { count: queuedPosts },
+    { count: publishedPosts },
+  ] = await Promise.all([
+    supabase.from("social_accounts").select("*", { count: "exact", head: true }),
+    supabase.from("social_accounts").select("*", { count: "exact", head: true }).eq("connected", true),
+    supabase.from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "queued"),
+    supabase.from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "published"),
+  ]);
+  return {
+    totalAccounts: totalAccounts || 0,
+    connectedAccounts: connectedAccounts || 0,
+    queuedPosts: queuedPosts || 0,
+    publishedPosts: publishedPosts || 0,
+  };
+}
+
+// Trends KPIs
+export async function getTrendsKPIs() {
+  const { data: products } = await supabase.from("hot_products").select("category, trend, growth_rate");
+  const { count: competitorCount } = await supabase.from("competitors").select("*", { count: "exact", head: true });
+  const categories = new Set(products?.map(p => p.category));
+  const trending = products?.filter(p => p.trend === "up") || [];
+  const avgGrowth = trending.length > 0
+    ? Math.round(trending.reduce((s, p) => s + (p.growth_rate || 0), 0) / trending.length * 10) / 10
+    : 0;
+  return {
+    categories: categories.size,
+    trending: trending.length,
+    avgGrowth,
+    competitors: competitorCount || 0,
+  };
+}
+
+// Skills KPIs
+export async function getSkillsKPIs() {
+  const { data: skills } = await supabase.from("skill_packs").select("usage_count, title");
+  if (!skills?.length) return { total: 0, topSkill: "-", totalUsage: 0 };
+  const sorted = [...skills].sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0));
+  return {
+    total: skills.length,
+    topSkill: sorted[0]?.title || "-",
+    totalUsage: skills.reduce((s, sk) => s + (sk.usage_count || 0), 0),
   };
 }
