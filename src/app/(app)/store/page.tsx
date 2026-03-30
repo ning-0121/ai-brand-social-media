@@ -16,12 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   storeKPIs,
   mockProducts,
   mockSEOScore,
   storeHealthData,
 } from "@/modules/store/mock-data";
+import { useSupabase } from "@/hooks/use-supabase";
+import { getProducts } from "@/lib/supabase-queries";
 import {
   LineChart,
   Line,
@@ -132,6 +135,8 @@ function OverallScoreRing({ score }: { score: number }) {
 }
 
 export default function StorePage() {
+  const { data: products, loading: loadingProducts } = useSupabase(getProducts, mockProducts);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -165,7 +170,7 @@ export default function StorePage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">全部商品</CardTitle>
                 <Badge variant="secondary" className="text-xs">
-                  共 {mockProducts.length} 件
+                  共 {products.length} 件
                 </Badge>
               </div>
             </CardHeader>
@@ -183,33 +188,45 @@ export default function StorePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockProducts.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs font-mono">
-                        {product.sku}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatCurrency(product.price)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        <span className={cn(product.stock === 0 && "text-destructive font-medium")}>
-                          {product.stock.toLocaleString("zh-CN")}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={product.status} />
-                      </TableCell>
-                      <TableCell>
-                        <SEOProgressBar score={product.seo_score} />
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {loadingProducts ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
+                        {Array.from({ length: 7 }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    products.map((product) => (
+                      <TableRow key={product.id}>
+                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs font-mono">
+                          {product.sku}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatCurrency(product.price)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          <span className={cn(product.stock === 0 && "text-destructive font-medium")}>
+                            {product.stock.toLocaleString("zh-CN")}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={product.status} />
+                        </TableCell>
+                        <TableCell>
+                          <SEOProgressBar score={product.seo_score} />
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

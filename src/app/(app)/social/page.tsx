@@ -8,6 +8,7 @@ import { PlatformIcon } from "@/components/shared/platform-icon";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -23,6 +24,8 @@ import {
   mockAccounts,
   engagementData,
 } from "@/modules/social/mock-data";
+import { useSupabase } from "@/hooks/use-supabase";
+import { getScheduledPosts, getSocialAccounts } from "@/lib/supabase-queries";
 import {
   BarChart,
   Bar,
@@ -37,6 +40,9 @@ import { Plus, MoreHorizontal, User } from "lucide-react";
 import { formatNumber } from "@/lib/format";
 
 export default function SocialPage() {
+  const { data: posts, loading: loadingPosts } = useSupabase(getScheduledPosts, mockPosts);
+  const { data: accounts, loading: loadingAccounts } = useSupabase(getSocialAccounts, mockAccounts);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -78,32 +84,42 @@ export default function SocialPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockPosts.map((post) => (
-                    <TableRow key={post.id}>
-                      <TableCell className="font-medium max-w-xs truncate">
-                        {post.content}
-                      </TableCell>
-                      <TableCell>
-                        <PlatformIcon platform={post.platform} showLabel />
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {new Date(post.scheduled_at).toLocaleString("zh-CN", {
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={post.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {loadingPosts
+                    ? Array.from({ length: 4 }).map((_, i) => (
+                        <TableRow key={i}>
+                          <TableCell><Skeleton className="h-4 w-[260px]" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                          <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                        </TableRow>
+                      ))
+                    : posts.map((post) => (
+                        <TableRow key={post.id}>
+                          <TableCell className="font-medium max-w-xs truncate">
+                            {post.content_preview ?? post.content}
+                          </TableCell>
+                          <TableCell>
+                            <PlatformIcon platform={post.platform} showLabel />
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                            {new Date(post.scheduled_at).toLocaleString("zh-CN", {
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={post.status} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -113,39 +129,53 @@ export default function SocialPage() {
         {/* ---------- 账号管理 ---------- */}
         <TabsContent value="accounts">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {mockAccounts.map((account) => (
-              <Card key={account.id} className="transition-shadow hover:shadow-sm">
-                <CardContent className="flex items-center gap-4 p-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <User className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <PlatformIcon platform={account.platform} />
-                      <span className="text-sm font-medium truncate">
-                        {account.display_name}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {account.handle}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {formatNumber(account.followers)} 粉丝
-                    </p>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={
-                      account.connected
-                        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                        : "bg-muted text-muted-foreground border-border"
-                    }
-                  >
-                    {account.connected ? "已连接" : "未连接"}
-                  </Badge>
-                </CardContent>
-              </Card>
-            ))}
+            {loadingAccounts
+              ? Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i} className="transition-shadow hover:shadow-sm">
+                    <CardContent className="flex items-center gap-4 p-4">
+                      <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-24" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                      <Skeleton className="h-5 w-14 rounded-full" />
+                    </CardContent>
+                  </Card>
+                ))
+              : accounts.map((account) => (
+                  <Card key={account.id} className="transition-shadow hover:shadow-sm">
+                    <CardContent className="flex items-center gap-4 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                        <User className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <PlatformIcon platform={account.platform} />
+                          <span className="text-sm font-medium truncate">
+                            {account.display_name}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {account.handle}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {formatNumber(account.followers)} 粉丝
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={
+                          account.connected
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                            : "bg-muted text-muted-foreground border-border"
+                        }
+                      >
+                        {account.connected ? "已连接" : "未连接"}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                ))}
           </div>
         </TabsContent>
 

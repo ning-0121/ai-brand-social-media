@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { SkillCategory, SkillDifficulty } from "@/lib/types";
+import { useSupabase } from "@/hooks/use-supabase";
+import { getSkillPacks } from "@/lib/supabase-queries";
 import { skillsKPIs, mockSkills } from "@/modules/skills/mock-data";
 import { SkillPack } from "@/modules/skills/types";
 import * as Icons from "lucide-react";
@@ -73,11 +76,22 @@ function getIcon(name: string) {
 }
 
 export default function SkillsPage() {
+  const { data: skills, loading: loadingSkills } = useSupabase(getSkillPacks, mockSkills);
   const [activeCategory, setActiveCategory] = useState<"all" | SkillCategory>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<SkillPack | null>(null);
 
-  const filteredSkills = mockSkills.filter((skill) => {
+  // Normalize Supabase rows: map `steps` -> `sop_steps`, `prompts` -> `prompt_templates`
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const normalizedSkills: SkillPack[] = (skills as any[]).map((s) => ({
+    ...s,
+    sop_steps: s.sop_steps ?? s.steps ?? [],
+    prompt_templates: s.prompt_templates ?? s.prompts ?? [],
+    is_learned: s.is_learned ?? false,
+    tags: s.tags ?? [],
+  }));
+
+  const filteredSkills = normalizedSkills.filter((skill) => {
     const matchesCategory = activeCategory === "all" || skill.category === activeCategory;
     const matchesSearch =
       searchQuery === "" ||
@@ -136,7 +150,30 @@ export default function SkillsPage() {
 
       {/* Skill cards grid */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredSkills.map((skill) => {
+        {loadingSkills ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Skeleton className="h-10 w-10 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+                <div className="flex items-center justify-between border-t pt-3">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-6 w-20" />
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : filteredSkills.map((skill) => {
           const Icon = getIcon(skill.icon);
           return (
             <Card
@@ -205,7 +242,7 @@ export default function SkillsPage() {
         })}
       </div>
 
-      {filteredSkills.length === 0 && (
+      {!loadingSkills && filteredSkills.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Icons.SearchX className="h-10 w-10 text-muted-foreground/40" />
           <p className="mt-3 text-sm font-medium text-muted-foreground">未找到匹配的技能包</p>

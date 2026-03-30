@@ -24,6 +24,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   LineChart,
   Line,
@@ -41,6 +42,8 @@ import {
   categoryTrendData,
   mockCompetitors,
 } from "@/modules/trends/mock-data";
+import { useSupabase } from "@/hooks/use-supabase";
+import { getHotProducts, getCompetitors } from "@/lib/supabase-queries";
 
 const CATEGORY_COLORS: Record<string, string> = {
   美妆护肤: "#f472b6",
@@ -63,15 +66,18 @@ export default function TrendsPage() {
   const [search, setSearch] = useState("");
   const [platformFilter, setPlatformFilter] = useState("all");
 
+  const { data: hotProducts, loading: loadingProducts } = useSupabase(getHotProducts, mockHotProducts);
+  const { data: competitors, loading: loadingCompetitors } = useSupabase(getCompetitors, mockCompetitors);
+
   const filteredProducts = useMemo(() => {
-    return mockHotProducts.filter((p) => {
+    return hotProducts.filter((p) => {
       const matchesSearch =
         !search || p.name.toLowerCase().includes(search.toLowerCase());
       const matchesPlatform =
         platformFilter === "all" || p.platform === platformFilter;
       return matchesSearch && matchesPlatform;
     });
-  }, [search, platformFilter]);
+  }, [hotProducts, search, platformFilter]);
 
   return (
     <div className="space-y-6">
@@ -134,38 +140,17 @@ export default function TrendsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell className="font-medium">
-                        {product.name}
-                      </TableCell>
-                      <TableCell>
-                        <PlatformIcon
-                          platform={product.platform}
-                          showLabel
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{product.category}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatNumber(product.sales_volume)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <TrendTag
-                          direction={product.trend}
-                          value={product.growth_rate}
-                        />
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {product.price_range}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {product.rating}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredProducts.length === 0 && (
+                  {loadingProducts ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
+                        {Array.from({ length: 7 }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : filteredProducts.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={7}
@@ -174,6 +159,38 @@ export default function TrendsPage() {
                         没有找到匹配的商品
                       </TableCell>
                     </TableRow>
+                  ) : (
+                    filteredProducts.map((product) => (
+                      <TableRow key={product.id}>
+                        <TableCell className="font-medium">
+                          {product.name}
+                        </TableCell>
+                        <TableCell>
+                          <PlatformIcon
+                            platform={product.platform}
+                            showLabel
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{product.category}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(product.sales_volume)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <TrendTag
+                            direction={product.trend}
+                            value={product.growth_rate}
+                          />
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {product.price_range}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {product.rating}
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>
@@ -248,32 +265,44 @@ export default function TrendsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockCompetitors.map((comp) => (
-                  <TableRow key={comp.id}>
-                    <TableCell className="font-medium">{comp.name}</TableCell>
-                    <TableCell>
-                      <PlatformIcon platform={comp.platform} showLabel />
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{comp.top_category}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatNumber(comp.followers)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {comp.avg_engagement}%
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <TrendTag
-                        direction={comp.trend}
-                        value={comp.growth_rate}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {comp.recent_campaigns} 个
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {loadingCompetitors ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 7 }).map((_, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  competitors.map((comp) => (
+                    <TableRow key={comp.id}>
+                      <TableCell className="font-medium">{comp.name}</TableCell>
+                      <TableCell>
+                        <PlatformIcon platform={comp.platform} showLabel />
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{comp.top_category}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatNumber(comp.followers)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {comp.avg_engagement}%
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <TrendTag
+                          direction={comp.trend}
+                          value={comp.growth_rate}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {comp.recent_campaigns} 个
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

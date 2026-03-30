@@ -8,6 +8,7 @@ import { PlatformIcon } from "@/components/shared/platform-icon";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -17,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { contentKPIs, mockContents, mockTemplates } from "@/modules/content/mock-data";
+import { useSupabase } from "@/hooks/use-supabase";
+import { getContents, getContentTemplates } from "@/lib/supabase-queries";
 import { Platform } from "@/lib/types";
 
 import {
@@ -75,7 +78,68 @@ function formatDate(dateStr: string | null): string {
   return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function ContentCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-5 w-12" />
+          </div>
+          <Skeleton className="h-5 w-16" />
+        </div>
+        <Skeleton className="mt-2 h-4 w-3/4" />
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-4 gap-1">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <Skeleton className="h-3.5 w-3.5" />
+              <Skeleton className="h-3 w-8" />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          <Skeleton className="h-5 w-14" />
+          <Skeleton className="h-5 w-14" />
+          <Skeleton className="h-5 w-14" />
+        </div>
+        <Skeleton className="h-3 w-28" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function TemplateCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-5 w-5 rounded-full" />
+          <Skeleton className="h-5 w-12" />
+        </div>
+        <Skeleton className="mt-2 h-4 w-2/3" />
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Skeleton className="h-8 w-full" />
+        <div className="space-y-1.5">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-32" />
+        </div>
+        <div className="flex gap-1">
+          <Skeleton className="h-5 w-14" />
+          <Skeleton className="h-5 w-14" />
+        </div>
+        <Skeleton className="h-8 w-full" />
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ContentPage() {
+  const { data: contents, loading: loadingContents } = useSupabase(getContents, mockContents);
+  const { data: templates, loading: loadingTemplates } = useSupabase(getContentTemplates, mockTemplates);
   const [platform, setPlatform] = useState<string>("");
   const [tone, setTone] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("3");
@@ -109,8 +173,15 @@ export default function ContentPage() {
 
         {/* 内容列表 */}
         <TabsContent value="list">
+          {loadingContents ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <ContentCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {mockContents.map((item) => (
+            {contents.map((item) => (
               <Card key={item.id} className="transition-shadow hover:shadow-sm">
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
@@ -159,7 +230,7 @@ export default function ContentPage() {
 
                   {/* Tags */}
                   <div className="flex flex-wrap gap-1">
-                    {item.tags.map((tag) => (
+                    {item.tags.map((tag: string) => (
                       <Badge
                         key={tag}
                         variant="secondary"
@@ -183,6 +254,7 @@ export default function ContentPage() {
               </Card>
             ))}
           </div>
+          )}
         </TabsContent>
 
         {/* 批量生成 */}
@@ -273,8 +345,15 @@ export default function ContentPage() {
 
         {/* 模板库 */}
         <TabsContent value="templates">
+          {loadingTemplates ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <TemplateCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {mockTemplates.map((template) => (
+            {templates.map((template) => (
               <Card key={template.id} className="transition-shadow hover:shadow-sm">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
@@ -304,7 +383,7 @@ export default function ContentPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {template.example_tags.map((tag) => (
+                    {(template.example_tags || []).map((tag: string) => (
                       <Badge
                         key={tag}
                         variant="secondary"
@@ -321,6 +400,7 @@ export default function ContentPage() {
               </Card>
             ))}
           </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
