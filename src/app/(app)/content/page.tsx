@@ -8,6 +8,7 @@ import { PlatformIcon } from "@/components/shared/platform-icon";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -17,9 +18,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { contentKPIs, mockContents, mockTemplates } from "@/modules/content/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
 import { getContents, getContentTemplates } from "@/lib/supabase-queries";
+import { createContent, deleteContent } from "@/lib/supabase-mutations";
 import { Platform } from "@/lib/types";
 
 import {
@@ -32,6 +41,7 @@ import {
   CalendarDays,
   Zap,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -139,8 +149,11 @@ function TemplateCardSkeleton() {
 }
 
 export default function ContentPage() {
-  const { data: contents, loading: loadingContents } = useSupabase(getContents, mockContents);
+  const { data: initialContents, loading: loadingContents } = useSupabase(getContents, mockContents);
   const { data: templates, loading: loadingTemplates } = useSupabase(getContentTemplates, mockTemplates);
+  const [localContents, setLocalContents] = useState<typeof mockContents | null>(null);
+  const contents = localContents ?? initialContents;
+
   const [platform, setPlatform] = useState<string>("");
   const [tone, setTone] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("3");
@@ -148,6 +161,41 @@ export default function ContentPage() {
   const [generating, setGenerating] = useState(false);
   const [generatedResults, setGeneratedResults] = useState<{ title: string; body: string }[]>([]);
   const [genError, setGenError] = useState("");
+
+  // CRUD state
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [formData, setFormData] = useState({ title: "", body: "", platform: "xiaohongshu", content_type: "image_post", tags: "" });
+  const [saving, setSaving] = useState(false);
+
+  const refreshContents = async () => {
+    const fresh = await getContents();
+    setLocalContents(fresh);
+  };
+
+  const handleCreate = async () => {
+    setSaving(true);
+    try {
+      await createContent({
+        title: formData.title,
+        body: formData.body,
+        platform: formData.platform,
+        content_type: formData.content_type,
+        tags: formData.tags.split(",").map(t => t.trim()).filter(Boolean),
+      });
+      setShowCreateDialog(false);
+      setFormData({ title: "", body: "", platform: "xiaohongshu", content_type: "image_post", tags: "" });
+      await refreshContents();
+    } catch (err) {
+      console.error(err);
+    }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("确定要删除这条内容吗？")) return;
+    await deleteContent(id);
+    await refreshContents();
+  };
 
   const handleGenerate = async () => {
     if (!topic.trim()) { setGenError("请输入内容主题"); return; }
@@ -176,10 +224,16 @@ export default function ContentPage() {
         title="内容工厂"
         description="AI 驱动的内容批量生成与管理"
         actions={
-          <Button>
-            <Plus className="h-4 w-4" data-icon="inline-start" />
-            批量生成
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowCreateDialog(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              新建内容
+            </Button>
+            <Button>
+              <Plus className="h-4 w-4" data-icon="inline-start" />
+              批量生成
+            </Button>
+          </div>
         }
       />
 
@@ -216,7 +270,17 @@ export default function ContentPage() {
                         {CONTENT_TYPE_LABELS[item.content_type] || item.content_type}
                       </Badge>
                     </div>
-                    <StatusBadge status={item.status} />
+                    <div className="flex items-center gap-1">
+                      <StatusBadge status={item.status} />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDelete(item.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                   <CardTitle className="mt-2 text-sm font-medium leading-snug line-clamp-2">
                     {item.title}
@@ -481,6 +545,93 @@ export default function ContentPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* 新建内容对话框 */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>新建内容</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">标题</label>
+              <Input
+                placeholder="请输入内容标题"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">正文</label>
+              <textarea
+                className={cn(
+                  "flex min-h-[80px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm",
+                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
+                )}
+                placeholder="请输入正文内容"
+                value={formData.body}
+                onChange={(e) => setFormData({ ...formData, body: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">平台</label>
+                <Select value={formData.platform} onValueChange={(v) => v && setFormData({ ...formData, platform: v })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择平台" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLATFORMS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">内容类型</label>
+                <Select value={formData.content_type} onValueChange={(v) => v && setFormData({ ...formData, content_type: v })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CONTENT_TYPE_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">标签</label>
+              <Input
+                placeholder="用逗号分隔多个标签，例如：护肤,美妆,推荐"
+                value={formData.tags}
+                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreate} disabled={saving || !formData.title.trim()}>
+              {saving ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  保存中...
+                </>
+              ) : (
+                "保存"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

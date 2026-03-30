@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
 import { ChartCard } from "@/components/shared/chart-card";
@@ -7,6 +8,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -16,6 +18,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   storeKPIs,
@@ -25,6 +42,7 @@ import {
 } from "@/modules/store/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
 import { getProducts } from "@/lib/supabase-queries";
+import { createProduct, deleteProduct } from "@/lib/supabase-mutations";
 import {
   LineChart,
   Line,
@@ -39,6 +57,8 @@ import { formatCurrency } from "@/lib/format";
 import {
   Plus,
   MoreHorizontal,
+  Trash2,
+  Loader2,
   AlertTriangle,
   AlertCircle,
   Info,
@@ -135,7 +155,51 @@ function OverallScoreRing({ score }: { score: number }) {
 }
 
 export default function StorePage() {
-  const { data: products, loading: loadingProducts } = useSupabase(getProducts, mockProducts);
+  const { data: initialProducts, loading: loadingProducts } = useSupabase(getProducts, mockProducts);
+  const [localProducts, setLocalProducts] = useState<typeof mockProducts | null>(null);
+  const products = localProducts ?? initialProducts;
+
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    sku: "",
+    price: "",
+    stock: "",
+    category: "",
+    platform: "shopify",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const refreshProducts = async () => {
+    const fresh = await getProducts();
+    setLocalProducts(fresh);
+  };
+
+  const handleCreate = async () => {
+    setSaving(true);
+    try {
+      await createProduct({
+        name: formData.name,
+        sku: formData.sku,
+        price: parseFloat(formData.price) || 0,
+        stock: parseInt(formData.stock) || 0,
+        category: formData.category,
+        platform: formData.platform,
+      });
+      setShowCreateDialog(false);
+      setFormData({ name: "", sku: "", price: "", stock: "", category: "", platform: "shopify" });
+      await refreshProducts();
+    } catch (err) {
+      console.error(err);
+    }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("确定要删除这个商品吗？")) return;
+    await deleteProduct(id);
+    await refreshProducts();
+  };
 
   return (
     <div className="space-y-6">
@@ -143,7 +207,7 @@ export default function StorePage() {
         title="店铺优化中心"
         description="全方位优化店铺表现，提升转化率与搜索排名"
         actions={
-          <Button size="sm">
+          <Button size="sm" onClick={() => setShowCreateDialog(true)}>
             <Plus className="mr-1.5 h-4 w-4" />
             添加商品
           </Button>
@@ -220,9 +284,19 @@ export default function StorePage() {
                           <SEOProgressBar score={product.seo_score} />
                         </TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleDelete(product.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -405,6 +479,90 @@ export default function StorePage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* 创建商品对话框 */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>添加商品</DialogTitle>
+            <DialogDescription>填写商品信息以创建新商品</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">商品名称</label>
+              <Input
+                placeholder="请输入商品名称"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">SKU</label>
+                <Input
+                  placeholder="请输入 SKU"
+                  value={formData.sku}
+                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">价格</label>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">库存</label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">品类</label>
+                <Input
+                  placeholder="请输入品类"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">平台</label>
+              <Select
+                value={formData.platform}
+                onValueChange={(val) => setFormData({ ...formData, platform: val as string })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择平台" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="shopify">Shopify</SelectItem>
+                  <SelectItem value="amazon">Amazon</SelectItem>
+                  <SelectItem value="tiktok">TikTok Shop</SelectItem>
+                  <SelectItem value="独立站">独立站</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreate} disabled={saving || !formData.name}>
+              {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {saving ? "创建中..." : "创建商品"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
