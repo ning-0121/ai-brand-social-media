@@ -10,6 +10,7 @@ import {
   Users,
   Megaphone,
   GitBranch,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "广告投放", href: "/ads", icon: Megaphone, group: "增长" },
   { label: "渠道拓展", href: "/channels", icon: GitBranch, group: "增长" },
   { label: "技能包", href: "/skills", icon: GraduationCap, group: "学习" },
+  { label: "系统设置", href: "/settings", icon: Settings, group: "系统" },
 ];
 
 export const PLATFORM_LABELS: Record<string, string> = {
