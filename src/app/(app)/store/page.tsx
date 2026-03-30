@@ -59,6 +59,7 @@ import {
   MoreHorizontal,
   Trash2,
   Loader2,
+  Sparkles,
   AlertTriangle,
   AlertCircle,
   Info,
@@ -177,6 +178,38 @@ export default function StorePage() {
     platform: "shopify",
   });
   const [saving, setSaving] = useState(false);
+
+  // AI SEO 分析状态
+  const [analyzing, setAnalyzing] = useState(false);
+  const [seoInput, setSeoInput] = useState("");
+  const [seoResults, setSeoResults] = useState<{category: string; priority: string; current: string; suggestion: string}[]>([]);
+
+  const handleAnalyzeSEO = async () => {
+    if (!seoInput.trim()) return;
+    setAnalyzing(true);
+    setSeoResults([]);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scene: "seo_optimize", topic: seoInput }),
+      });
+      const data = await res.json();
+      const text = data.result || data.text || "";
+      // 尝试从返回文本中解析 JSON 数组
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as {category: string; priority: string; current: string; suggestion: string}[];
+        // 按优先级排序：high > medium > low
+        const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+        parsed.sort((a, b) => (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3));
+        setSeoResults(parsed);
+      }
+    } catch (err) {
+      console.error("SEO 分析失败:", err);
+    }
+    setAnalyzing(false);
+  };
 
   const refreshProducts = async () => {
     const fresh = await getProducts();
@@ -317,6 +350,97 @@ export default function StorePage() {
 
         {/* SEO 优化 */}
         <TabsContent value="seo" className="space-y-4">
+          {/* AI SEO 分析 */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-purple-500" />
+                <CardTitle className="text-sm font-medium">AI SEO 分析</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <textarea
+                  className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+                  placeholder="输入产品名称和描述，例如：轻薄冰丝防晒衣 UPF50+，专为户外运动设计..."
+                  value={seoInput}
+                  onChange={(e) => setSeoInput(e.target.value)}
+                />
+                <Button
+                  size="sm"
+                  onClick={handleAnalyzeSEO}
+                  disabled={analyzing || !seoInput.trim()}
+                >
+                  {analyzing ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-1.5 h-4 w-4" />
+                  )}
+                  {analyzing ? "分析中..." : "AI 分析 SEO"}
+                </Button>
+              </div>
+
+              {seoResults.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">分析结果</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {seoResults.length} 条建议
+                    </Badge>
+                  </div>
+                  {seoResults.map((item, idx) => {
+                    const categoryColors: Record<string, string> = {
+                      "标题": "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+                      "描述": "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
+                      "关键词": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                      "图片": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+                      "结构": "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
+                    };
+                    const priorityColors: Record<string, string> = {
+                      high: "bg-destructive/10 text-destructive border-destructive/20",
+                      medium: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                      low: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                    };
+                    const priorityLabels: Record<string, string> = {
+                      high: "高优先",
+                      medium: "中优先",
+                      low: "低优先",
+                    };
+
+                    return (
+                      <div key={idx} className="rounded-lg border p-3 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge
+                            variant="secondary"
+                            className={cn("text-xs", categoryColors[item.category] || "bg-gray-100 text-gray-700")}
+                          >
+                            {item.category}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={cn("text-xs", priorityColors[item.priority] || "")}
+                          >
+                            {priorityLabels[item.priority] || item.priority}
+                          </Badge>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">当前问题：</span>
+                            {item.current}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-medium text-emerald-600 dark:text-emerald-400">AI 建议：</span>
+                            {item.suggestion}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {/* 总分卡片 */}
             <Card>

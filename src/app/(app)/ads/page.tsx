@@ -1,10 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -14,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Copy, Pencil } from "lucide-react";
+import { Plus, Copy, Pencil, Sparkles, Loader2 } from "lucide-react";
 import type { KPIData } from "@/lib/types";
 
 /* ------------------------------------------------------------------ */
@@ -151,7 +160,47 @@ function formatFunnelNumber(n: number) {
 /*  Page Component                                                     */
 /* ================================================================== */
 
+const AD_PLATFORMS = [
+  { value: "facebook", label: "Facebook" },
+  { value: "google", label: "Google" },
+  { value: "tiktok", label: "TikTok" },
+  { value: "xiaohongshu", label: "小红书" },
+];
+
 export default function AdsPage() {
+  const [generating, setGenerating] = useState(false);
+  const [adTopic, setAdTopic] = useState("");
+  const [adPlatform, setAdPlatform] = useState("facebook");
+  const [adAudience, setAdAudience] = useState("");
+  const [generatedAds, setGeneratedAds] = useState<{title: string; body: string; cta?: string}[]>([]);
+  const [genError, setGenError] = useState("");
+
+  const handleGenerateAd = async () => {
+    if (!adTopic.trim()) { setGenError("请输入产品或主题"); return; }
+    setGenerating(true);
+    setGenError("");
+    setGeneratedAds([]);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scene: "ad_copy",
+          topic: adTopic,
+          ad_platform: adPlatform,
+          audience: adAudience,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "生成失败");
+      setGeneratedAds(Array.isArray(data.result) ? data.result : [data.result]);
+    } catch (err: unknown) {
+      setGenError(err instanceof Error ? err.message : "生成失败，请稍后重试");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* ---------- Header ---------- */}
@@ -228,7 +277,104 @@ export default function AdsPage() {
         </TabsContent>
 
         {/* ========== 创意库 ========== */}
-        <TabsContent value="creatives">
+        <TabsContent value="creatives" className="space-y-6">
+          {/* ---------- AI 广告文案生成 ---------- */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-5 w-5 text-primary" />
+                AI 广告文案生成
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {/* 产品/主题 */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">产品 / 主题</label>
+                  <Input
+                    placeholder="例如：春季新款连衣裙"
+                    value={adTopic}
+                    onChange={(e) => setAdTopic(e.target.value)}
+                  />
+                </div>
+
+                {/* 投放平台 */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">投放平台</label>
+                  <Select value={adPlatform} onValueChange={(v) => v && setAdPlatform(v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="选择平台" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AD_PLATFORMS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 目标受众 */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">目标受众</label>
+                  <Input
+                    placeholder="例如：25-35岁女性，关注美妆"
+                    value={adAudience}
+                    onChange={(e) => setAdAudience(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {genError && (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+                  {genError}
+                </div>
+              )}
+
+              <Button onClick={handleGenerateAd} disabled={generating}>
+                {generating ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1.5 h-4 w-4" />
+                )}
+                {generating ? "生成中..." : "AI 生成广告文案"}
+              </Button>
+
+              {/* 生成结果 */}
+              {generatedAds.length > 0 && (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 pt-2">
+                  {generatedAds.map((ad, idx) => (
+                    <Card key={idx} className="transition-shadow hover:shadow-sm">
+                      <CardContent className="p-4 space-y-3">
+                        <h4 className="text-sm font-semibold leading-tight">{ad.title}</h4>
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">{ad.body}</p>
+                        {ad.cta && (
+                          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                            {ad.cta}
+                          </Badge>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            const text = `${ad.title}\n\n${ad.body}${ad.cta ? `\n\nCTA: ${ad.cta}` : ""}`;
+                            navigator.clipboard.writeText(text);
+                          }}
+                        >
+                          <Copy className="mr-1.5 h-3.5 w-3.5" />
+                          复制
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ---------- 创意素材列表 ---------- */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {creatives.map((c) => (
               <Card key={c.id} className="transition-shadow hover:shadow-sm">

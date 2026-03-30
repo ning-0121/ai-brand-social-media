@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
 import { ChartCard } from "@/components/shared/chart-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart,
@@ -18,7 +20,8 @@ import {
 } from "recharts";
 import {
   Plus,
-
+  Loader2,
+  Copy,
   Eye,
   ShoppingCart,
   TrendingUp,
@@ -158,6 +161,29 @@ function formatNumber(num: number): string {
 /* ------------------------------------------------------------------ */
 
 export default function LivePage() {
+  const [generating, setGenerating] = useState(false);
+  const [activeScript, setActiveScript] = useState("");
+  const [generatedScripts, setGeneratedScripts] = useState<{title: string; body: string}[]>([]);
+  const [genTopic, setGenTopic] = useState("");
+
+  const handleGenerate = async (scriptType: string) => {
+    if (!genTopic.trim()) return;
+    setGenerating(true);
+    setActiveScript(scriptType);
+    setGeneratedScripts([]);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scene: "live_script", topic: `产品/主题：${genTopic}`, script_type: scriptType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setGeneratedScripts(data.results || []);
+    } catch (err) { console.error(err); }
+    setGenerating(false);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -225,10 +251,35 @@ export default function LivePage() {
         </TabsContent>
 
         {/* ---- 话术库 ---- */}
-        <TabsContent value="scripts">
+        <TabsContent value="scripts" className="space-y-4">
+          {/* AI 生成输入区 */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="输入产品名或直播主题..."
+                  value={genTopic}
+                  onChange={(e) => setGenTopic(e.target.value)}
+                  className="flex-1"
+                />
+                {generating && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    正在生成...
+                  </div>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                输入主题后，点击下方话术卡片的「AI 生成」按钮，即可生成对应类型的直播话术
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* 话术模板卡片 */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {scriptTemplates.map((tpl) => {
               const Icon = tpl.icon;
+              const isActive = generating && activeScript === tpl.title;
               return (
                 <Card key={tpl.id} className="transition-shadow hover:shadow-sm">
                   <CardHeader className="pb-2">
@@ -250,14 +301,59 @@ export default function LivePage() {
                         </li>
                       ))}
                     </ul>
-                    <Button variant="outline" size="sm" className="w-full">
-                      使用
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={generating || !genTopic.trim()}
+                      onClick={() => handleGenerate(tpl.title)}
+                    >
+                      {isActive ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          生成中...
+                        </>
+                      ) : (
+                        "AI 生成"
+                      )}
                     </Button>
                   </CardContent>
                 </Card>
               );
             })}
           </div>
+
+          {/* AI 生成结果 */}
+          {generatedScripts.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">AI 生成结果</h3>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {generatedScripts.map((script, idx) => (
+                  <Card key={idx} className="transition-shadow hover:shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        {script.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                        {script.body}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => navigator.clipboard.writeText(script.body)}
+                      >
+                        <Copy className="mr-1.5 h-3.5 w-3.5" />
+                        复制话术
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* ---- 直播复盘 ---- */}

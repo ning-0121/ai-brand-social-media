@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -14,10 +17,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-
   User,
   Check,
   X,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import type { KPIData } from "@/lib/types";
 
@@ -230,6 +234,38 @@ function ThreatBadge({ level }: { level: "高" | "中" | "低" }) {
 /* ------------------------------------------------------------------ */
 
 export default function StrategyPage() {
+  const [analyzing, setAnalyzing] = useState(false);
+  const [brandInput, setBrandInput] = useState("");
+  const [analysisResult, setAnalysisResult] = useState<{
+    positioning?: string;
+    target_audience?: string;
+    core_values?: string[];
+    differentiators?: string[];
+    tone_keywords?: string[];
+    suggestions?: string[];
+  } | null>(null);
+
+  async function handleAnalyze() {
+    if (!brandInput.trim() || analyzing) return;
+    setAnalyzing(true);
+    setAnalysisResult(null);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scene: "brand_analysis", topic: brandInput }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const result = data.results?.[0] ?? null;
+      setAnalysisResult(result);
+    } catch (err) {
+      console.error("品牌分析失败:", err);
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -254,7 +290,158 @@ export default function StrategyPage() {
         </TabsList>
 
         {/* ---- 品牌定位 ---- */}
-        <TabsContent value="positioning">
+        <TabsContent value="positioning" className="space-y-4">
+          {/* AI 品牌定位分析 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-500" />
+                AI 品牌定位分析
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Textarea
+                placeholder="描述你的品牌/产品，例如：我们是一个主打年轻女性的轻奢护肤品牌，主要在小红书和抖音销售..."
+                rows={3}
+                value={brandInput}
+                onChange={(e) => setBrandInput(e.target.value)}
+                disabled={analyzing}
+              />
+              <Button
+                onClick={handleAnalyze}
+                disabled={analyzing || !brandInput.trim()}
+              >
+                {analyzing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                {analyzing ? "分析中..." : "AI 分析"}
+              </Button>
+
+              {analysisResult && (
+                <div className="mt-6 space-y-4">
+                  {/* 品牌定位 */}
+                  {analysisResult.positioning && (
+                    <div className="rounded-lg border-l-4 border-purple-500 bg-purple-50 p-4 dark:bg-purple-950/30">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                        品牌定位
+                      </p>
+                      <p className="text-base font-semibold text-purple-700 dark:text-purple-300">
+                        &ldquo;{analysisResult.positioning}&rdquo;
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {/* 目标用户 */}
+                    {analysisResult.target_audience && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">目标用户</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm leading-relaxed text-foreground/80">
+                            {analysisResult.target_audience}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* 核心价值 */}
+                    {analysisResult.core_values && analysisResult.core_values.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">核心价值</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2">
+                            {analysisResult.core_values.map((v, i) => (
+                              <Badge key={i} variant="secondary" className="text-sm px-3 py-1">
+                                {v}
+                              </Badge>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* 差异化优势 */}
+                    {analysisResult.differentiators && analysisResult.differentiators.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">差异化优势</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-1.5">
+                            {analysisResult.differentiators.map((d, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm text-foreground/80">
+                                <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-purple-500" />
+                                {d}
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* 品牌调性 */}
+                    {analysisResult.tone_keywords && analysisResult.tone_keywords.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">品牌调性</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2">
+                            {analysisResult.tone_keywords.map((kw, i) => {
+                              const colors = [
+                                "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+                                "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+                                "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+                                "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300",
+                                "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300",
+                              ];
+                              return (
+                                <span
+                                  key={i}
+                                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${colors[i % colors.length]}`}
+                                >
+                                  {kw}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  {/* 策略建议 */}
+                  {analysisResult.suggestions && analysisResult.suggestions.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">策略建议</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ol className="space-y-2">
+                          {analysisResult.suggestions.map((s, i) => (
+                            <li key={i} className="flex items-start gap-3 text-sm text-foreground/80">
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-100 text-xs font-semibold text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                {i + 1}
+                              </span>
+                              {s}
+                            </li>
+                          ))}
+                        </ol>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 品牌定位概览 (原有静态内容) */}
           <Card>
             <CardHeader>
               <CardTitle>品牌定位概览</CardTitle>
