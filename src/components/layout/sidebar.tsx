@@ -1,10 +1,12 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "@/lib/constants";
 import { useSidebar } from "@/hooks/use-sidebar";
+import { getPendingCount } from "@/lib/supabase-approval";
 import { Brain, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -13,6 +15,15 @@ import { Separator } from "@/components/ui/separator";
 export function Sidebar() {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    getPendingCount().then(setPendingCount).catch(() => {});
+    const interval = setInterval(() => {
+      getPendingCount().then(setPendingCount).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Group nav items
   const groups = NAV_ITEMS.reduce((acc, item) => {
@@ -66,6 +77,11 @@ export function Sidebar() {
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && item.href === "/approvals" && pendingCount > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1.5">
+                        {pendingCount}
+                      </span>
+                    )}
                   </Link>
                 );
 

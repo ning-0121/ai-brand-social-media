@@ -14,6 +14,8 @@ const STATUS_VARIANTS: Record<string, string> = {
   failed: "bg-destructive/10 text-destructive border-destructive/20",
   inactive: "bg-muted text-muted-foreground border-border",
   out_of_stock: "bg-destructive/10 text-destructive border-destructive/20",
+  approved: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  executed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
 };
 
 interface StatusBadgeProps {

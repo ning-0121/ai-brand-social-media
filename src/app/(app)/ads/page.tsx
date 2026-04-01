@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
+import { AIInsightCard } from "@/components/shared/ai-insight-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -231,7 +232,13 @@ export default function AdsPage() {
         </TabsList>
 
         {/* ========== 广告管理 ========== */}
-        <TabsContent value="ads">
+        <TabsContent value="ads" className="space-y-4">
+          <AIInsightCard
+            title="AI 投放优化建议"
+            description="分析当前广告表现，给出预算和策略调整建议"
+            scene="ad_optimization"
+            topic="当前广告投放数据: 8 个活跃广告，总花费 ¥4.2万，平均 ROAS 3.6x，总转化 1,245 次。平台分布: 抖音 4 个, 小红书 2 个, Instagram 2 个。请分析哪些广告应该加大投放，哪些应该暂停，如何优化整体 ROAS。"
+          />
           <Card>
             <CardContent className="p-0">
               <Table>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
+import { AIInsightCard } from "@/components/shared/ai-insight-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -120,6 +121,13 @@ export default function SkillsPage() {
           <KPICard key={kpi.label} {...kpi} />
         ))}
       </KPICardGrid>
+
+      <AIInsightCard
+        title="AI 学习推荐"
+        description="根据你的运营阶段和业务需求，AI 推荐最应优先学习的技能"
+        scene="skill_recommendation"
+        topic="用户角色: 新品牌运营者。当前业务: 刚起步的电商品牌，已入驻 Shopify 和 TikTok Shop。需要提升: 内容运营、SEO 优化、社媒投放。请推荐最应该优先学习的技能和学习路径。"
+      />
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

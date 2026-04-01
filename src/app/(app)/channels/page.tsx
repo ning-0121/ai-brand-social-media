@@ -2,6 +2,7 @@
 
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
+import { AIInsightCard } from "@/components/shared/ai-insight-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -342,7 +343,13 @@ export default function ChannelsPage() {
         </TabsContent>
 
         {/* ---- 推荐渠道 ---- */}
-        <TabsContent value="recommended">
+        <TabsContent value="recommended" className="space-y-4">
+          <AIInsightCard
+            title="AI 渠道评估"
+            description="AI 评估各推荐渠道的适配度和入驻优先级"
+            scene="channel_evaluation"
+            topic="品牌现状: 已入驻 Amazon、TikTok Shop、Shopify、Etsy，总 GMV ¥68.5万。待评估渠道: Walmart、Faire(B2B)、FashionGo、Temu、SHEIN Marketplace、Wish。品牌品类: 综合电商（美妆、服饰、家居）。请评估每个推荐渠道的适配度和入驻优先级。"
+          />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {recommendedChannels.map((ch) => (
               <Card key={ch.id} className="transition-shadow hover:shadow-sm">

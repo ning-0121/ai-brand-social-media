@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
+import { AIInsightCard } from "@/components/shared/ai-insight-card";
 import { ChartCard } from "@/components/shared/chart-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -206,6 +207,14 @@ export default function DashboardPage() {
           <KPICard key={kpi.label} {...kpi} />
         ))}
       </KPICardGrid>
+
+      <AIInsightCard
+        title="AI 每日运营洞察"
+        description="基于今日运营数据，AI 生成优先行动建议"
+        scene="ai_daily_insight"
+        topic={`今日运营数据概况：总销售额 ¥128.5万（+12.5%），订单 3,842 单（+8.3%），内容发布 156 条（+23.1%），粉丝增长 12.3%。待处理任务 3 项，其中 1 项紧急。请给出今日最重要的运营行动建议。`}
+        autoLoad
+      />
 
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>

@@ -11,6 +11,7 @@ import {
   Megaphone,
   GitBranch,
   Settings,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,6 +28,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "内容工厂", href: "/content", icon: FileText, group: "核心" },
   { label: "店铺优化", href: "/store", icon: Store, group: "核心" },
   { label: "社媒规划", href: "/social", icon: Share2, group: "核心" },
+  { label: "审批中心", href: "/approvals", icon: ClipboardCheck, group: "核心" },
   { label: "品牌策略", href: "/strategy", icon: Target, group: "增长" },
   { label: "直播中心", href: "/live", icon: Video, group: "增长" },
   { label: "达人中心", href: "/influencers", icon: Users, group: "增长" },
@@ -57,4 +59,6 @@ export const STATUS_LABELS: Record<string, string> = {
   pending_review: "审核中",
   queued: "排队中",
   failed: "发布失败",
+  approved: "已批准",
+  executed: "已执行",
 };

@@ -80,6 +80,16 @@ export async function getSkillPacks() {
   return data;
 }
 
+// Influencers
+export async function getInfluencers() {
+  const { data, error } = await supabase
+    .from("influencers")
+    .select("*")
+    .order("ai_score", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 // ============ KPI Aggregations ============
 
 // Content KPIs
@@ -156,6 +166,19 @@ export async function getTrendsKPIs() {
     avgGrowth,
     competitors: competitorCount || 0,
   };
+}
+
+// Influencer KPIs
+export async function getInfluencerKPIs() {
+  const { data: influencers } = await supabase.from("influencers").select("status, avg_roi, total_revenue");
+  if (!influencers?.length) return { total: 0, active: 0, pending: 0, avgROI: 0 };
+  const active = influencers.filter(i => i.status === "active").length;
+  const pending = influencers.filter(i => i.status === "pending").length;
+  const withROI = influencers.filter(i => i.avg_roi > 0);
+  const avgROI = withROI.length > 0
+    ? Math.round(withROI.reduce((s, i) => s + Number(i.avg_roi), 0) / withROI.length * 10) / 10
+    : 0;
+  return { total: influencers.length, active, pending, avgROI };
 }
 
 // Skills KPIs

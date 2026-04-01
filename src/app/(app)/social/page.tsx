@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
+import { AIInsightCard } from "@/components/shared/ai-insight-card";
 import { ChartCard } from "@/components/shared/chart-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PlatformIcon } from "@/components/shared/platform-icon";
@@ -173,7 +174,13 @@ export default function SocialPage() {
         </TabsList>
 
         {/* ---------- 发布队列 ---------- */}
-        <TabsContent value="queue">
+        <TabsContent value="queue" className="space-y-4">
+          <AIInsightCard
+            title="AI 排期建议"
+            description="分析各平台最佳发布时间和频率"
+            scene="social_scheduling"
+            topic="当前社媒运营情况: 管理 TikTok、Instagram、小红书 3 个平台。已发布内容以图文和短视频为主。请分析最佳发布时间、频率和内容配比。"
+          />
           <Card>
             <CardContent className="p-0">
               <Table>

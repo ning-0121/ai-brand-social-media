@@ -54,6 +54,8 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
+import { SEOOptimizeDialog } from "@/components/store/seo-optimize-dialog";
+import { getIntegrationByPlatform } from "@/lib/supabase-integrations";
 import {
   Plus,
   MoreHorizontal,
@@ -64,6 +66,7 @@ import {
   AlertCircle,
   Info,
   CheckCircle2,
+  Wand2,
 } from "lucide-react";
 
 const SEVERITY_CONFIG: Record<string, { label: string; className: string; icon: React.ElementType }> = {
@@ -179,6 +182,14 @@ export default function StorePage() {
   });
   const [saving, setSaving] = useState(false);
 
+  // AI SEO per-product optimization
+  const [seoDialogOpen, setSeoDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<typeof mockProducts[0] | null>(null);
+  const { data: shopifyIntegration } = useSupabase(
+    () => getIntegrationByPlatform("shopify"),
+    null
+  );
+
   // AI SEO 分析状态
   const [analyzing, setAnalyzing] = useState(false);
   const [seoInput, setSeoInput] = useState("");
@@ -289,7 +300,7 @@ export default function StorePage() {
                     <TableHead className="text-right">库存</TableHead>
                     <TableHead>状态</TableHead>
                     <TableHead>SEO 分</TableHead>
-                    <TableHead className="w-[60px]">操作</TableHead>
+                    <TableHead className="w-[120px]">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -326,6 +337,18 @@ export default function StorePage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-purple-500 hover:text-purple-700 hover:bg-purple-500/10"
+                              title="AI SEO 优化"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setSeoDialogOpen(true);
+                              }}
+                            >
+                              <Wand2 className="h-4 w-4" />
+                            </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
@@ -611,6 +634,17 @@ export default function StorePage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* AI SEO 优化对话框 */}
+      <SEOOptimizeDialog
+        open={seoDialogOpen}
+        onOpenChange={setSeoDialogOpen}
+        product={selectedProduct}
+        integrationId={shopifyIntegration?.id || null}
+        onSubmitted={() => {
+          refreshProducts();
+        }}
+      />
 
       {/* 创建商品对话框 */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

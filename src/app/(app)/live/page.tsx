@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
+import { AIInsightCard } from "@/components/shared/ai-insight-card";
 import { ChartCard } from "@/components/shared/chart-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -358,6 +359,12 @@ export default function LivePage() {
 
         {/* ---- 直播复盘 ---- */}
         <TabsContent value="review" className="space-y-4">
+          <AIInsightCard
+            title="AI 直播复盘分析"
+            description="基于直播数据，AI 生成具体改进方案"
+            scene="live_review"
+            topic="最近一场直播数据: 主题「爆款返场 限时秒杀」，观看 8,600 人，峰值在线 1,250，互动数 3,420，GMV ¥42,800。平均观看时长 4.2 分钟，转化率 3.2%。请分析表现并给出改进建议。"
+          />
           {/* 基本数据 */}
           <Card>
             <CardHeader className="pb-2">

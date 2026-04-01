@@ -124,6 +124,70 @@ export async function deleteScheduledPost(id: string) {
   if (error) throw error;
 }
 
+// ============ Competitors ============
+export async function createCompetitor(data: {
+  name: string;
+  platform: string;
+  top_category?: string;
+  followers?: number;
+  avg_engagement?: number;
+  growth_rate?: number;
+  trend?: string;
+  recent_campaigns?: number;
+  url?: string;
+}) {
+  const { data: result, error } = await supabase
+    .from("competitors")
+    .insert({ trend: "flat", followers: 0, avg_engagement: 0, growth_rate: 0, recent_campaigns: 0, ...data })
+    .select()
+    .single();
+  if (error) throw error;
+  return result;
+}
+
+export async function deleteCompetitor(id: string) {
+  const { error } = await supabase.from("competitors").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ============ Influencers ============
+export async function createInfluencer(data: {
+  name: string;
+  platform: string;
+  handle?: string;
+  followers?: number;
+  engagement_rate?: number;
+  category?: string;
+  price_min?: number;
+  price_max?: number;
+  bio?: string;
+  profile_url?: string;
+}) {
+  const { data: result, error } = await supabase
+    .from("influencers")
+    .insert({ status: "pending", ai_score: 0, collaboration_count: 0, ...data })
+    .select()
+    .single();
+  if (error) throw error;
+  return result;
+}
+
+export async function updateInfluencer(id: string, data: Record<string, unknown>) {
+  const { data: result, error } = await supabase
+    .from("influencers")
+    .update(data)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return result;
+}
+
+export async function deleteInfluencer(id: string) {
+  const { error } = await supabase.from("influencers").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // ============ Hot Products ============
 export async function createHotProduct(data: {
   name: string;

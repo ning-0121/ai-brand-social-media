@@ -29,6 +29,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/influencers": "达人中心",
   "/ads": "广告投放中心",
   "/channels": "渠道拓展中心",
+  "/approvals": "审批中心",
+  "/settings": "系统设置",
 };
 
 export function TopBar() {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
+import { AIInsightCard } from "@/components/shared/ai-insight-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -464,7 +465,13 @@ export default function StrategyPage() {
         </TabsContent>
 
         {/* ---- 用户画像 ---- */}
-        <TabsContent value="personas">
+        <TabsContent value="personas" className="space-y-4">
+          <AIInsightCard
+            title="AI 用户画像生成"
+            description="根据品牌定位，AI 自动生成目标用户画像"
+            scene="persona_generation"
+            topic="品牌: BrandMind AI - AI驱动的品牌运营平台。目标市场: 中小电商、DTC出海品牌、新消费创业公司。价格带: ¥299-¥1,999/月。请生成 3 个目标用户画像。"
+          />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {personas.map((persona) => (
               <Card key={persona.name}>
@@ -568,6 +575,12 @@ export default function StrategyPage() {
 
         {/* ---- 品牌调性 ---- */}
         <TabsContent value="tone" className="space-y-4">
+          <AIInsightCard
+            title="AI 品牌调性生成"
+            description="AI 根据品牌定位生成完整的视觉和语言调性指南"
+            scene="brand_tone"
+            topic="品牌: BrandMind AI - AI驱动的品牌运营平台。定位: 帮助新品牌用 AI 替代传统运营团队。目标用户: 年轻电商创业者。请生成品牌调性指南，包含语气关键词、Do/Don't、色彩建议。"
+          />
           {/* 品牌色彩 */}
           <Card>
             <CardHeader>

@@ -30,6 +30,8 @@ import { useSupabase } from "@/hooks/use-supabase";
 import { getContents, getContentTemplates, getContentKPIs } from "@/lib/supabase-queries";
 import { createContent, deleteContent } from "@/lib/supabase-mutations";
 import { Platform, KPIData } from "@/lib/types";
+import { ContentPreview } from "@/components/content/content-preview";
+import { ImageGenerator } from "@/components/content/image-generator";
 
 import {
   Plus,
@@ -42,6 +44,10 @@ import {
   Zap,
   Loader2,
   Trash2,
+  Image as ImageIcon,
+  FileText as FileTextIcon,
+  Send,
+  Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -170,6 +176,20 @@ export default function ContentPage() {
   const [generatedResults, setGeneratedResults] = useState<{ title: string; body: string }[]>([]);
   const [genError, setGenError] = useState("");
 
+  // Content package state
+  const [genMode, setGenMode] = useState<"text" | "package">("package");
+  const [packageResult, setPackageResult] = useState<{
+    title: string;
+    body: string;
+    hashtags: string[];
+    image_prompt: string;
+    cta: string;
+    image_url?: string;
+  } | null>(null);
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [submittingApproval, setSubmittingApproval] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+
   // CRUD state
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [formData, setFormData] = useState({ title: "", body: "", platform: "xiaohongshu", content_type: "image_post", tags: "" });
@@ -210,20 +230,130 @@ export default function ContentPage() {
     setGenerating(true);
     setGenError("");
     setGeneratedResults([]);
+    setPackageResult(null);
+
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform: platform || "xiaohongshu", topic, tone: tone || "casual", quantity }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "生成失败");
-      setGeneratedResults(data.results || []);
+      if (genMode === "package") {
+        // Content package mode: generate text + image prompt
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scene: "content_package",
+            platform: platform || "xiaohongshu",
+            topic,
+            tone: tone || "casual",
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "生成失败");
+        const result = data.results?.[0] || data.results;
+        if (result) {
+          setPackageResult({
+            title: result.title || "",
+            body: result.body || "",
+            hashtags: result.hashtags || [],
+            image_prompt: result.image_prompt || "",
+            cta: result.cta || "",
+          });
+          // Auto-generate image
+          if (result.image_prompt) {
+            setGeneratingImage(true);
+            try {
+              const imgRes = await fetch("/api/generate-image", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  prompt: result.image_prompt,
+                  style: platform === "amazon" || platform === "shopify" ? "product_photo" : "social_media",
+                  size: platform === "tiktok" || platform === "xiaohongshu" ? "1024x1792" : "1024x1024",
+                  quantity: 1,
+                }),
+              });
+              const imgData = await imgRes.json();
+              if (imgData.images?.[0]) {
+                setPackageResult((prev) =>
+                  prev ? { ...prev, image_url: imgData.images[0].url } : prev
+                );
+              }
+            } catch {
+              // Image generation is optional
+            }
+            setGeneratingImage(false);
+          }
+        }
+      } else {
+        // Text-only mode
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform: platform || "xiaohongshu", topic, tone: tone || "casual", quantity }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "生成失败");
+        setGeneratedResults(data.results || []);
+      }
     } catch (err: unknown) {
       setGenError(err instanceof Error ? err.message : "生成失败，请稍后重试");
     } finally {
       setGenerating(false);
     }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!packageResult) return;
+    setSavingDraft(true);
+    try {
+      await createContent({
+        title: packageResult.title,
+        body: packageResult.body,
+        platform: platform || "xiaohongshu",
+        content_type: "image_post",
+        tags: packageResult.hashtags,
+      });
+      await refreshContents();
+      setPackageResult(null);
+    } catch (err) {
+      console.error(err);
+    }
+    setSavingDraft(false);
+  };
+
+  const handleSubmitApproval = async () => {
+    if (!packageResult) return;
+    setSubmittingApproval(true);
+    try {
+      const res = await fetch("/api/approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          task: {
+            type: "content_publish",
+            entity_type: "contents",
+            title: `内容发布: ${packageResult.title}`,
+            description: `AI 生成的${platform || "xiaohongshu"}图文内容包，包含文案、配图和标签`,
+            payload: {
+              new_values: {
+                title: packageResult.title,
+                body: packageResult.body,
+                platform: platform || "xiaohongshu",
+                hashtags: packageResult.hashtags,
+                image_url: packageResult.image_url || null,
+                cta: packageResult.cta,
+              },
+            },
+            created_by: "ai",
+          },
+        }),
+      });
+      if (res.ok) {
+        setPackageResult(null);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setSubmittingApproval(false);
   };
 
   return (
@@ -360,10 +490,30 @@ export default function ContentPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="h-5 w-5 text-primary" />
-                AI 内容批量生成
+                AI 内容生成
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
+              {/* Generation mode selector */}
+              <div className="flex gap-2">
+                <Button
+                  variant={genMode === "package" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setGenMode("package")}
+                >
+                  <ImageIcon className="mr-1.5 h-3.5 w-3.5" />
+                  图文内容包
+                </Button>
+                <Button
+                  variant={genMode === "text" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setGenMode("text")}
+                >
+                  <FileTextIcon className="mr-1.5 h-3.5 w-3.5" />
+                  纯文案批量
+                </Button>
+              </div>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 {/* 平台选择 */}
                 <div className="space-y-1.5">
@@ -442,19 +592,143 @@ export default function ContentPage() {
                 {generating ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" data-icon="inline-start" />
-                    AI 生成中...
+                    {genMode === "package" ? "AI 生成内容包中..." : "AI 生成中..."}
                   </>
                 ) : (
                   <>
                     <Zap className="h-4 w-4" data-icon="inline-start" />
-                    开始生成
+                    {genMode === "package" ? "生成图文内容包" : "开始生成"}
                   </>
                 )}
               </Button>
             </CardContent>
           </Card>
 
-          {/* Generated results */}
+          {/* Content Package Result */}
+          {packageResult && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="flex items-center gap-2 text-sm font-medium">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  AI 生成内容包
+                </h3>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSaveDraft}
+                    disabled={savingDraft}
+                  >
+                    {savingDraft ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    保存草稿
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSubmitApproval}
+                    disabled={submittingApproval}
+                  >
+                    {submittingApproval ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    提交审批
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {/* Preview */}
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-2">
+                    内容预览
+                  </div>
+                  <ContentPreview
+                    platform={platform || "xiaohongshu"}
+                    title={packageResult.title}
+                    body={packageResult.body}
+                    imageUrl={packageResult.image_url}
+                    hashtags={packageResult.hashtags}
+                    cta={packageResult.cta}
+                  />
+                  {generatingImage && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      正在生成配图...
+                    </div>
+                  )}
+                </div>
+
+                {/* Edit panel + Image generator */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      标题
+                    </label>
+                    <Input
+                      value={packageResult.title}
+                      onChange={(e) =>
+                        setPackageResult({ ...packageResult, title: e.target.value })
+                      }
+                      className="mt-1 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      正文
+                    </label>
+                    <textarea
+                      className={cn(
+                        "mt-1 flex min-h-[120px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm",
+                        "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      )}
+                      value={packageResult.body}
+                      onChange={(e) =>
+                        setPackageResult({ ...packageResult, body: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      标签
+                    </label>
+                    <Input
+                      value={packageResult.hashtags.join(", ")}
+                      onChange={(e) =>
+                        setPackageResult({
+                          ...packageResult,
+                          hashtags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
+                        })
+                      }
+                      className="mt-1 text-sm"
+                      placeholder="用逗号分隔"
+                    />
+                  </div>
+
+                  {/* Image generator */}
+                  <div className="border-t border-border pt-4">
+                    <div className="text-xs font-medium text-muted-foreground mb-2">
+                      配图生成（可重新生成或更换风格）
+                    </div>
+                    <ImageGenerator
+                      initialPrompt={packageResult.image_prompt}
+                      platform={platform || "xiaohongshu"}
+                      selectedUrl={packageResult.image_url}
+                      onImageSelected={(img) =>
+                        setPackageResult({ ...packageResult, image_url: img.url })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Text-only Generated results */}
           {generatedResults.length > 0 && (
             <div className="space-y-3">
               <h3 className="flex items-center gap-2 text-sm font-medium">

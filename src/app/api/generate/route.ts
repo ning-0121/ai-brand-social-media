@@ -95,6 +95,39 @@ function getSceneConfig(scene: string, params: Record<string, string>): SceneCon
       };
     }
 
+    // 内容工厂 - 完整内容包（文案+图片prompt+标签）
+    case "content_package": {
+      const platformGuide: Record<string, string> = {
+        tiktok: "TikTok 短视频配文，包含 hook 开头和 CTA。图片描述应该是竖版 9:16，年轻活泼风格",
+        instagram: "Instagram 帖子，包含吸引人的文案和 hashtags。图片描述应该是正方形 1:1，精致美学风格",
+        xiaohongshu: "小红书种草笔记，口语化，有 emoji。图片描述应该是竖版，生活感强，真实自然",
+        amazon: "Amazon 产品展示文案。图片描述应该是专业产品图，白底，高清",
+        shopify: "Shopify 产品页面推广文案。图片描述应该是品牌感强的产品图",
+        independent: "品牌独立站内容。图片描述应该是品牌调性一致的视觉素材",
+      };
+      const toneGuide: Record<string, string> = {
+        professional: "专业严谨",
+        casual: "轻松随意",
+        humorous: "幽默风趣",
+        inspirational: "激励人心",
+      };
+      return {
+        system: `你是一个全能的品牌内容创作专家，擅长制作完整的社交媒体内容包。
+根据主题生成一个完整的可发布内容包，包含文案和配图描述。
+平台要求：${platformGuide[params.platform] || "社交媒体内容"}
+语气要求：${toneGuide[params.tone] || "自然流畅"}`,
+        formatHint: `返回 JSON 对象，包含以下字段：
+{
+  "title": "内容标题/封面文字",
+  "body": "正文内容（包含排版和 emoji）",
+  "hashtags": ["标签1", "标签2", "标签3", "标签4", "标签5"],
+  "image_prompt": "详细的英文图片生成描述，用于 AI 生成配图，描述画面内容、风格、构图、光线等",
+  "cta": "行动号召语"
+}
+只返回 JSON，不要有其他文字。`,
+      };
+    }
+
     // 店铺优化 - SEO 建议
     case "seo_optimize": {
       return {
@@ -103,6 +136,272 @@ function getSceneConfig(scene: string, params: Record<string, string>): SceneCon
 建议要具体、可操作、有优先级。`,
         formatHint: `用 JSON 数组返回优化建议，每个包含 category（类别：标题/描述/关键词/图片/结构）、priority（优先级：high/medium/low）、current（当前问题）和 suggestion（优化建议）。只返回 JSON。
 示例：[{"category":"标题","priority":"high","current":"标题过长且缺少关键词","suggestion":"建议修改为..."}]`,
+      };
+    }
+
+    // 店铺优化 - SEO 实际应用（生成可直接使用的新字段值）
+    case "seo_apply": {
+      return {
+        system: `你是一个资深的电商 SEO 专家。根据用户提供的产品当前信息，生成优化后的、可以直接应用到 Shopify 商品页面的新文案。
+要求：
+- title：优化后的商品标题，包含核心关键词，60 字符以内
+- body_html：优化后的商品描述 HTML，结构清晰，包含关键词但自然流畅
+- meta_title：SEO 元标题，包含品牌和核心关键词，60 字符以内
+- meta_description：SEO 元描述，包含 CTA 和关键词，155 字符以内
+- tags：逗号分隔的标签，包含产品关键词、类别、使用场景`,
+        formatHint: `直接返回 JSON 对象（不是数组），包含优化后的字段值。只返回 JSON，不要有任何解释文字。
+格式：{"title":"优化后标题","body_html":"<p>优化后描述</p>","meta_title":"SEO标题","meta_description":"SEO描述","tags":"标签1,标签2,标签3"}`,
+      };
+    }
+
+    // Dashboard - AI 每日运营洞察
+    case "ai_daily_insight": {
+      return {
+        system: `你是一个资深的电商运营总监，擅长从运营数据中发现问题和机会。
+根据当天的运营数据，给出 3-5 条今日最重要的可执行行动建议。
+建议要具体、有优先级、立刻可以执行。`,
+        formatHint: `返回 JSON 对象：
+{
+  "greeting": "一句简短的今日运营状态总结",
+  "priority_actions": [
+    { "title": "行动标题", "description": "具体说明", "priority": "high/medium/low", "category": "内容/店铺/社媒/广告/达人" }
+  ],
+  "insight": "一句深层洞察或提醒"
+}
+只返回 JSON。`,
+      };
+    }
+
+    // Strategy - AI 用户画像生成
+    case "persona_generation": {
+      return {
+        system: `你是一个用户研究专家，擅长根据品牌信息构建目标用户画像。
+为品牌生成 3 个差异化的目标用户画像，每个画像要具体、有代入感、可指导运营。`,
+        formatHint: `返回 JSON 数组，包含 3 个用户画像：
+[{
+  "name": "人物名称",
+  "age": 25,
+  "occupation": "职业",
+  "description": "一句话描述",
+  "pain_points": ["痛点1", "痛点2"],
+  "motivations": ["动机1", "动机2"],
+  "platforms": ["常用平台1", "平台2"],
+  "purchasing_behavior": "消费行为描述"
+}]
+只返回 JSON。`,
+      };
+    }
+
+    // Strategy - AI 品牌调性生成
+    case "brand_tone": {
+      return {
+        system: `你是一个品牌设计与传播专家，擅长定义品牌视觉和语言调性。
+根据品牌信息，生成完整的品牌调性指南。`,
+        formatHint: `返回 JSON 对象：
+{
+  "tone_keywords": ["关键词1", "关键词2", "关键词3", "关键词4", "关键词5"],
+  "voice_description": "品牌语言风格描述",
+  "do_list": ["应该做的1", "应该做的2", "应该做的3"],
+  "dont_list": ["不应该做的1", "不应该做的2", "不应该做的3"],
+  "color_suggestions": [
+    { "name": "主色", "hex": "#4F46E5", "usage": "用途" }
+  ],
+  "visual_style": "视觉风格描述"
+}
+只返回 JSON。`,
+      };
+    }
+
+    // Live - AI 直播复盘分析
+    case "live_review": {
+      return {
+        system: `你是一个直播运营数据分析专家，擅长从直播数据中发现问题并给出改进方案。
+根据直播数据给出具体、量化、可执行的改进建议。`,
+        formatHint: `返回 JSON 对象：
+{
+  "performance_summary": "总体表现评价",
+  "score": 75,
+  "strengths": ["做得好的1", "做得好的2"],
+  "improvements": [
+    { "area": "改进领域", "issue": "当前问题", "suggestion": "具体建议", "expected_impact": "预期效果" }
+  ],
+  "next_stream_tips": ["下场直播建议1", "建议2"]
+}
+只返回 JSON。`,
+      };
+    }
+
+    // Ads - AI 投放优化建议
+    case "ad_optimization": {
+      return {
+        system: `你是一个资深的广告投放优化专家，擅长分析广告数据并给出预算和策略调整建议。
+根据广告投放数据，给出具体的优化方案。`,
+        formatHint: `返回 JSON 对象：
+{
+  "overall_assessment": "整体投放评价",
+  "budget_suggestions": [
+    { "ad_name": "广告名", "current_spend": "当前花费", "suggestion": "调整建议", "reason": "原因" }
+  ],
+  "optimization_tips": ["优化建议1", "建议2", "建议3"],
+  "stop_suggestions": ["建议暂停的广告及原因"],
+  "scale_suggestions": ["建议加大的广告及原因"]
+}
+只返回 JSON。`,
+      };
+    }
+
+    // Channels - AI 渠道评估
+    case "channel_evaluation": {
+      return {
+        system: `你是一个多渠道电商运营专家，擅长评估渠道适配度和制定渠道拓展策略。
+根据品牌现状和候选渠道信息，给出优先级排序和入驻建议。`,
+        formatHint: `返回 JSON 对象：
+{
+  "overall_strategy": "整体渠道策略建议",
+  "channel_rankings": [
+    { "channel": "渠道名", "score": 85, "reason": "推荐理由", "priority": "high/medium/low", "estimated_monthly": "预估月销" }
+  ],
+  "entry_sequence": "建议入驻顺序说明",
+  "risk_notes": ["风险提醒1", "提醒2"]
+}
+只返回 JSON。`,
+      };
+    }
+
+    // Skills - AI 学习推荐
+    case "skill_recommendation": {
+      return {
+        system: `你是一个电商运营培训专家，擅长根据用户当前能力和业务需求推荐学习路径。
+根据用户信息和运营状况，推荐最应该优先学习的技能。`,
+        formatHint: `返回 JSON 对象：
+{
+  "assessment": "对当前能力的评估",
+  "recommended_skills": [
+    { "skill": "技能名称", "category": "分类", "reason": "推荐理由", "priority": "high/medium/low", "estimated_hours": 5 }
+  ],
+  "learning_path": "建议的学习路径描述",
+  "quick_wins": ["快速见效的行动1", "行动2"]
+}
+只返回 JSON。`,
+      };
+    }
+
+    // Social - AI 排期建议
+    case "social_scheduling": {
+      return {
+        system: `你是一个社交媒体运营专家，擅长分析最佳发布时间和内容策略。
+根据社媒账号和内容数据，给出发布排期优化建议。`,
+        formatHint: `返回 JSON 对象：
+{
+  "scheduling_strategy": "整体排期策略",
+  "best_times": [
+    { "platform": "平台名", "best_days": "最佳日期", "best_hours": "最佳时段", "reason": "原因" }
+  ],
+  "frequency_suggestions": [
+    { "platform": "平台名", "recommended_freq": "建议频率", "content_mix": "内容配比" }
+  ],
+  "content_calendar_tips": ["排期建议1", "建议2"]
+}
+只返回 JSON。`,
+      };
+    }
+
+    // 趋势雷达 - AI 市场趋势分析
+    case "trend_analysis": {
+      return {
+        system: `你是一个资深的电商市场分析专家，擅长从销量数据中发现趋势和机会。
+根据提供的热门产品数据，给出市场趋势洞察。
+分析要数据驱动、有深度、可执行。`,
+        formatHint: `返回 JSON 对象：
+{
+  "market_summary": "市场整体趋势概述（2-3句话）",
+  "opportunities": ["机会1", "机会2", "机会3"],
+  "threats": ["威胁1", "威胁2"],
+  "recommendations": ["建议1", "建议2", "建议3"],
+  "hot_categories": ["值得关注的品类1", "品类2"],
+  "predicted_trend": "未来30天预测"
+}
+只返回 JSON。`,
+      };
+    }
+
+    // 趋势雷达 - AI 竞品策略分析
+    case "competitor_analysis": {
+      return {
+        system: `你是一个资深的竞品分析专家，擅长从竞品数据中发现市场格局和竞争机会。
+根据提供的竞品列表数据，给出全面的竞品分析报告。`,
+        formatHint: `返回 JSON 对象：
+{
+  "market_position": "当前市场格局概述",
+  "competitor_insights": [
+    { "name": "竞品名称", "insight": "关键洞察", "threat_level": "high/medium/low" }
+  ],
+  "gaps": ["市场空白1", "市场空白2"],
+  "strategy_suggestions": ["策略建议1", "策略建议2", "策略建议3"],
+  "differentiation_points": ["差异化切入点1", "切入点2"]
+}
+只返回 JSON。`,
+      };
+    }
+
+    // 达人中心 - AI 匹配度分析
+    case "influencer_analysis": {
+      return {
+        system: `你是一个资深的达人营销专家，擅长评估达人与品牌的匹配度。
+根据提供的达人信息和品牌/产品信息，进行全面的匹配度分析。
+分析要数据驱动、有洞察力、可执行。`,
+        formatHint: `返回 JSON 对象：
+{
+  "match_score": 85,
+  "strengths": ["优势1", "优势2", "优势3"],
+  "risks": ["风险1", "风险2"],
+  "recommendation": "综合推荐意见，2-3句话",
+  "estimated_roi": "预估 ROI 倍数，如 3.5",
+  "suggested_content_types": ["适合的内容形式1", "内容形式2"],
+  "budget_suggestion": "建议合作预算范围"
+}
+只返回 JSON。`,
+      };
+    }
+
+    // 达人中心 - AI 外联话术生成
+    case "influencer_outreach": {
+      return {
+        system: `你是一个专业的达人商务合作专家，擅长撰写品牌与达人的合作邀约话术。
+话术要真诚、专业、有吸引力，突出合作的双赢价值。
+根据达人的风格和平台特点定制话术。`,
+        formatHint: `返回 JSON 数组，包含 3 个不同风格的外联话术版本：
+[
+  {
+    "style": "正式商务",
+    "subject": "邮件/私信标题",
+    "message": "正文内容（200字左右）",
+    "follow_up": "3天后跟进话术（100字左右）"
+  }
+]
+只返回 JSON。`,
+      };
+    }
+
+    // 达人中心 - AI 达人合作策略
+    case "influencer_strategy": {
+      return {
+        system: `你是一个资深的达人营销策略师，擅长制定品牌的达人合作策略。
+根据品牌目标和当前达人库情况，给出完整的合作策略建议。`,
+        formatHint: `返回 JSON 对象：
+{
+  "strategy_summary": "整体策略概述",
+  "recommended_mix": [
+    { "tier": "头部达人", "count": 2, "budget_pct": 40, "purpose": "品牌背书" },
+    { "tier": "腰部达人", "count": 5, "budget_pct": 35, "purpose": "种草转化" },
+    { "tier": "尾部达人", "count": 10, "budget_pct": 25, "purpose": "口碑铺量" }
+  ],
+  "content_strategy": ["内容策略建议1", "建议2"],
+  "timeline": "建议执行周期",
+  "kpi_targets": ["KPI目标1", "KPI目标2"],
+  "budget_total": "建议总预算范围"
+}
+只返回 JSON。`,
       };
     }
 
