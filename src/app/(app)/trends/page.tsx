@@ -45,9 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatNumber } from "@/lib/format";
 import {
-  mockHotProducts,
   categoryTrendData,
-  mockCompetitors,
 } from "@/modules/trends/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
 import { getHotProducts, getCompetitors, getTrendsKPIs } from "@/lib/supabase-queries";
@@ -55,7 +53,8 @@ import { createCompetitor, deleteCompetitor } from "@/lib/supabase-mutations";
 import { KPIData } from "@/lib/types";
 import { AITrendDialog } from "@/components/trends/ai-trend-dialog";
 import { AICompetitorDialog } from "@/components/trends/ai-competitor-dialog";
-import { Sparkles, Plus, Trash2, Loader2, ArrowUpDown } from "lucide-react";
+import { Sparkles, Plus, Trash2, Loader2, ArrowUpDown, Search, Save } from "lucide-react";
+import { createHotProduct } from "@/lib/supabase-mutations";
 
 const CATEGORY_COLORS: Record<string, string> = {
   美妆护肤: "#f472b6",
@@ -83,45 +82,150 @@ export default function TrendsPage() {
     { label: "竞品数", value: kpiData.competitors, trend: "flat", trendPercent: 0, icon: "Target", format: "number" },
   ];
 
-  const [search, setSearch] = useState("");
-  const [platformFilter, setPlatformFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  // AI search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchPlatform, setSearchPlatform] = useState("amazon");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<{
+    name: string; category: string; sales_volume: number; growth_rate: number;
+    trend: string; price_range: string; rating: number; insight?: string;
+  }[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [sortByGrowth, setSortByGrowth] = useState<"asc" | "desc" | null>(null);
+  const [savingProduct, setSavingProduct] = useState<string | null>(null);
+
+  // Also show saved products from DB
+  const { data: savedProducts } = useSupabase(getHotProducts, []);
 
   // AI dialogs
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const [competitorDialogOpen, setCompetitorDialogOpen] = useState(false);
+
+  // Competitor search state
+  const [compSearchQuery, setCompSearchQuery] = useState("");
+  const [compSearchPlatform, setCompSearchPlatform] = useState("amazon");
+  const [searchingComp, setSearchingComp] = useState(false);
+  const [compSearchResults, setCompSearchResults] = useState<{
+    name: string; top_category: string; followers: number; avg_engagement: number;
+    growth_rate: number; trend: string; recent_campaigns: number; insight?: string;
+  }[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_hasSearchedComp, setHasSearchedComp] = useState(false);
 
   // Competitor CRUD
   const [showAddCompetitor, setShowAddCompetitor] = useState(false);
   const [compForm, setCompForm] = useState({ name: "", platform: "tiktok", top_category: "", followers: "", avg_engagement: "", growth_rate: "" });
   const [savingComp, setSavingComp] = useState(false);
 
-  const { data: hotProducts, loading: loadingProducts } = useSupabase(getHotProducts, mockHotProducts);
-  const { data: initialCompetitors, loading: loadingCompetitors } = useSupabase(getCompetitors, mockCompetitors);
-  const [localCompetitors, setLocalCompetitors] = useState<typeof mockCompetitors | null>(null);
+  const { data: initialCompetitors, loading: loadingCompetitors } = useSupabase(getCompetitors, []);
+  const [localCompetitors, setLocalCompetitors] = useState<typeof initialCompetitors | null>(null);
   const competitors = localCompetitors ?? initialCompetitors;
 
-  // Extract unique categories from products
-  const categories = useMemo(() => {
-    const cats = new Set(hotProducts.map((p) => p.category));
-    return Array.from(cats).sort();
-  }, [hotProducts]);
+  // AI product search
+  const handleSearchProducts = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setSearchResults([]);
+    setHasSearched(true);
+    try {
+      const platformLabel = PLATFORM_OPTIONS.find(p => p.value === searchPlatform)?.label || searchPlatform;
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scene: "trend_search",
+          topic: `品类: ${searchQuery}\n平台: ${platformLabel}\n请搜索该品类在${platformLabel}平台上的当前热门商品趋势。`,
+          platform: searchPlatform,
+        }),
+      });
+      const data = await res.json();
+      const rawResults = data.results;
+      const results = Array.isArray(rawResults) ? rawResults : [rawResults];
+      setSearchResults(results.filter((r: Record<string, unknown>) => r && r.name));
+    } catch (err) {
+      console.error("搜索失败:", err);
+    }
+    setSearching(false);
+  };
 
-  const filteredProducts = useMemo(() => {
-    let result = hotProducts.filter((p) => {
-      const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-      const matchesPlatform = platformFilter === "all" || p.platform === platformFilter;
-      const matchesCategory = categoryFilter === "all" || p.category === categoryFilter;
-      return matchesSearch && matchesPlatform && matchesCategory;
-    });
+  // AI competitor search
+  const handleSearchCompetitors = async () => {
+    if (!compSearchQuery.trim()) return;
+    setSearchingComp(true);
+    setCompSearchResults([]);
+    setHasSearchedComp(true);
+    try {
+      const platformLabel = PLATFORM_OPTIONS.find(p => p.value === compSearchPlatform)?.label || compSearchPlatform;
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scene: "competitor_search",
+          topic: `品类: ${compSearchQuery}\n平台: ${platformLabel}\n请搜索该品类在${platformLabel}平台上的主要竞争品牌/店铺。`,
+          platform: compSearchPlatform,
+        }),
+      });
+      const data = await res.json();
+      const rawResults = data.results;
+      const results = Array.isArray(rawResults) ? rawResults : [rawResults];
+      setCompSearchResults(results.filter((r: Record<string, unknown>) => r && r.name));
+    } catch (err) {
+      console.error("搜索失败:", err);
+    }
+    setSearchingComp(false);
+  };
+
+  // Save a search result to database
+  const handleSaveProduct = async (product: typeof searchResults[0]) => {
+    setSavingProduct(product.name);
+    try {
+      await createHotProduct({
+        name: product.name,
+        platform: searchPlatform,
+        category: product.category,
+        sales_volume: product.sales_volume,
+        growth_rate: product.growth_rate,
+        trend: product.trend as "up" | "down" | "flat",
+        price_range: product.price_range,
+        rating: product.rating,
+      });
+    } catch (err) {
+      console.error(err);
+    }
+    setSavingProduct(null);
+  };
+
+  // Save competitor search result to database
+  const handleSaveCompetitor = async (comp: typeof compSearchResults[0]) => {
+    setSavingComp(true);
+    try {
+      await createCompetitor({
+        name: comp.name,
+        platform: compSearchPlatform,
+        top_category: comp.top_category,
+        followers: comp.followers,
+        avg_engagement: comp.avg_engagement,
+        growth_rate: comp.growth_rate,
+        trend: comp.trend,
+        recent_campaigns: comp.recent_campaigns,
+      });
+      await refreshCompetitors();
+    } catch (err) {
+      console.error(err);
+    }
+    setSavingComp(false);
+  };
+
+  // Sort search results
+  const displayProducts = useMemo(() => {
+    const sorted = [...searchResults];
     if (sortByGrowth) {
-      result = [...result].sort((a, b) =>
+      sorted.sort((a, b) =>
         sortByGrowth === "desc" ? b.growth_rate - a.growth_rate : a.growth_rate - b.growth_rate
       );
     }
-    return result;
-  }, [hotProducts, search, platformFilter, categoryFilter, sortByGrowth]);
+    return sorted;
+  }, [searchResults, sortByGrowth]);
 
   const refreshCompetitors = async () => {
     const fresh = await getCompetitors();
@@ -177,132 +281,208 @@ export default function TrendsPage() {
           <TabsTrigger value="competitors">竞品分析</TabsTrigger>
         </TabsList>
 
-        {/* 热门商品 */}
+        {/* 热门商品 - AI 搜索 */}
         <TabsContent value="hot-products">
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+            {/* Search bar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Input
-                placeholder="搜索商品名称..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="sm:max-w-xs"
+                placeholder="输入商品品类，例如：美妆护肤、蓝牙耳机、瑜伽裤..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearchProducts()}
+                className="sm:max-w-md"
               />
               <Select
-                value={platformFilter}
-                onValueChange={(v) => v && setPlatformFilter(v)}
+                value={searchPlatform}
+                onValueChange={(v) => v && setSearchPlatform(v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="全部平台" />
+                  <SelectValue placeholder="选择平台" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PLATFORM_OPTIONS.map((opt) => (
+                  {PLATFORM_OPTIONS.filter(p => p.value !== "all").map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Select
-                value={categoryFilter}
-                onValueChange={(v) => v && setCategoryFilter(v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="全部品类" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部品类</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSortByGrowth((prev) => prev === "desc" ? "asc" : prev === "asc" ? null : "desc")}
-              >
-                <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
-                增长率{sortByGrowth === "desc" ? " ↓" : sortByGrowth === "asc" ? " ↑" : ""}
+              <Button onClick={handleSearchProducts} disabled={searching || !searchQuery.trim()}>
+                {searching ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="mr-1.5 h-4 w-4" />
+                )}
+                {searching ? "AI 搜索中..." : "搜索趋势"}
               </Button>
-              <Button
-                size="sm"
-                className="ml-auto"
-                onClick={() => setTrendDialogOpen(true)}
-              >
-                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                AI 分析市场
-              </Button>
+              {searchResults.length > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSortByGrowth((prev) => prev === "desc" ? "asc" : prev === "asc" ? null : "desc")}
+                  >
+                    <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
+                    增长率{sortByGrowth === "desc" ? " ↓" : sortByGrowth === "asc" ? " ↑" : ""}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setTrendDialogOpen(true)}
+                  >
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                    AI 深度分析
+                  </Button>
+                </>
+              )}
             </div>
 
-            <div className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>商品名</TableHead>
-                    <TableHead>平台</TableHead>
-                    <TableHead>品类</TableHead>
-                    <TableHead className="text-right">销量</TableHead>
-                    <TableHead className="text-right">增长率</TableHead>
-                    <TableHead>价格</TableHead>
-                    <TableHead className="text-right">评分</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingProducts ? (
-                    Array.from({ length: 5 }).map((_, i) => (
+            {/* Search results */}
+            {searching && (
+              <div className="rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {["商品名", "品类", "销量", "增长率", "价格", "评分", "洞察", ""].map((h, i) => (
+                        <TableHead key={i}>{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: 6 }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 7 }).map((_, j) => (
-                          <TableCell key={j}>
-                            <Skeleton className="h-4 w-full" />
-                          </TableCell>
+                        {Array.from({ length: 8 }).map((_, j) => (
+                          <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                         ))}
                       </TableRow>
-                    ))
-                  ) : filteredProducts.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="h-24 text-center text-muted-foreground"
-                      >
-                        没有找到匹配的商品
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredProducts.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell className="font-medium">
-                          {product.name}
-                        </TableCell>
-                        <TableCell>
-                          <PlatformIcon
-                            platform={product.platform}
-                            showLabel
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{product.category}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatNumber(product.sales_volume)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <TrendTag
-                            direction={product.trend}
-                            value={product.growth_rate}
-                          />
-                        </TableCell>
-                        <TableCell className="tabular-nums">
-                          {product.price_range}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {product.rating}
-                        </TableCell>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {!searching && displayProducts.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    在 <Badge variant="secondary">{PLATFORM_OPTIONS.find(p => p.value === searchPlatform)?.label}</Badge> 搜索「{searchQuery}」找到 {displayProducts.length} 个热门商品
+                  </div>
+                </div>
+                <div className="rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>商品名</TableHead>
+                        <TableHead>品类</TableHead>
+                        <TableHead className="text-right">预估销量</TableHead>
+                        <TableHead className="text-right">增长率</TableHead>
+                        <TableHead>价格区间</TableHead>
+                        <TableHead className="text-right">评分</TableHead>
+                        <TableHead>洞察</TableHead>
+                        <TableHead className="w-[60px]"></TableHead>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {displayProducts.map((product, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="font-medium max-w-[200px] truncate">
+                            {product.name}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{product.category}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatNumber(product.sales_volume)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <TrendTag
+                              direction={product.trend as "up" | "down" | "flat"}
+                              value={product.growth_rate}
+                            />
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {product.price_range}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {product.rating}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate">
+                            {product.insight}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="保存到数据库"
+                              disabled={savingProduct === product.name}
+                              onClick={() => handleSaveProduct(product)}
+                            >
+                              {savingProduct === product.name ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Save className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            {!searching && hasSearched && searchResults.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <Search className="h-12 w-12 mb-3 opacity-30" />
+                <p className="text-sm">未找到相关趋势数据，请换一个品类或平台试试</p>
+              </div>
+            )}
+
+            {!hasSearched && (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <Search className="h-12 w-12 mb-3 opacity-30" />
+                <p className="text-sm font-medium">输入商品品类，选择平台，AI 将搜索当前市场趋势</p>
+                <p className="text-xs mt-1">例如：在 Amazon 上搜索「蓝牙耳机」或在小红书搜索「防晒霜」</p>
+              </div>
+            )}
+
+            {/* Saved products from DB */}
+            {savedProducts.length > 0 && (
+              <div className="space-y-2 pt-4 border-t border-border">
+                <div className="text-sm font-medium text-muted-foreground">已保存的趋势商品 ({savedProducts.length})</div>
+                <div className="rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>商品名</TableHead>
+                        <TableHead>平台</TableHead>
+                        <TableHead>品类</TableHead>
+                        <TableHead className="text-right">销量</TableHead>
+                        <TableHead className="text-right">增长率</TableHead>
+                        <TableHead>价格</TableHead>
+                        <TableHead className="text-right">评分</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {savedProducts.map((product) => (
+                        <TableRow key={product.id}>
+                          <TableCell className="font-medium">{product.name}</TableCell>
+                          <TableCell><PlatformIcon platform={product.platform} showLabel /></TableCell>
+                          <TableCell><Badge variant="secondary">{product.category}</Badge></TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNumber(product.sales_volume)}</TableCell>
+                          <TableCell className="text-right"><TrendTag direction={product.trend} value={product.growth_rate} /></TableCell>
+                          <TableCell className="tabular-nums">{product.price_range}</TableCell>
+                          <TableCell className="text-right tabular-nums">{product.rating}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -359,16 +539,93 @@ export default function TrendsPage() {
 
         {/* 竞品分析 */}
         <TabsContent value="competitors">
-          <div className="flex items-center gap-2 mb-4">
+          {/* Competitor search */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center mb-4">
+            <Input
+              placeholder="输入品类搜索竞品，例如：美妆护肤、健身器材..."
+              value={compSearchQuery}
+              onChange={(e) => setCompSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearchCompetitors()}
+              className="sm:max-w-md"
+            />
+            <Select value={compSearchPlatform} onValueChange={(v) => v && setCompSearchPlatform(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PLATFORM_OPTIONS.filter(p => p.value !== "all").map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={handleSearchCompetitors} disabled={searchingComp || !compSearchQuery.trim()}>
+              {searchingComp ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
+              {searchingComp ? "搜索中..." : "搜索竞品"}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setShowAddCompetitor(true)}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
-              添加竞品
+              手动添加
             </Button>
-            <Button size="sm" onClick={() => setCompetitorDialogOpen(true)} disabled={competitors.length === 0}>
-              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-              AI 竞品分析
-            </Button>
+            {competitors.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setCompetitorDialogOpen(true)}>
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                AI 分析
+              </Button>
+            )}
           </div>
+
+          {/* Competitor search results */}
+          {searchingComp && (
+            <div className="rounded-lg border mb-4">
+              <Table>
+                <TableHeader><TableRow>{Array.from({ length: 7 }).map((_, i) => <TableHead key={i}><Skeleton className="h-4 w-16" /></TableHead>)}</TableRow></TableHeader>
+                <TableBody>{Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)}</TableBody>
+              </Table>
+            </div>
+          )}
+
+          {!searchingComp && compSearchResults.length > 0 && (
+            <div className="space-y-2 mb-4">
+              <div className="text-sm text-muted-foreground">
+                搜索到 {compSearchResults.length} 个竞品品牌
+              </div>
+              <div className="rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>品牌名称</TableHead>
+                      <TableHead>主营品类</TableHead>
+                      <TableHead className="text-right">粉丝数</TableHead>
+                      <TableHead className="text-right">互动率</TableHead>
+                      <TableHead className="text-right">增长率</TableHead>
+                      <TableHead>洞察</TableHead>
+                      <TableHead className="w-[60px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {compSearchResults.map((comp, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{comp.name}</TableCell>
+                        <TableCell><Badge variant="secondary">{comp.top_category}</Badge></TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumber(comp.followers)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{comp.avg_engagement}%</TableCell>
+                        <TableCell className="text-right"><TrendTag direction={comp.trend as "up"|"down"|"flat"} value={comp.growth_rate} /></TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate">{comp.insight}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="保存竞品" onClick={() => handleSaveCompetitor(comp)}>
+                            <Save className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {/* Saved competitors */}
+          {competitors.length > 0 && (
+            <div className="text-sm font-medium text-muted-foreground mb-2">已保存的竞品 ({competitors.length})</div>
+          )}
           <div className="rounded-lg border">
             <Table>
               <TableHeader>
@@ -442,8 +699,8 @@ export default function TrendsPage() {
       <AITrendDialog
         open={trendDialogOpen}
         onOpenChange={setTrendDialogOpen}
-        products={filteredProducts}
-        currentCategory={categoryFilter !== "all" ? categoryFilter : undefined}
+        products={searchResults}
+        currentCategory={searchQuery || undefined}
       />
 
       {/* AI Competitor Analysis Dialog */}

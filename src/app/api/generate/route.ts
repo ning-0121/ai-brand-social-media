@@ -306,6 +306,60 @@ function getSceneConfig(scene: string, params: Record<string, string>): SceneCon
       };
     }
 
+    // 趋势雷达 - AI 商品趋势搜索（核心搜索功能）
+    case "trend_search": {
+      return {
+        system: `你是一个专业的电商市场研究分析师，拥有各大电商平台的最新市场数据知识。
+用户会给你一个商品品类和目标平台，你需要返回该品类在该平台上当前的热门商品趋势数据。
+
+要求：
+- 返回 8-12 个当前在该平台上热销或快速增长的真实商品
+- 数据要尽量接近真实市场情况（基于你的训练数据）
+- 包含具体的商品名称、价格区间、预估销量、增长趋势
+- 按销量从高到低排序
+- 如果是中国平台（小红书、抖音），商品名用中文
+- 如果是海外平台（Amazon、Instagram、TikTok），商品名用英文`,
+        formatHint: `返回 JSON 数组，每个元素代表一个热门商品：
+[{
+  "name": "商品名称（具体产品名，不是品类名）",
+  "category": "所属细分品类",
+  "sales_volume": 15000,
+  "growth_rate": 23.5,
+  "trend": "up",
+  "price_range": "¥99-¥199",
+  "rating": 4.7,
+  "insight": "一句话说明为什么这个商品在增长"
+}]
+trend 只能是 "up"、"down" 或 "flat"。growth_rate 是百分比数字。只返回 JSON。`,
+      };
+    }
+
+    // 趋势雷达 - AI 竞品搜索
+    case "competitor_search": {
+      return {
+        system: `你是一个专业的电商竞品情报分析师。
+用户会给你一个品类和平台，你需要返回该领域的主要竞争品牌/店铺信息。
+
+要求：
+- 返回 6-8 个该品类在该平台上的主要竞品品牌或店铺
+- 数据要尽量接近真实市场情况
+- 包含品牌名、粉丝量级、互动率、增长趋势等
+- 按影响力从高到低排序`,
+        formatHint: `返回 JSON 数组：
+[{
+  "name": "品牌/店铺名称",
+  "top_category": "主营品类",
+  "followers": 520000,
+  "avg_engagement": 4.5,
+  "growth_rate": 15.2,
+  "trend": "up",
+  "recent_campaigns": 8,
+  "insight": "竞品特点/策略简述"
+}]
+只返回 JSON。`,
+      };
+    }
+
     // 趋势雷达 - AI 市场趋势分析
     case "trend_analysis": {
       return {
