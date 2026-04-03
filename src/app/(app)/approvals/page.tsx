@@ -18,52 +18,17 @@ const STATUS_FILTERS: { label: string; value: ApprovalStatus | "all" }[] = [
   { label: "失败", value: "failed" },
 ];
 
-const mockTasks: ApprovalTask[] = [
-  {
-    id: "demo-1",
-    type: "seo_update",
-    entity_id: "prod-1",
-    entity_type: "products",
-    title: "SEO 优化: 经典白色 T 恤",
-    description: "AI 分析后生成的 SEO 优化方案，包含标题、描述和关键词优化",
-    payload: {
-      old_values: {
-        title: "白色T恤",
-        meta_title: "",
-        meta_description: "",
-        tags: "t-shirt",
-      },
-      new_values: {
-        title: "经典纯棉白色T恤 | 男女通穿基础款 | BrandMind",
-        meta_title: "经典纯棉白色T恤 - 舒适百搭基础款 | BrandMind",
-        meta_description:
-          "BrandMind 经典纯棉白色T恤，200g重磅棉质，男女通穿，舒适透气，百搭基础款。限时特惠，立即选购。",
-        tags: "t-shirt,白色T恤,纯棉,基础款,男女通穿,百搭",
-      },
-      shopify_product_id: 123456,
-      integration_id: "int-1",
-    },
-    status: "pending",
-    created_by: "ai",
-    reviewed_by: null,
-    reviewed_at: null,
-    execution_result: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
-const mockKPIs = {
-  pending: 3,
-  approvedToday: 5,
-  executed: 12,
-  failed: 1,
-  total: 21,
+const emptyKPIs = {
+  pending: 0,
+  approvedToday: 0,
+  executed: 0,
+  failed: 0,
+  total: 0,
 };
 
 export default function ApprovalsPage() {
-  const { data: initialTasks } = useSupabase(getApprovalTasks, mockTasks);
-  const { data: kpis } = useSupabase(getApprovalKPIs, mockKPIs);
+  const { data: initialTasks } = useSupabase(getApprovalTasks, [] as ApprovalTask[]);
+  const { data: kpis } = useSupabase(getApprovalKPIs, emptyKPIs);
   const [localTasks, setLocalTasks] = useState<ApprovalTask[] | null>(null);
   const [filter, setFilter] = useState<ApprovalStatus | "all">("all");
 

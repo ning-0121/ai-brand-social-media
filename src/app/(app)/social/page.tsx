@@ -4,7 +4,6 @@ import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
 import { AIInsightCard } from "@/components/shared/ai-insight-card";
-import { ChartCard } from "@/components/shared/chart-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,11 +34,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  mockPosts,
-  mockAccounts,
-  engagementData,
-} from "@/modules/social/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
 import { getScheduledPosts, getSocialAccounts, getSocialKPIs } from "@/lib/supabase-queries";
 import { KPIData } from "@/lib/types";
@@ -49,16 +43,6 @@ import {
   createSocialAccount,
   deleteSocialAccount,
 } from "@/lib/supabase-mutations";
-import {
-  BarChart,
-  Bar,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from "recharts";
 import { Plus, MoreHorizontal, User, Trash2, Loader2 } from "lucide-react";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -79,12 +63,14 @@ export default function SocialPage() {
   ];
 
   // Data fetching with local refresh
-  const { data: initialPosts, loading: loadingPosts } = useSupabase(getScheduledPosts, mockPosts);
-  const [localPosts, setLocalPosts] = useState<typeof mockPosts | null>(null);
+  const { data: initialPosts, loading: loadingPosts } = useSupabase(getScheduledPosts, []);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [localPosts, setLocalPosts] = useState<any[] | null>(null);
   const posts = localPosts ?? initialPosts;
 
-  const { data: initialAccounts, loading: loadingAccounts } = useSupabase(getSocialAccounts, mockAccounts);
-  const [localAccounts, setLocalAccounts] = useState<typeof mockAccounts | null>(null);
+  const { data: initialAccounts, loading: loadingAccounts } = useSupabase(getSocialAccounts, []);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [localAccounts, setLocalAccounts] = useState<any[] | null>(null);
   const accounts = localAccounts ?? initialAccounts;
 
   const refreshPosts = async () => setLocalPosts(await getScheduledPosts());
@@ -318,53 +304,13 @@ export default function SocialPage() {
 
         {/* ---------- 数据分析 ---------- */}
         <TabsContent value="analytics">
-          <ChartCard
-            title="近 30 天各平台互动率 (%)"
-            description="按日统计 TikTok、Instagram、小红书互动率趋势"
-          >
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={engagementData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="date" className="text-xs" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    className="text-xs"
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v) => `${v}%`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                    formatter={(value, name) => {
-                      const labels: Record<string, string> = {
-                        tiktok: "TikTok",
-                        instagram: "Instagram",
-                        xiaohongshu: "小红书",
-                      };
-                      return [`${value}%`, labels[String(name)] || String(name)];
-                    }}
-                  />
-                  <Legend
-                    formatter={(value: string) => {
-                      const labels: Record<string, string> = {
-                        tiktok: "TikTok",
-                        instagram: "Instagram",
-                        xiaohongshu: "小红书",
-                      };
-                      return labels[value] || value;
-                    }}
-                  />
-                  <Bar dataKey="tiktok" fill="hsl(var(--chart-1))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="instagram" fill="hsl(var(--chart-2))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="xiaohongshu" fill="hsl(var(--chart-3))" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </ChartCard>
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <p className="text-sm text-muted-foreground">
+                连接社交媒体账号后，可查看各平台互动率趋势
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

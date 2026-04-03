@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils";
 import { SkillCategory, SkillDifficulty, KPIData } from "@/lib/types";
 import { useSupabase } from "@/hooks/use-supabase";
 import { getSkillPacks, getSkillsKPIs } from "@/lib/supabase-queries";
-import { mockSkills } from "@/modules/skills/mock-data";
 import { SkillPack } from "@/modules/skills/types";
 import * as Icons from "lucide-react";
 import { Search, Star, Users, CheckCircle2, ArrowRight } from "lucide-react";
@@ -84,7 +83,7 @@ export default function SkillsPage() {
     { label: "总使用次数", value: kpiData.totalUsage, trend: "up", trendPercent: 18, icon: "Users", format: "number" },
   ];
 
-  const { data: skills, loading: loadingSkills } = useSupabase(getSkillPacks, mockSkills);
+  const { data: skills, loading: loadingSkills } = useSupabase(getSkillPacks, []);
   const [activeCategory, setActiveCategory] = useState<"all" | SkillCategory>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<SkillPack | null>(null);

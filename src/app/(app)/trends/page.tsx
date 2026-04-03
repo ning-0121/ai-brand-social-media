@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
-import { ChartCard } from "@/components/shared/chart-card";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { TrendTag } from "@/components/shared/trend-tag";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -24,17 +23,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,9 +34,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { formatNumber } from "@/lib/format";
-import {
-  categoryTrendData,
-} from "@/modules/trends/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
 import { getHotProducts, getCompetitors, getTrendsKPIs } from "@/lib/supabase-queries";
 import { createCompetitor, deleteCompetitor } from "@/lib/supabase-mutations";
@@ -488,53 +475,13 @@ export default function TrendsPage() {
 
         {/* 品类趋势 */}
         <TabsContent value="category-trends">
-          <ChartCard
-            title="品类销量趋势 (近30天)"
-            description="跟踪各品类每日销量变化"
-          >
-            <div className="h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={categoryTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    dataKey="date"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    className="fill-muted-foreground"
-                  />
-                  <YAxis
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    className="fill-muted-foreground"
-                    tickFormatter={(v: number) => formatNumber(v)}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid hsl(var(--border))",
-                      backgroundColor: "hsl(var(--popover))",
-                      color: "hsl(var(--popover-foreground))",
-                    }}
-                    formatter={(value) => [formatNumber(Number(value))]}
-                  />
-                  <Legend />
-                  {Object.keys(CATEGORY_COLORS).map((cat) => (
-                    <Line
-                      key={cat}
-                      type="monotone"
-                      dataKey={cat}
-                      stroke={CATEGORY_COLORS[cat]}
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </ChartCard>
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <p className="text-sm text-muted-foreground">
+                使用 AI 搜索热卖商品后，品类趋势数据将自动生成
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* 竞品分析 */}

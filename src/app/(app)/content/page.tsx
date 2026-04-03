@@ -25,7 +25,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { mockContents, mockTemplates } from "@/modules/content/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
 import { getContents, getContentTemplates, getContentKPIs } from "@/lib/supabase-queries";
 import { createContent, deleteContent } from "@/lib/supabase-mutations";
@@ -163,9 +162,10 @@ export default function ContentPage() {
     { label: "平均互动率", value: kpiData.avgEngagement, trend: "up", trendPercent: 2.1, icon: "Heart", format: "percent" },
   ];
 
-  const { data: initialContents, loading: loadingContents } = useSupabase(getContents, mockContents);
-  const { data: templates, loading: loadingTemplates } = useSupabase(getContentTemplates, mockTemplates);
-  const [localContents, setLocalContents] = useState<typeof mockContents | null>(null);
+  const { data: initialContents, loading: loadingContents } = useSupabase(getContents, []);
+  const { data: templates, loading: loadingTemplates } = useSupabase(getContentTemplates, []);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [localContents, setLocalContents] = useState<any[] | null>(null);
   const contents = localContents ?? initialContents;
 
   const [platform, setPlatform] = useState<string>("");

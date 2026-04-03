@@ -56,13 +56,32 @@ const AVATAR_COLORS = [
   "bg-teal-500", "bg-fuchsia-500", "bg-indigo-500", "bg-red-500",
 ];
 
-// Mock data as fallback
-const MOCK_INFLUENCERS = [
-  { id: "m1", name: "李美琪", platform: "xiaohongshu", followers: 328000, engagement_rate: 6.8, category: "美妆", price_min: 5000, price_max: 12000, status: "active", ai_score: 85, ai_analysis: {}, collaboration_count: 3, total_revenue: 45000, avg_roi: 3.8, handle: "@meiqili", avatar_url: null, bio: null, profile_url: null, notes: null, contacted_at: null, last_collaboration_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: "m2", name: "王潮生", platform: "tiktok", followers: 512000, engagement_rate: 4.2, category: "3C数码", price_min: 8000, price_max: 20000, status: "active", ai_score: 72, ai_analysis: {}, collaboration_count: 1, total_revenue: 20000, avg_roi: 2.5, handle: "@chaosheng", avatar_url: null, bio: null, profile_url: null, notes: null, contacted_at: null, last_collaboration_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: "m3", name: "张小花", platform: "instagram", followers: 89000, engagement_rate: 7.5, category: "服饰", price_min: 2000, price_max: 6000, status: "pending", ai_score: 0, ai_analysis: {}, collaboration_count: 0, total_revenue: 0, avg_roi: 0, handle: "@xiaohua", avatar_url: null, bio: null, profile_url: null, notes: null, contacted_at: null, last_collaboration_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: "m4", name: "孙萌宠", platform: "tiktok", followers: 478000, engagement_rate: 9.7, category: "宠物", price_min: 4000, price_max: 10000, status: "active", ai_score: 90, ai_analysis: {}, collaboration_count: 5, total_revenue: 60000, avg_roi: 4.2, handle: "@mengchong", avatar_url: null, bio: null, profile_url: null, notes: null, contacted_at: null, last_collaboration_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-];
+// Influencer type for local state
+interface InfluencerRecord {
+  id: string;
+  name: string;
+  platform: string;
+  followers: number;
+  engagement_rate: number;
+  category: string;
+  price_min: number;
+  price_max: number;
+  status: string;
+  ai_score: number;
+  ai_analysis: Record<string, unknown>;
+  collaboration_count: number;
+  total_revenue: number;
+  avg_roi: number;
+  handle: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  profile_url: string | null;
+  notes: string | null;
+  contacted_at: string | null;
+  last_collaboration_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 function formatFollowers(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
@@ -105,8 +124,8 @@ export default function InfluencersPage() {
     { label: "平均 ROI", value: kpiData.avgROI > 0 ? `${kpiData.avgROI}x` : "-", trend: "up", trendPercent: 15, icon: "TrendingUp" },
   ];
 
-  const { data: initialInfluencers } = useSupabase(getInfluencers, MOCK_INFLUENCERS);
-  const [localInfluencers, setLocalInfluencers] = useState<typeof MOCK_INFLUENCERS | null>(null);
+  const { data: initialInfluencers } = useSupabase(getInfluencers, []);
+  const [localInfluencers, setLocalInfluencers] = useState<InfluencerRecord[] | null>(null);
   const influencers = localInfluencers ?? initialInfluencers;
 
   const [search, setSearch] = useState("");
@@ -120,7 +139,7 @@ export default function InfluencersPage() {
   // AI dialogs
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [outreachOpen, setOutreachOpen] = useState(false);
-  const [selectedInfluencer, setSelectedInfluencer] = useState<typeof MOCK_INFLUENCERS[0] | null>(null);
+  const [selectedInfluencer, setSelectedInfluencer] = useState<InfluencerRecord | null>(null);
 
   // Import/Search dialogs
   const [csvImportOpen, setCsvImportOpen] = useState(false);

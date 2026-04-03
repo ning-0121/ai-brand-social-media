@@ -30,7 +30,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Protected routes: redirect to login if not authenticated
-  const protectedPaths = ["/dashboard", "/trends", "/content", "/store", "/social", "/skills", "/strategy", "/live", "/influencers", "/ads", "/channels", "/settings", "/approvals"];
+  const protectedPaths = ["/dashboard", "/trends", "/content", "/store", "/social", "/skills", "/strategy", "/live", "/influencers", "/ads", "/channels", "/settings", "/approvals", "/onboarding"];
   const isProtected = protectedPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );
@@ -47,6 +47,26 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
+  }
+
+  // Onboarding gate: authenticated users without Shopify connection go to /onboarding
+  if (user && isProtected && !request.nextUrl.pathname.startsWith("/onboarding")) {
+    const onboardingComplete = user.user_metadata?.onboarding_complete;
+    if (!onboardingComplete) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // If user is onboarded and tries to access /onboarding, redirect to dashboard
+  if (user && request.nextUrl.pathname.startsWith("/onboarding")) {
+    const onboardingComplete = user.user_metadata?.onboarding_complete;
+    if (onboardingComplete) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

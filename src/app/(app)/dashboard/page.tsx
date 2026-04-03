@@ -2,28 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useSupabase } from "@/hooks/use-supabase";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
 import { AIInsightCard } from "@/components/shared/ai-insight-card";
 import { ChartCard } from "@/components/shared/chart-card";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
+import { Button } from "@/components/ui/button";
 import {
-  dashboardKPIs,
-  revenueData,
-  platformSales,
-  recentActivities,
-  tasks,
-} from "@/modules/dashboard/mock-data";
+  getDashboardKPIs,
+  getRevenueTimeSeries,
+  getRecentOrders,
+  getTopProducts,
+  getTodayStats,
+  type DashboardKPIs,
+  type RevenueTimePoint,
+  type RecentOrder,
+  type TopProduct,
+} from "@/lib/supabase-queries";
 import {
   AreaChart,
   Area,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -33,38 +35,23 @@ import {
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import {
-  CheckCircle2,
-  Circle,
   FileText,
   Radar,
   Store,
   CalendarDays,
   ArrowRight,
-  MessageSquare,
   ShoppingCart,
-  TrendingUp,
-  AlertCircle,
   Sparkles,
   Sun,
   Moon,
   CloudSun,
   Coffee,
+  DollarSign,
+  Users,
+  TrendingUp,
+  Package,
 } from "lucide-react";
 import Link from "next/link";
-
-const ACTIVITY_ICONS: Record<string, React.ElementType> = {
-  content: FileText,
-  order: ShoppingCart,
-  trend: TrendingUp,
-  review: MessageSquare,
-  system: AlertCircle,
-};
-
-const PRIORITY_COLORS: Record<string, string> = {
-  high: "bg-destructive/10 text-destructive border-destructive/20",
-  medium: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-  low: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-};
 
 const QUOTES = [
   "每一次用心经营，都是品牌成长的养分。",
@@ -93,7 +80,7 @@ function getDateString() {
   return `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdays[now.getDay()]}`;
 }
 
-function GreetingBanner() {
+function GreetingBanner({ todayRevenue, todayOrders }: { todayRevenue: number; todayOrders: number }) {
   const [mounted, setMounted] = useState(false);
   const { user } = useAuth();
   useEffect(() => setMounted(true), []);
@@ -101,8 +88,6 @@ function GreetingBanner() {
   const greeting = getGreeting();
   const quote = QUOTES[new Date().getDate() % QUOTES.length];
   const date = getDateString();
-  const pendingTasks = tasks.filter((t) => !t.completed).length;
-  const overdueTasks = tasks.filter((t) => t.priority === "high" && !t.completed).length;
 
   if (!mounted) {
     return <div className="h-[180px] rounded-2xl bg-muted animate-pulse" />;
@@ -110,16 +95,11 @@ function GreetingBanner() {
 
   return (
     <div className="relative overflow-hidden rounded-2xl">
-      {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary/70 to-violet-500/80" />
-
-      {/* Decorative shapes */}
       <div className="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-white/5 blur-2xl" />
       <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
       <div className="absolute top-8 right-20 h-20 w-20 rounded-full bg-white/5" />
       <div className="absolute bottom-4 right-40 h-8 w-8 rounded-full bg-white/10" />
-
-      {/* Subtle pattern overlay */}
       <div
         className="absolute inset-0 opacity-[0.03]"
         style={{
@@ -128,9 +108,7 @@ function GreetingBanner() {
         }}
       />
 
-      {/* Content */}
       <div className="relative flex flex-col justify-between gap-6 p-6 sm:p-8 md:flex-row md:items-end">
-        {/* Left: Greeting */}
         <div className="space-y-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
@@ -149,31 +127,22 @@ function GreetingBanner() {
             <span className="italic">&ldquo;{quote}&rdquo;</span>
           </p>
 
-          {/* Quick stats pills */}
-          <div className="flex flex-wrap gap-2 pt-1">
-            {[
-              { label: `${pendingTasks} 项待办`, active: pendingTasks > 0 },
-              { label: `${overdueTasks} 项紧急`, active: overdueTasks > 0, urgent: true },
-              { label: "12 条新内容", active: true },
-              { label: "¥8.2万 今日销售", active: true },
-            ].map((pill) => (
-              <span
-                key={pill.label}
-                className={cn(
-                  "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium backdrop-blur-sm transition-colors",
-                  pill.urgent
-                    ? "bg-amber-400/20 text-amber-100 ring-1 ring-amber-400/30"
-                    : "bg-white/10 text-white/80 ring-1 ring-white/10"
-                )}
-              >
-                {pill.urgent && <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />}
-                {pill.label}
-              </span>
-            ))}
-          </div>
+          {(todayRevenue > 0 || todayOrders > 0) && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {todayOrders > 0 && (
+                <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80 ring-1 ring-white/10">
+                  {todayOrders} 笔今日订单
+                </span>
+              )}
+              {todayRevenue > 0 && (
+                <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80 ring-1 ring-white/10">
+                  {formatCurrency(todayRevenue)} 今日销售
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Right: Mini action card */}
         <div className="flex shrink-0 gap-2">
           {[
             { icon: FileText, label: "创建内容", href: "/content" },
@@ -197,224 +166,272 @@ function GreetingBanner() {
   );
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  paid: "已付款",
+  pending: "待付款",
+  refunded: "已退款",
+  partially_refunded: "部分退款",
+  voided: "已作废",
+  fulfilled: "已发货",
+  partial: "部分发货",
+};
+
+function formatRelativeTime(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  return `${days} 天前`;
+}
+
 export default function DashboardPage() {
+  const { data: kpis, loading: kpisLoading } = useSupabase<DashboardKPIs | null>(getDashboardKPIs, null);
+  const { data: timeSeries, loading: chartLoading } = useSupabase(() => getRevenueTimeSeries(30), []);
+  const { data: recentOrders } = useSupabase(() => getRecentOrders(6), []);
+  const { data: topProducts } = useSupabase(() => getTopProducts(5), []);
+  const { data: todayStats } = useSupabase(getTodayStats, { todayRevenue: 0, todayOrders: 0 });
+
+  const hasData = kpis !== null;
+
+  if (kpisLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-[180px] rounded-2xl bg-muted animate-pulse" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 rounded-lg bg-muted animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasData) {
+    return (
+      <div className="space-y-6">
+        <GreetingBanner todayRevenue={0} todayOrders={0} />
+        <EmptyState
+          title="暂无店铺数据"
+          description="连接你的 Shopify 店铺，同步真实运营数据"
+          action={
+            <Link href="/settings">
+              <Button>
+                <Store className="mr-2 h-4 w-4" />
+                连接 Shopify
+              </Button>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  const trendDir = (v: number) => (v > 0 ? "up" : v < 0 ? "down" : "flat") as "up" | "down" | "flat";
+
   return (
     <div className="space-y-6">
-      <GreetingBanner />
+      <GreetingBanner todayRevenue={todayStats.todayRevenue} todayOrders={todayStats.todayOrders} />
 
       <KPICardGrid>
-        {dashboardKPIs.map((kpi) => (
-          <KPICard key={kpi.label} {...kpi} />
-        ))}
+        <KPICard
+          label="总收入 (30天)"
+          value={kpis.totalRevenue}
+          trend={trendDir(kpis.revenueTrend)}
+          trendPercent={kpis.revenueTrend}
+          icon="DollarSign"
+          format="currency"
+        />
+        <KPICard
+          label="总订单 (30天)"
+          value={kpis.totalOrders}
+          trend={trendDir(kpis.ordersTrend)}
+          trendPercent={kpis.ordersTrend}
+          icon="ShoppingCart"
+          format="number"
+        />
+        <KPICard
+          label="客单价"
+          value={kpis.aov}
+          trend="flat"
+          icon="TrendingUp"
+          format="currency"
+        />
+        <KPICard
+          label="客户总数"
+          value={kpis.totalCustomers}
+          trend="flat"
+          icon="Users"
+          format="number"
+        />
       </KPICardGrid>
 
       <AIInsightCard
         title="AI 每日运营洞察"
         description="基于今日运营数据，AI 生成优先行动建议"
         scene="ai_daily_insight"
-        topic={`今日运营数据概况：总销售额 ¥128.5万（+12.5%），订单 3,842 单（+8.3%），内容发布 156 条（+23.1%），粉丝增长 12.3%。待处理任务 3 项，其中 1 项紧急。请给出今日最重要的运营行动建议。`}
+        topic={`今日运营数据概况：总收入 ${formatCurrency(kpis.totalRevenue)}（${kpis.revenueTrend > 0 ? "+" : ""}${kpis.revenueTrend.toFixed(1)}%），订单 ${kpis.totalOrders} 笔（${kpis.ordersTrend > 0 ? "+" : ""}${kpis.ordersTrend.toFixed(1)}%），客单价 ${formatCurrency(kpis.aov)}，客户总数 ${kpis.totalCustomers}。请给出今日最重要的运营行动建议。`}
         autoLoad
       />
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">概览</TabsTrigger>
-          <TabsTrigger value="tasks">待办事项</TabsTrigger>
-        </TabsList>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
+        {/* Revenue chart */}
+        <ChartCard title="近 30 天销售趋势" className="lg:col-span-4">
+          {timeSeries.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={timeSeries}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="date" className="text-xs" tick={{ fontSize: 11 }} />
+                  <YAxis className="text-xs" tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 10000).toFixed(0)}万`} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                    }}
+                    formatter={(value) => [formatCurrency(Number(value)), "销售额"]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="hsl(var(--chart-1))"
+                    fill="url(#colorRevenue)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+              暂无销售数据
+            </div>
+          )}
+        </ChartCard>
 
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
-            {/* Revenue chart */}
-            <ChartCard title="近 30 天销售趋势" className="lg:col-span-4">
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={revenueData}>
-                    <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" className="text-xs" tick={{ fontSize: 11 }} />
-                    <YAxis className="text-xs" tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 10000).toFixed(0)}万`} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                      }}
-                      formatter={(value) => [formatCurrency(Number(value)), "销售额"]}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="hsl(var(--chart-1))"
-                      fill="url(#colorRevenue)"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </ChartCard>
-
-            {/* Platform breakdown */}
-            <ChartCard title="平台销售分布" className="lg:col-span-3">
-              <div className="h-64 flex items-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={platformSales}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={2}
-                      dataKey="revenue"
-                    >
-                      {platformSales.map((entry) => (
-                        <Cell key={entry.platform} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                      }}
-                      formatter={(value) => [formatCurrency(Number(value)), "销售额"]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="space-y-2">
-                {platformSales.map((p) => (
-                  <div key={p.platform} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.fill }} />
-                      <span className="text-muted-foreground">{p.name}</span>
-                    </div>
-                    <span className="font-medium">{p.percentage}%</span>
-                  </div>
-                ))}
-              </div>
-            </ChartCard>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
-            {/* Orders chart */}
-            <ChartCard title="近 30 天订单趋势" className="lg:col-span-4">
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" className="text-xs" tick={{ fontSize: 11 }} />
-                    <YAxis className="text-xs" tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                      }}
-                      formatter={(value) => [String(value), "订单数"]}
-                    />
-                    <Bar dataKey="orders" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </ChartCard>
-
-            {/* Recent activities */}
-            <Card className="lg:col-span-3">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">最近动态</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {recentActivities.map((activity) => {
-                  const Icon = ACTIVITY_ICONS[activity.type] || AlertCircle;
-                  return (
-                    <div key={activity.id} className="flex gap-3">
-                      <div className="mt-0.5 rounded-md bg-muted p-1.5">
-                        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 space-y-0.5">
-                        <p className="text-sm font-medium leading-none">{activity.title}</p>
-                        <p className="text-xs text-muted-foreground">{activity.description}</p>
-                        <p className="text-xs text-muted-foreground">{activity.timestamp}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Quick actions */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              { label: "创建内容", icon: FileText, href: "/content", color: "text-purple-500" },
-              { label: "查看趋势", icon: Radar, href: "/trends", color: "text-blue-500" },
-              { label: "优化店铺", icon: Store, href: "/store", color: "text-green-500" },
-              { label: "排期发布", icon: CalendarDays, href: "/social", color: "text-orange-500" },
-            ].map((action) => (
-              <Link key={action.href} href={action.href}>
-                <Card className="transition-all hover:shadow-sm hover:border-primary/20 cursor-pointer">
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <action.icon className={cn("h-5 w-5", action.color)} />
-                    <span className="text-sm font-medium">{action.label}</span>
-                    <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="tasks">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">今日待办</CardTitle>
-                <Badge variant="secondary" className="text-xs">
-                  {tasks.filter((t) => !t.completed).length} 项待完成
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border p-3",
-                    task.completed && "opacity-50"
-                  )}
-                >
-                  {task.completed ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                  ) : (
-                    <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-                  <span className={cn("flex-1 text-sm", task.completed && "line-through")}>
-                    {task.title}
+        {/* Top products */}
+        <ChartCard title="热销商品 TOP 5" className="lg:col-span-3">
+          {topProducts.length > 0 ? (
+            <div className="space-y-3">
+              {topProducts.map((product, i) => (
+                <div key={product.title} className="flex items-center gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    {i + 1}
                   </span>
-                  <Badge
-                    variant="outline"
-                    className={cn("text-xs", PRIORITY_COLORS[task.priority])}
-                  >
-                    {task.priority === "high" ? "紧急" : task.priority === "medium" ? "中等" : "低"}
-                  </Badge>
-                  <Badge variant="secondary" className="text-xs">
-                    {task.category}
-                  </Badge>
+                  <div className="flex-1 truncate">
+                    <p className="truncate text-sm font-medium">{product.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      已售 {product.total_quantity} 件
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium tabular-nums">
+                    {formatCurrency(product.total_revenue)}
+                  </span>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          ) : (
+            <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+              暂无商品数据
+            </div>
+          )}
+        </ChartCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
+        {/* Orders chart */}
+        <ChartCard title="近 30 天订单趋势" className="lg:col-span-4">
+          {timeSeries.length > 0 ? (
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={timeSeries}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="date" className="text-xs" tick={{ fontSize: 11 }} />
+                  <YAxis className="text-xs" tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                    }}
+                    formatter={(value) => [String(value), "订单数"]}
+                  />
+                  <Bar dataKey="orders" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+              暂无订单数据
+            </div>
+          )}
+        </ChartCard>
+
+        {/* Recent orders */}
+        <Card className="lg:col-span-3">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">最近订单</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recentOrders.length > 0 ? (
+              recentOrders.map((order) => (
+                <div key={order.id} className="flex gap-3">
+                  <div className="mt-0.5 rounded-md bg-muted p-1.5">
+                    <ShoppingCart className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 space-y-0.5">
+                    <p className="text-sm font-medium leading-none">
+                      订单 {order.order_number}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatCurrency(Number(order.total_price))} ·{" "}
+                      <Badge variant="outline" className="text-[10px] px-1 py-0">
+                        {STATUS_LABELS[order.financial_status] || order.financial_status}
+                      </Badge>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatRelativeTime(order.order_date)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+                暂无订单
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "创建内容", icon: FileText, href: "/content", color: "text-purple-500" },
+          { label: "查看趋势", icon: Radar, href: "/trends", color: "text-blue-500" },
+          { label: "优化店铺", icon: Store, href: "/store", color: "text-green-500" },
+          { label: "排期发布", icon: CalendarDays, href: "/social", color: "text-orange-500" },
+        ].map((action) => (
+          <Link key={action.href} href={action.href}>
+            <Card className="transition-all hover:shadow-sm hover:border-primary/20 cursor-pointer">
+              <CardContent className="flex items-center gap-3 p-4">
+                <action.icon className={cn("h-5 w-5", action.color)} />
+                <span className="text-sm font-medium">{action.label}</span>
+                <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,11 +1,36 @@
 import { NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import {
   syncProducts,
+  syncOrders,
+  syncCustomers,
+  syncAll,
   updateProductSEO,
   updateProductInfo,
   updateProductPrice,
   updateProductInventory,
 } from "@/lib/shopify-operations";
+
+async function getAuthUserId(): Promise<string | null> {
+  const cookieStore = cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {
+          // Read-only in API routes
+        },
+      },
+    }
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id || null;
+}
 
 export async function POST(request: Request) {
   try {
@@ -16,9 +41,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "缺少 integration_id" }, { status: 400 });
     }
 
+    const userId = await getAuthUserId();
+
     switch (action) {
-      case "sync": {
+      case "sync":
+      case "sync_all": {
+        if (!userId) {
+          return NextResponse.json({ error: "未登录" }, { status: 401 });
+        }
+        const result = await syncAll(integration_id, userId);
+        return NextResponse.json({ success: true, ...result });
+      }
+
+      case "sync_products": {
         const result = await syncProducts(integration_id);
+        return NextResponse.json({ success: true, ...result });
+      }
+
+      case "sync_orders": {
+        if (!userId) {
+          return NextResponse.json({ error: "未登录" }, { status: 401 });
+        }
+        const result = await syncOrders(integration_id, userId);
+        return NextResponse.json({ success: true, ...result });
+      }
+
+      case "sync_customers": {
+        if (!userId) {
+          return NextResponse.json({ error: "未登录" }, { status: 401 });
+        }
+        const result = await syncCustomers(integration_id, userId);
         return NextResponse.json({ success: true, ...result });
       }
 
@@ -28,10 +80,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: "缺少必要参数" }, { status: 400 });
         }
         const result = await updateProductSEO(
-          integration_id,
-          shopify_product_id,
-          local_product_id,
-          updates
+          integration_id, shopify_product_id, local_product_id, updates
         );
         return NextResponse.json(result);
       }
@@ -42,10 +91,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: "缺少必要参数" }, { status: 400 });
         }
         const result = await updateProductInfo(
-          integration_id,
-          shopify_product_id,
-          local_product_id,
-          updates
+          integration_id, shopify_product_id, local_product_id, updates
         );
         return NextResponse.json(result);
       }
@@ -56,10 +102,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: "缺少必要参数" }, { status: 400 });
         }
         const result = await updateProductPrice(
-          integration_id,
-          shopify_variant_id,
-          local_product_id,
-          price
+          integration_id, shopify_variant_id, local_product_id, price
         );
         return NextResponse.json(result);
       }
@@ -70,10 +113,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: "缺少必要参数" }, { status: 400 });
         }
         const result = await updateProductInventory(
-          integration_id,
-          shopify_variant_id,
-          local_product_id,
-          quantity
+          integration_id, shopify_variant_id, local_product_id, quantity
         );
         return NextResponse.json(result);
       }

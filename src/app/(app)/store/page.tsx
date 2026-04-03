@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
-import { ChartCard } from "@/components/shared/chart-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,24 +33,10 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  mockProducts,
-  mockSEOScore,
-  storeHealthData,
-} from "@/modules/store/mock-data";
 import { useSupabase } from "@/hooks/use-supabase";
 import { getProducts, getStoreKPIs } from "@/lib/supabase-queries";
 import { KPIData } from "@/lib/types";
 import { createProduct, deleteProduct } from "@/lib/supabase-mutations";
-import {
-  LineChart,
-  Line,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from "recharts";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import { SEOOptimizeDialog } from "@/components/store/seo-optimize-dialog";
@@ -167,8 +152,9 @@ export default function StorePage() {
     { label: "缺货商品", value: kpiData.outOfStock, trend: "down", trendPercent: 2, icon: "AlertTriangle", format: "number" },
   ];
 
-  const { data: initialProducts, loading: loadingProducts } = useSupabase(getProducts, mockProducts);
-  const [localProducts, setLocalProducts] = useState<typeof mockProducts | null>(null);
+  const { data: initialProducts, loading: loadingProducts } = useSupabase(getProducts, []);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [localProducts, setLocalProducts] = useState<any[] | null>(null);
   const products = localProducts ?? initialProducts;
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -184,7 +170,8 @@ export default function StorePage() {
 
   // AI SEO per-product optimization
   const [seoDialogOpen, setSeoDialogOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<typeof mockProducts[0] | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const { data: shopifyIntegration } = useSupabase(
     () => getIntegrationByPlatform("shopify"),
     null
@@ -471,99 +458,67 @@ export default function StorePage() {
                 <CardTitle className="text-sm font-medium">SEO 综合评分</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col items-center gap-4 pt-2">
-                <OverallScoreRing score={mockSEOScore.overall} />
+                <OverallScoreRing score={kpiData.avgSEO} />
                 <p className="text-xs text-muted-foreground text-center">
-                  综合评分基于标题、描述、关键词、图片、速度和移动端等维度计算
+                  基于商品标题、描述、标签等维度计算
                 </p>
               </CardContent>
             </Card>
 
-            {/* 分项得分 */}
+            {/* 商品 SEO 概览 */}
             <Card className="lg:col-span-2">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">分项得分明细</CardTitle>
+                <CardTitle className="text-sm font-medium">商品 SEO 概览</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 pt-2">
-                {mockSEOScore.breakdown.map((item) => {
-                  const pct = Math.round((item.score / item.maxScore) * 100);
-                  const barColor =
-                    pct >= 80
-                      ? "bg-emerald-500"
-                      : pct >= 60
-                        ? "bg-amber-500"
-                        : "bg-destructive";
-
-                  return (
-                    <div key={item.label} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{item.label}</span>
-                        <span className="font-medium tabular-nums">
-                          {item.score}/{item.maxScore}
-                        </span>
+                {products.length > 0 ? (
+                  products.slice(0, 8).map((product: Record<string, unknown>) => {
+                    const score = (product.seo_score as number) || 0;
+                    const barColor =
+                      score >= 80
+                        ? "bg-emerald-500"
+                        : score >= 60
+                          ? "bg-amber-500"
+                          : "bg-destructive";
+                    return (
+                      <div key={product.id as string} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground truncate max-w-[200px]">{product.name as string}</span>
+                          <span className="font-medium tabular-nums">{score}/100</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted">
+                          <div
+                            className={cn("h-full rounded-full transition-all", barColor)}
+                            style={{ width: `${score}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 rounded-full bg-muted">
-                        <div
-                          className={cn("h-full rounded-full transition-all", barColor)}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">暂无商品数据</p>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* 优化建议 */}
+          {/* AI SEO 优化 */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">优化建议</CardTitle>
-                <Badge variant="secondary" className="text-xs">
-                  {mockSEOScore.suggestions.length} 条建议
-                </Badge>
+                <CardTitle className="text-sm font-medium">SEO 优化建议</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {mockSEOScore.suggestions.map((suggestion) => {
-                const config = SEVERITY_CONFIG[suggestion.severity];
-                const Icon = config.icon;
-                return (
-                  <div
-                    key={suggestion.id}
-                    className="flex gap-3 rounded-lg border p-3"
-                  >
-                    <div className="mt-0.5 shrink-0">
-                      <Icon className={cn(
-                        "h-4 w-4",
-                        suggestion.severity === "high" && "text-destructive",
-                        suggestion.severity === "medium" && "text-amber-500",
-                        suggestion.severity === "low" && "text-blue-500",
-                      )} />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{suggestion.title}</span>
-                        <Badge
-                          variant="outline"
-                          className={cn("text-xs", config.className)}
-                        >
-                          {config.label}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {suggestion.category}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {suggestion.description}
-                      </p>
-                    </div>
-                    <Button variant="outline" size="sm" className="shrink-0 self-center">
-                      去优化
-                    </Button>
-                  </div>
-                );
-              })}
+            <CardContent>
+              {products.length > 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  选择商品后可使用 AI 生成 SEO 优化方案。在商品管理标签页中选择商品并点击"AI SEO 优化"。
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  同步 Shopify 商品后，可获取 AI SEO 优化建议
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -577,60 +532,45 @@ export default function StorePage() {
               </CardHeader>
               <CardContent className="flex flex-col items-center gap-2 pt-2">
                 <span className="text-5xl font-bold tabular-nums text-emerald-600">
-                  {storeHealthData.currentScore}
+                  {kpiData.healthScore}
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  <span className="text-sm text-emerald-600 font-medium">健康状态良好</span>
+                  {kpiData.healthScore >= 70 ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      <span className="text-sm text-emerald-600 font-medium">健康状态良好</span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-amber-600 font-medium">需要优化</span>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground text-center mt-1">
-                  综合评估店铺运营、商品质量、客户满意度等指标
+                  综合评估商品 SEO 分数、库存和上架状态
                 </p>
               </CardContent>
             </Card>
 
-            <ChartCard title="近 30 天健康分趋势" className="lg:col-span-3">
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={storeHealthData.trend}>
-                    <defs>
-                      <linearGradient id="colorHealth" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="date"
-                      className="text-xs"
-                      tick={{ fontSize: 11 }}
-                    />
-                    <YAxis
-                      className="text-xs"
-                      tick={{ fontSize: 11 }}
-                      domain={[50, 100]}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                      }}
-                      formatter={(value) => [String(value), "健康分"]}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="score"
-                      stroke="hsl(var(--chart-1))"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4, strokeWidth: 2 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </ChartCard>
+            <Card className="lg:col-span-3">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">店铺概况</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 py-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{kpiData.totalProducts}</p>
+                    <p className="text-xs text-muted-foreground">总商品数</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{kpiData.outOfStock}</p>
+                    <p className="text-xs text-muted-foreground">缺货商品</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{kpiData.avgSEO}</p>
+                    <p className="text-xs text-muted-foreground">平均 SEO 分</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>

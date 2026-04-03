@@ -192,3 +192,183 @@ export async function getSkillsKPIs() {
     totalUsage: skills.reduce((s, sk) => s + (sk.usage_count || 0), 0),
   };
 }
+
+// ============ Dashboard (Real Shopify Data) ============
+
+export interface DashboardKPIs {
+  totalRevenue: number;
+  totalOrders: number;
+  aov: number;
+  totalCustomers: number;
+  revenueTrend: number;
+  ordersTrend: number;
+  customersTrend: number;
+  currency: string;
+}
+
+export async function getDashboardKPIs(): Promise<DashboardKPIs | null> {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [currentOrders, prevOrders, customers] = await Promise.all([
+    supabase
+      .from("shopify_orders")
+      .select("total_price, currency")
+      .gte("order_date", thirtyDaysAgo),
+    supabase
+      .from("shopify_orders")
+      .select("total_price")
+      .gte("order_date", sixtyDaysAgo)
+      .lt("order_date", thirtyDaysAgo),
+    supabase
+      .from("shopify_customers")
+      .select("id", { count: "exact", head: true }),
+  ]);
+
+  const current = currentOrders.data || [];
+  const prev = prevOrders.data || [];
+
+  if (current.length === 0 && prev.length === 0 && (customers.count || 0) === 0) {
+    return null;
+  }
+
+  const totalRevenue = current.reduce((sum, o) => sum + Number(o.total_price || 0), 0);
+  const prevRevenue = prev.reduce((sum, o) => sum + Number(o.total_price || 0), 0);
+  const totalOrders = current.length;
+  const prevOrderCount = prev.length;
+  const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const totalCustomers = customers.count || 0;
+
+  const revenueTrend = prevRevenue > 0
+    ? ((totalRevenue - prevRevenue) / prevRevenue) * 100
+    : totalRevenue > 0 ? 100 : 0;
+  const ordersTrend = prevOrderCount > 0
+    ? ((totalOrders - prevOrderCount) / prevOrderCount) * 100
+    : totalOrders > 0 ? 100 : 0;
+
+  const currency = current[0]?.currency || "USD";
+
+  return {
+    totalRevenue,
+    totalOrders,
+    aov: Math.round(aov * 100) / 100,
+    totalCustomers,
+    revenueTrend: Math.round(revenueTrend * 10) / 10,
+    ordersTrend: Math.round(ordersTrend * 10) / 10,
+    customersTrend: 0,
+    currency,
+  };
+}
+
+export interface RevenueTimePoint {
+  date: string;
+  revenue: number;
+  orders: number;
+}
+
+export async function getRevenueTimeSeries(days: number = 30): Promise<RevenueTimePoint[]> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: orders } = await supabase
+    .from("shopify_orders")
+    .select("total_price, order_date")
+    .gte("order_date", since)
+    .order("order_date", { ascending: true });
+
+  if (!orders?.length) return [];
+
+  // Group by date
+  const byDate = new Map<string, { revenue: number; orders: number }>();
+
+  // Pre-fill all dates in range
+  for (let i = 0; i < days; i++) {
+    const d = new Date(Date.now() - (days - 1 - i) * 24 * 60 * 60 * 1000);
+    const key = `${d.getMonth() + 1}/${d.getDate()}`;
+    byDate.set(key, { revenue: 0, orders: 0 });
+  }
+
+  for (const order of orders) {
+    const d = new Date(order.order_date);
+    const key = `${d.getMonth() + 1}/${d.getDate()}`;
+    const existing = byDate.get(key) || { revenue: 0, orders: 0 };
+    existing.revenue += Number(order.total_price || 0);
+    existing.orders += 1;
+    byDate.set(key, existing);
+  }
+
+  return Array.from(byDate.entries()).map(([date, data]) => ({
+    date,
+    revenue: Math.round(data.revenue * 100) / 100,
+    orders: data.orders,
+  }));
+}
+
+export interface RecentOrder {
+  id: string;
+  order_number: string;
+  total_price: number;
+  currency: string;
+  financial_status: string;
+  fulfillment_status: string | null;
+  order_date: string;
+  email: string | null;
+}
+
+export async function getRecentOrders(limit: number = 6): Promise<RecentOrder[]> {
+  const { data, error } = await supabase
+    .from("shopify_orders")
+    .select("id, order_number, total_price, currency, financial_status, fulfillment_status, order_date, email")
+    .order("order_date", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data || []) as RecentOrder[];
+}
+
+export interface TopProduct {
+  title: string;
+  total_quantity: number;
+  total_revenue: number;
+}
+
+export async function getTopProducts(limit: number = 5): Promise<TopProduct[]> {
+  const { data: items } = await supabase
+    .from("shopify_order_items")
+    .select("title, quantity, price");
+
+  if (!items?.length) return [];
+
+  const byProduct = new Map<string, { quantity: number; revenue: number }>();
+  for (const item of items) {
+    const existing = byProduct.get(item.title) || { quantity: 0, revenue: 0 };
+    existing.quantity += item.quantity;
+    existing.revenue += item.quantity * Number(item.price);
+    byProduct.set(item.title, existing);
+  }
+
+  return Array.from(byProduct.entries())
+    .map(([title, data]) => ({
+      title,
+      total_quantity: data.quantity,
+      total_revenue: Math.round(data.revenue * 100) / 100,
+    }))
+    .sort((a, b) => b.total_revenue - a.total_revenue)
+    .slice(0, limit);
+}
+
+export async function getTodayStats() {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const { data: todayOrders } = await supabase
+    .from("shopify_orders")
+    .select("total_price")
+    .gte("order_date", todayStart.toISOString());
+
+  const orders = todayOrders || [];
+  return {
+    todayRevenue: orders.reduce((sum, o) => sum + Number(o.total_price || 0), 0),
+    todayOrders: orders.length,
+  };
+}

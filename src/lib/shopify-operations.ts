@@ -121,6 +121,238 @@ export async function syncProducts(integrationId: string) {
   return { synced_products: synced, total_orders: ordersData.count || 0 };
 }
 
+// ============ Sync Orders ============
+function parseShopifyLinkHeader(linkHeader: string | null): string | null {
+  if (!linkHeader) return null;
+  const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+  return match ? match[1] : null;
+}
+
+export async function syncOrders(integrationId: string, userId: string) {
+  const creds = await getCredentials(integrationId);
+  const headers = shopifyHeaders(creds.accessToken);
+
+  let url: string | null = `https://${creds.domain}/admin/api/2024-01/orders.json?status=any&limit=250`;
+
+  // Check for incremental sync cursor
+  const { data: integration } = await supabase
+    .from("integrations")
+    .select("metadata")
+    .eq("id", integrationId)
+    .single();
+
+  const lastOrderSync = integration?.metadata?.last_order_sync_at;
+  if (lastOrderSync) {
+    url += `&updated_at_min=${lastOrderSync}`;
+  }
+
+  let synced = 0;
+
+  while (url) {
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      throw new Error(`Shopify Orders API 错误: ${res.status}`);
+    }
+
+    const { orders } = await res.json();
+
+    for (const order of orders || []) {
+      // Upsert order
+      const orderData = {
+        user_id: userId,
+        integration_id: integrationId,
+        shopify_order_id: order.id,
+        order_number: order.name || `#${order.order_number}`,
+        email: order.email || null,
+        total_price: parseFloat(order.total_price || "0"),
+        subtotal_price: parseFloat(order.subtotal_price || "0"),
+        total_tax: parseFloat(order.total_tax || "0"),
+        total_discounts: parseFloat(order.total_discounts || "0"),
+        currency: order.currency || "USD",
+        financial_status: order.financial_status || null,
+        fulfillment_status: order.fulfillment_status || null,
+        customer_shopify_id: order.customer?.id || null,
+        order_date: order.created_at,
+      };
+
+      const { data: existingOrder } = await supabase
+        .from("shopify_orders")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("shopify_order_id", order.id)
+        .single();
+
+      let orderId: string;
+      if (existingOrder) {
+        await supabase.from("shopify_orders").update(orderData).eq("id", existingOrder.id);
+        orderId = existingOrder.id;
+        // Delete old line items for re-insert
+        await supabase.from("shopify_order_items").delete().eq("order_id", orderId);
+      } else {
+        const { data: newOrder } = await supabase
+          .from("shopify_orders")
+          .insert(orderData)
+          .select("id")
+          .single();
+        orderId = newOrder!.id;
+      }
+
+      // Insert line items
+      const lineItems = (order.line_items || []).map((item: Record<string, unknown>) => ({
+        order_id: orderId,
+        shopify_line_item_id: item.id as number,
+        product_id: item.product_id as number | null,
+        variant_id: item.variant_id as number | null,
+        title: item.title as string,
+        quantity: item.quantity as number,
+        price: parseFloat(item.price as string || "0"),
+        sku: (item.sku as string) || null,
+      }));
+
+      if (lineItems.length > 0) {
+        await supabase.from("shopify_order_items").insert(lineItems);
+      }
+
+      synced++;
+    }
+
+    // Follow pagination
+    const linkHeader = res.headers.get("link");
+    url = parseShopifyLinkHeader(linkHeader);
+  }
+
+  return { synced_orders: synced };
+}
+
+// ============ Sync Customers ============
+export async function syncCustomers(integrationId: string, userId: string) {
+  const creds = await getCredentials(integrationId);
+  const headers = shopifyHeaders(creds.accessToken);
+
+  let url: string | null = `https://${creds.domain}/admin/api/2024-01/customers.json?limit=250`;
+
+  const { data: integration } = await supabase
+    .from("integrations")
+    .select("metadata")
+    .eq("id", integrationId)
+    .single();
+
+  const lastCustomerSync = integration?.metadata?.last_customer_sync_at;
+  if (lastCustomerSync) {
+    url += `&updated_at_min=${lastCustomerSync}`;
+  }
+
+  let synced = 0;
+
+  while (url) {
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      throw new Error(`Shopify Customers API 错误: ${res.status}`);
+    }
+
+    const { customers } = await res.json();
+
+    for (const customer of customers || []) {
+      const customerData = {
+        user_id: userId,
+        integration_id: integrationId,
+        shopify_customer_id: customer.id,
+        email: customer.email || null,
+        first_name: customer.first_name || null,
+        last_name: customer.last_name || null,
+        orders_count: customer.orders_count || 0,
+        total_spent: parseFloat(customer.total_spent || "0"),
+        currency: customer.currency || "USD",
+        created_at_shopify: customer.created_at,
+      };
+
+      const { data: existing } = await supabase
+        .from("shopify_customers")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("shopify_customer_id", customer.id)
+        .single();
+
+      if (existing) {
+        await supabase.from("shopify_customers").update(customerData).eq("id", existing.id);
+      } else {
+        await supabase.from("shopify_customers").insert(customerData);
+      }
+
+      synced++;
+    }
+
+    const linkHeader = res.headers.get("link");
+    url = parseShopifyLinkHeader(linkHeader);
+  }
+
+  return { synced_customers: synced };
+}
+
+// ============ Sync All ============
+export async function syncAll(integrationId: string, userId: string) {
+  const productsResult = await syncProducts(integrationId);
+  const ordersResult = await syncOrders(integrationId, userId);
+  const customersResult = await syncCustomers(integrationId, userId);
+
+  // Update integration metadata with full sync stats
+  const now = new Date().toISOString();
+  const { data: integration } = await supabase
+    .from("integrations")
+    .select("metadata")
+    .eq("id", integrationId)
+    .single();
+
+  await supabase
+    .from("integrations")
+    .update({
+      status: "active",
+      last_synced_at: now,
+      metadata: {
+        ...(integration?.metadata || {}),
+        total_products: productsResult.synced_products,
+        total_orders: ordersResult.synced_orders,
+        total_customers: customersResult.synced_customers,
+        last_sync_result: "success",
+        last_order_sync_at: now,
+        last_customer_sync_at: now,
+      },
+    })
+    .eq("id", integrationId);
+
+  return {
+    ...productsResult,
+    ...ordersResult,
+    ...customersResult,
+  };
+}
+
+// ============ Test Connection ============
+export async function testShopifyConnection(domain: string, accessToken: string) {
+  const fullDomain = domain.includes(".myshopify.com")
+    ? domain
+    : `${domain}.myshopify.com`;
+
+  const res = await fetch(
+    `https://${fullDomain}/admin/api/2024-01/shop.json`,
+    { headers: shopifyHeaders(accessToken) }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`连接失败: ${res.status} - ${errText}`);
+  }
+
+  const { shop } = await res.json();
+  return {
+    success: true,
+    shop_name: shop.name,
+    shop_domain: shop.myshopify_domain || fullDomain,
+    currency: shop.currency,
+    email: shop.email,
+  };
+}
+
 // ============ Update Product SEO ============
 export async function updateProductSEO(
   integrationId: string,
