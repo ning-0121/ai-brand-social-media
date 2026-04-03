@@ -12,6 +12,7 @@ import {
   GitBranch,
   Settings,
   ClipboardCheck,
+  Cpu,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
+  { label: "AI 运营中心", href: "/mission-control", icon: Cpu, group: "核心" },
   { label: "运营总览", href: "/dashboard", icon: LayoutDashboard, group: "核心" },
   { label: "趋势雷达", href: "/trends", icon: Radar, group: "核心" },
   { label: "内容工厂", href: "/content", icon: FileText, group: "核心" },

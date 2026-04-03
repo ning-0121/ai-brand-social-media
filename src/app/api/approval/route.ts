@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { onApprovalDecision } from "@/lib/workflow-engine";
 import {
   updateProductSEO,
   updateProductInfo,
@@ -139,6 +140,12 @@ export async function POST(request: Request) {
             .from("approval_tasks")
             .update({ status: "executed", execution_result: result })
             .eq("id", id);
+
+          // Advance workflow if linked
+          if (task.workflow_task_id) {
+            try { await onApprovalDecision(task.workflow_task_id, "approved"); } catch (e) { console.error("Workflow advance error:", e); }
+          }
+
           return NextResponse.json({ success: true, status: "executed", result });
         } catch (execErr: unknown) {
           const errMsg = execErr instanceof Error ? execErr.message : "执行失败";
