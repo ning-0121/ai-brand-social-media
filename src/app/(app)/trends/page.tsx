@@ -43,12 +43,6 @@ import { AICompetitorDialog } from "@/components/trends/ai-competitor-dialog";
 import { Sparkles, Plus, Trash2, Loader2, ArrowUpDown, Search, Save } from "lucide-react";
 import { createHotProduct } from "@/lib/supabase-mutations";
 
-const CATEGORY_COLORS: Record<string, string> = {
-  美妆护肤: "#f472b6",
-  家居生活: "#60a5fa",
-  数码科技: "#a78bfa",
-  食品饮料: "#34d399",
-};
 
 const PLATFORM_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "全部平台" },

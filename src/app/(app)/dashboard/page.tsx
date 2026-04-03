@@ -17,9 +17,6 @@ import {
   getTopProducts,
   getTodayStats,
   type DashboardKPIs,
-  type RevenueTimePoint,
-  type RecentOrder,
-  type TopProduct,
 } from "@/lib/supabase-queries";
 import {
   AreaChart,
@@ -46,10 +43,6 @@ import {
   Moon,
   CloudSun,
   Coffee,
-  DollarSign,
-  Users,
-  TrendingUp,
-  Package,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -188,7 +181,7 @@ function formatRelativeTime(dateStr: string) {
 
 export default function DashboardPage() {
   const { data: kpis, loading: kpisLoading } = useSupabase<DashboardKPIs | null>(getDashboardKPIs, null);
-  const { data: timeSeries, loading: chartLoading } = useSupabase(() => getRevenueTimeSeries(30), []);
+  const { data: timeSeries } = useSupabase(() => getRevenueTimeSeries(30), []);
   const { data: recentOrders } = useSupabase(() => getRecentOrders(6), []);
   const { data: topProducts } = useSupabase(() => getTopProducts(5), []);
   const { data: todayStats } = useSupabase(getTodayStats, { todayRevenue: 0, todayOrders: 0 });

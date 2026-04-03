@@ -47,30 +47,10 @@ import {
   Trash2,
   Loader2,
   Sparkles,
-  AlertTriangle,
-  AlertCircle,
-  Info,
   CheckCircle2,
   Wand2,
 } from "lucide-react";
 
-const SEVERITY_CONFIG: Record<string, { label: string; className: string; icon: React.ElementType }> = {
-  high: {
-    label: "紧急",
-    className: "bg-destructive/10 text-destructive border-destructive/20",
-    icon: AlertCircle,
-  },
-  medium: {
-    label: "中等",
-    className: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-    icon: AlertTriangle,
-  },
-  low: {
-    label: "建议",
-    className: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-    icon: Info,
-  },
-};
 
 function SEOProgressBar({ score }: { score: number }) {
   const color =
@@ -512,7 +492,7 @@ export default function StorePage() {
             <CardContent>
               {products.length > 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  选择商品后可使用 AI 生成 SEO 优化方案。在商品管理标签页中选择商品并点击"AI SEO 优化"。
+                  选择商品后可使用 AI 生成 SEO 优化方案。在商品管理标签页中选择商品并点击「AI SEO 优化」。
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">
