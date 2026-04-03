@@ -29,39 +29,54 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const pathname = request.nextUrl.pathname;
+
   // Protected routes: redirect to login if not authenticated
   const protectedPaths = ["/dashboard", "/trends", "/content", "/store", "/social", "/skills", "/strategy", "/live", "/influencers", "/ads", "/channels", "/settings", "/approvals", "/onboarding"];
-  const isProtected = protectedPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  );
+  const isProtected = protectedPaths.some((path) => pathname.startsWith(path));
 
   if (isProtected && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("redirect", request.nextUrl.pathname);
+    url.searchParams.set("redirect", pathname);
     return NextResponse.redirect(url);
   }
 
   // Already logged in? Redirect away from auth pages
-  if (user && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/register")) {
+  if (user && (pathname === "/login" || pathname === "/register")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 
-  // Onboarding gate: authenticated users without Shopify connection go to /onboarding
-  if (user && isProtected && !request.nextUrl.pathname.startsWith("/onboarding")) {
-    const onboardingComplete = user.user_metadata?.onboarding_complete;
+  // Onboarding gate: check both user_metadata AND actual integration
+  if (user && isProtected && !pathname.startsWith("/onboarding")) {
+    const onboardingComplete = user.user_metadata?.onboarding_complete === true;
+
     if (!onboardingComplete) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/onboarding";
-      return NextResponse.redirect(url);
+      // Double-check: query integrations table for active Shopify
+      const { data: integration } = await supabase
+        .from("integrations")
+        .select("id")
+        .eq("platform", "shopify")
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+
+      if (!integration) {
+        // No Shopify integration found — force onboarding
+        const url = request.nextUrl.clone();
+        url.pathname = "/onboarding";
+        return NextResponse.redirect(url);
+      }
+      // Has integration but metadata not set — fix metadata silently
+      // (user will continue to app, metadata will be updated on next onboarding visit)
     }
   }
 
   // If user is onboarded and tries to access /onboarding, redirect to dashboard
-  if (user && request.nextUrl.pathname.startsWith("/onboarding")) {
-    const onboardingComplete = user.user_metadata?.onboarding_complete;
+  if (user && pathname.startsWith("/onboarding")) {
+    const onboardingComplete = user.user_metadata?.onboarding_complete === true;
     if (onboardingComplete) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
