@@ -431,25 +431,25 @@ export default function ContentPage() {
                       <div>
                         <Eye className="mx-auto h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-xs font-medium tabular-nums">
-                          {formatNumber(item.engagement.views)}
+                          {formatNumber(item.engagement?.views ?? item.views ?? 0)}
                         </span>
                       </div>
                       <div>
                         <Heart className="mx-auto h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-xs font-medium tabular-nums">
-                          {formatNumber(item.engagement.likes)}
+                          {formatNumber(item.engagement?.likes ?? item.likes ?? 0)}
                         </span>
                       </div>
                       <div>
                         <MessageSquare className="mx-auto h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-xs font-medium tabular-nums">
-                          {formatNumber(item.engagement.comments)}
+                          {formatNumber(item.engagement?.comments ?? item.comments ?? 0)}
                         </span>
                       </div>
                       <div>
                         <Share2 className="mx-auto h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-xs font-medium tabular-nums">
-                          {formatNumber(item.engagement.shares)}
+                          {formatNumber(item.engagement?.shares ?? item.shares ?? 0)}
                         </span>
                       </div>
                     </div>
