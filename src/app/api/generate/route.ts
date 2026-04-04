@@ -1,8 +1,8 @@
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 // ============ Scene Configs ============
@@ -478,20 +478,16 @@ export async function POST(request: Request) {
 
     const config = getSceneConfig(scene, params);
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 3000,
+      system: `${config.system}\n\n输出格式要求：\n${config.formatHint}`,
       messages: [
-        {
-          role: "system",
-          content: `${config.system}\n\n输出格式要求：\n${config.formatHint}`,
-        },
         { role: "user", content: topic },
       ],
-      temperature: 0.8,
-      max_tokens: 2500,
     });
 
-    const content = completion.choices[0]?.message?.content || "[]";
+    const content = message.content[0]?.type === "text" ? message.content[0].text : "[]";
 
     let results;
     try {

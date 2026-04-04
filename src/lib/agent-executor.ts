@@ -1,7 +1,7 @@
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { getAgentConfigs } from "./agent-configs";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function executeAgent(
   agentName: string,
@@ -27,23 +27,21 @@ export async function executeAgent(
   // Get scene config for system prompt and format hint
   const sceneConfig = getScenePrompt(taskConfig.scene);
 
-  // Call GPT-4o-mini
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+  // Call Claude
+  const systemPrompt = taskConfig.systemPromptOverride
+    ? `${taskConfig.systemPromptOverride}\n\n输出格式要求：\n${sceneConfig.formatHint}`
+    : `${sceneConfig.system}\n\n输出格式要求：\n${sceneConfig.formatHint}`;
+
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 3000,
+    system: systemPrompt,
     messages: [
-      {
-        role: "system",
-        content: taskConfig.systemPromptOverride
-          ? `${taskConfig.systemPromptOverride}\n\n输出格式要求：\n${sceneConfig.formatHint}`
-          : `${sceneConfig.system}\n\n输出格式要求：\n${sceneConfig.formatHint}`,
-      },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.8,
-    max_tokens: 3000,
   });
 
-  const content = completion.choices[0]?.message?.content || "{}";
+  const content = message.content[0]?.type === "text" ? message.content[0].text : "{}";
 
   // Parse JSON response
   let result: Record<string, unknown>;
