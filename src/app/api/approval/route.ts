@@ -80,12 +80,14 @@ async function executeTask(task: {
     }
 
     case "content_publish": {
-      if (!entity_id) throw new Error("缺少内容 ID");
-      await supabase
-        .from("contents")
-        .update({ status: "published", published_at: new Date().toISOString() })
-        .eq("id", entity_id);
-      return { success: true, message: "内容已发布" };
+      if (entity_id) {
+        await supabase
+          .from("contents")
+          .update({ status: "published", published_at: new Date().toISOString() })
+          .eq("id", entity_id);
+      }
+      // For workflow approvals, entity_id may be null — just approve the step
+      return { success: true, message: "已批准" };
     }
 
     case "social_post": {

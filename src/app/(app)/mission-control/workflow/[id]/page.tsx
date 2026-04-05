@@ -39,6 +39,7 @@ export default function WorkflowDetailPage({
   const [tasks, setTasks] = useState<WorkflowTask[]>([]);
   const [progress, setProgress] = useState(0);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -59,22 +60,39 @@ export default function WorkflowDetailPage({
   }, [loadData]);
 
   const handleApprove = async (task: WorkflowTask) => {
-    if (!task.approval_task_id) return;
-    await fetch("/api/approval", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "approve", id: task.approval_task_id }),
-    });
+    if (!task.approval_task_id) {
+      console.error("No approval_task_id on task", task.id);
+      return;
+    }
+    setActionLoading(task.id);
+    try {
+      const res = await fetch("/api/approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve", id: task.approval_task_id }),
+      });
+      const data = await res.json();
+      console.log("Approve result:", data);
+    } catch (err) {
+      console.error("Approve failed:", err);
+    }
+    setActionLoading(null);
     await loadData();
   };
 
   const handleReject = async (task: WorkflowTask) => {
     if (!task.approval_task_id) return;
-    await fetch("/api/approval", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "reject", id: task.approval_task_id }),
-    });
+    setActionLoading(task.id);
+    try {
+      await fetch("/api/approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reject", id: task.approval_task_id }),
+      });
+    } catch (err) {
+      console.error("Reject failed:", err);
+    }
+    setActionLoading(null);
     await loadData();
   };
 
@@ -181,11 +199,26 @@ export default function WorkflowDetailPage({
                     {/* Approval buttons */}
                     {task.status === "awaiting_approval" && (
                       <div className="flex gap-2 mt-3">
-                        <Button size="sm" className="flex-1 h-8 text-xs" onClick={(e) => { e.stopPropagation(); handleApprove(task); }}>
-                          <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                          批准执行
+                        <Button
+                          size="sm"
+                          className="flex-1 h-8 text-xs"
+                          disabled={actionLoading === task.id}
+                          onClick={(e) => { e.stopPropagation(); handleApprove(task); }}
+                        >
+                          {actionLoading === task.id ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          {actionLoading === task.id ? "执行中..." : "批准执行"}
                         </Button>
-                        <Button variant="outline" size="sm" className="h-8 text-xs text-destructive" onClick={(e) => { e.stopPropagation(); handleReject(task); }}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs text-destructive"
+                          disabled={actionLoading === task.id}
+                          onClick={(e) => { e.stopPropagation(); handleReject(task); }}
+                        >
                           <XCircle className="mr-1.5 h-3.5 w-3.5" />
                           拒绝
                         </Button>
