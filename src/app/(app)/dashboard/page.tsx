@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useSupabase } from "@/hooks/use-supabase";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
 import { AIInsightCard } from "@/components/shared/ai-insight-card";
+import { DailyBriefing } from "@/components/diagnostic/daily-briefing";
 import { ChartCard } from "@/components/shared/chart-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -260,13 +261,7 @@ export default function DashboardPage() {
         />
       </KPICardGrid>
 
-      <AIInsightCard
-        title="AI 每日运营洞察"
-        description="基于今日运营数据，AI 生成优先行动建议"
-        scene="ai_daily_insight"
-        topic={`今日运营数据概况：总收入 ${formatCurrency(kpis.totalRevenue)}（${kpis.revenueTrend > 0 ? "+" : ""}${kpis.revenueTrend.toFixed(1)}%），订单 ${kpis.totalOrders} 笔（${kpis.ordersTrend > 0 ? "+" : ""}${kpis.ordersTrend.toFixed(1)}%），客单价 ${formatCurrency(kpis.aov)}，客户总数 ${kpis.totalCustomers}。请给出今日最重要的运营行动建议。`}
-        autoLoad
-      />
+      <DailyBriefing />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
         {/* Revenue chart */}

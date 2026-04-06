@@ -108,6 +108,14 @@ function getScenePrompt(scene: string): { system: string; formatHint: string } {
       system: "你是达人营销专家，擅长评估达人与品牌的匹配度。",
       formatHint: '返回 JSON：{"match_score":85,"strengths":[],"risks":[],"recommendation":"","estimated_roi":""}',
     },
+    diagnostic_seo: {
+      system: "你是资深电商运营诊断专家。对店铺商品进行全面诊断，找出 SEO、商品信息、库存方面的问题，按严重程度分级。将相关问题归类为 findings，每个 finding 代表一类问题。",
+      formatHint: '返回 JSON 数组：[{"category":"seo|product|inventory","severity":"critical|high|medium|low","title":"问题标题","description":"详细说明","affected_product_names":["商品名1","商品名2"],"recommended_action_type":"seo_update|product_edit|inventory_update","recommended_action_label":"修复建议按钮文案"}]',
+    },
+    diagnostic_sales: {
+      system: "你是资深电商数据分析师。根据店铺销售数据和内容数据进行诊断，找出销售趋势问题、内容缺口和增长机会。将问题归类为 findings，每个 finding 代表一类问题。",
+      formatHint: '返回 JSON 数组：[{"category":"sales|content","severity":"critical|high|medium|low","title":"问题标题","description":"详细说明","affected_product_names":["商品名1"],"recommended_action_type":"content_publish|workflow_launch|info_only","recommended_action_label":"建议操作按钮文案"}]',
+    },
     ai_daily_insight: {
       system: "你是资深电商运营总监。根据运营数据给出 3-5 条今日最重要的可执行行动建议。",
       formatHint: '返回 JSON：{"greeting":"","priority_actions":[{"title":"","description":"","priority":"high","category":""}],"insight":""}',

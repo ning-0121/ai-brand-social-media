@@ -52,6 +52,44 @@ export const storeOptimizerConfig: AgentConfigMap = {
     },
   },
 
+  diagnostic_scan: {
+    scene: "diagnostic_seo",
+    dataQueries: async () => {
+      const products = await getProducts();
+      return { products: products || [] };
+    },
+    buildPrompt: (_input, data) => {
+      const products = (data.products as {
+        id: string; name: string; seo_score: number; meta_title?: string;
+        meta_description?: string; body_html?: string; tags?: string;
+        image_url?: string; stock?: number; stock_quantity?: number;
+        price?: number; category?: string; status?: string;
+      }[]) || [];
+
+      const productList = products.map((p) => {
+        const issues: string[] = [];
+        if (!p.meta_title) issues.push("缺少 meta_title");
+        if (!p.meta_description) issues.push("缺少 meta_description");
+        if (!p.body_html || p.body_html.length < 50) issues.push("描述过短或缺失");
+        if (!p.tags) issues.push("缺少标签");
+        if (!p.image_url) issues.push("缺少图片");
+        if ((p.stock_quantity ?? p.stock ?? 0) === 0) issues.push("库存为0");
+        if ((p.stock_quantity ?? p.stock ?? 0) > 0 && (p.stock_quantity ?? p.stock ?? 0) < 5) issues.push("库存偏低");
+        if (p.seo_score < 50) issues.push(`SEO 分极低(${p.seo_score})`);
+        else if (p.seo_score < 70) issues.push(`SEO 分偏低(${p.seo_score})`);
+        return `- [${p.id}] ${p.name} | 价格:${p.price || "?"} | 库存:${p.stock_quantity ?? p.stock ?? "?"} | SEO:${p.seo_score} | 问题: ${issues.length > 0 ? issues.join(", ") : "无明显问题"}`;
+      }).join("\n");
+
+      return `请对以下 ${products.length} 个商品进行全面诊断，找出 SEO、商品信息、库存方面的问题。
+将问题归类为多个 findings，每个 finding 包含一组相关的问题商品。
+
+商品列表：
+${productList}
+
+请严格按要求的 JSON 格式返回 findings 数组。`;
+    },
+  },
+
   store_health: {
     scene: "seo_optimize",
     dataQueries: async () => {
