@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useSupabase } from "@/hooks/use-supabase";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
-import { AIInsightCard } from "@/components/shared/ai-insight-card";
 import { DailyBriefing } from "@/components/diagnostic/daily-briefing";
 import { ChartCard } from "@/components/shared/chart-card";
 import { EmptyState } from "@/components/shared/empty-state";
