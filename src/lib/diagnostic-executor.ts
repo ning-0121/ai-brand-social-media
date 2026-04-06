@@ -132,8 +132,6 @@ async function executeContentFinding(f: DiagnosticFinding, integrationId: string
 
 // 通用行动方案
 async function executeGenericFinding(f: DiagnosticFinding, integrationId: string | null): Promise<ExecutionResult> {
-  const entityNames = f.affected_entities.map((e) => e.name).join(", ");
-
   // 调用 data_analyst 生成行动方案
   let generated: Record<string, unknown> = {};
   try {

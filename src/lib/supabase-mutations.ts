@@ -9,6 +9,7 @@ export async function createContent(data: {
   status?: string;
   tags?: string[];
   scheduled_at?: string;
+  thumbnail_url?: string;
 }) {
   const { data: result, error } = await supabase
     .from("contents")
