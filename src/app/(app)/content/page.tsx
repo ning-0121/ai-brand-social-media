@@ -2,13 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
-import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { PlatformIcon } from "@/components/shared/platform-icon";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -17,364 +14,416 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSupabase } from "@/hooks/use-supabase";
-import { getContents, getContentKPIs } from "@/lib/supabase-queries";
-import { deleteContent } from "@/lib/supabase-mutations";
-import { ContentTaskCard } from "@/components/content/content-task-card";
-import { ContentEditor } from "@/components/content/content-editor";
-import type { ContentSuggestion } from "@/lib/content-planner";
-import type { Platform } from "@/lib/types";
-
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SkillResultViewer } from "@/components/content/skill-result-viewer";
 import {
   Sparkles,
-  Eye,
-  Heart,
-  MessageSquare,
   Loader2,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  PenLine,
-  Lightbulb,
-  FileText,
+  Search,
   RefreshCw,
+  Radar,
+  Inbox,
+  Package,
+  ChevronRight,
+  Globe,
+  MessageSquare,
+  TrendingUp,
+  AlertCircle,
+  X,
+  DollarSign,
+  Clock,
 } from "lucide-react";
-interface ContentRow {
+import { cn } from "@/lib/utils";
+
+interface Skill {
   id: string;
+  name: string;
+  category: string;
+  description: string;
+  icon: string;
+  color: string;
+  inputs: SkillInputDef[];
+  estimated_cost: { text: number; image: number };
+  estimated_time_seconds: number;
+  requires_image?: boolean;
+}
+
+interface SkillInputDef {
+  key: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  default?: string;
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  body_html?: string;
+  meta_title?: string;
+  meta_description?: string;
+  tags?: string;
+  price?: number;
+  category?: string;
+  image_url?: string;
+  shopify_product_id?: number;
+}
+
+interface RadarSignal {
+  id: string;
+  type: string;
   title: string;
-  body?: string;
-  platform: Platform;
-  content_type?: string;
+  source: string;
+  signal: Record<string, unknown>;
+  suggested_skill_id: string;
+  priority: string;
   status: string;
-  views?: number;
-  likes?: number;
-  comments?: number;
-  shares?: number;
-  tags?: string[];
-  thumbnail_url?: string;
-  published_at?: string;
+}
+
+interface ContentTask {
+  id: string;
+  skill_id: string;
+  product_name?: string;
+  source_module: string;
+  status: string;
+  result?: Record<string, unknown>;
   created_at: string;
 }
 
-const PLATFORMS = [
-  { value: "tiktok", label: "TikTok" },
+const PLATFORM_OPTIONS = [
   { value: "instagram", label: "Instagram" },
+  { value: "tiktok", label: "TikTok" },
   { value: "xiaohongshu", label: "小红书" },
-  { value: "amazon", label: "Amazon" },
   { value: "shopify", label: "Shopify" },
+  { value: "amazon", label: "Amazon" },
   { value: "independent", label: "独立站" },
 ];
 
-const TONES = [
-  { value: "professional", label: "专业" },
-  { value: "casual", label: "轻松" },
-  { value: "humorous", label: "幽默" },
-  { value: "inspiring", label: "激励" },
-];
-
-function formatNumber(num: number): string {
-  if (num >= 10000) return (num / 10000).toFixed(1) + "万";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "k";
-  return num.toString();
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-// ========== Main Page ==========
-
 export default function ContentPage() {
-  // Data
-  const [contents, setContents] = useState<ContentRow[]>([]);
-  const fetchContents = async () => {
-    try {
-      const data = await getContents();
-      setContents(data || []);
-    } catch (err) { console.error(err); }
-  };
-  useEffect(() => { fetchContents(); }, []);
-  const { data: kpis } = useSupabase(getContentKPIs, { total: 0, published: 0, pending: 0, avgEngagement: 0 });
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [signals, setSignals] = useState<RadarSignal[]>([]);
+  const [pendingTasks, setPendingTasks] = useState<ContentTask[]>([]);
 
-  // AI Suggestions
-  const [suggestions, setSuggestions] = useState<ContentSuggestion[]>([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [loadingSkills, setLoadingSkills] = useState(true);
+  const [scanningRadar, setScanningRadar] = useState(false);
 
-  // Editor state
-  const [editorContent, setEditorContent] = useState<{
-    title: string;
-    body: string;
-    hashtags?: string[];
-    image_prompt?: string;
-    cta?: string;
-    platform: string;
-    content_type: string;
-    tags: string[];
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+  const [skillInputs, setSkillInputs] = useState<Record<string, unknown>>({});
+  const [executing, setExecuting] = useState(false);
+  const [skillResult, setSkillResult] = useState<{
+    task_id: string;
+    skill_id: string;
+    skill_name: string;
+    output: Record<string, unknown>;
   } | null>(null);
 
-  // Manual create form
-  const [manualPlatform, setManualPlatform] = useState("shopify");
-  const [manualTone, setManualTone] = useState("professional");
-  const [manualTopic, setManualTopic] = useState("");
-  const [manualGenerating, setManualGenerating] = useState(false);
-
-  // Content library toggle
-  const [showLibrary, setShowLibrary] = useState(false);
-
-  // Fetch suggestions
+  // 加载初始数据
   useEffect(() => {
-    fetchSuggestions();
+    fetchSkills();
+    fetchProducts();
+    fetchRadar();
+    fetchTasks();
   }, []);
 
-  const fetchSuggestions = async () => {
-    setSuggestionsLoading(true);
+  const fetchSkills = async () => {
     try {
-      const res = await fetch("/api/content-plan");
+      const res = await fetch("/api/content-skills");
       const data = await res.json();
-      setSuggestions(data.suggestions || []);
+      setSkills(data.skills || []);
     } catch (err) {
-      console.error("获取建议失败:", err);
+      console.error("加载 Skills 失败:", err);
     }
-    setSuggestionsLoading(false);
+    setLoadingSkills(false);
   };
 
-  // Generate from suggestion
-  const handleGenerateFromSuggestion = async (suggestion: ContentSuggestion) => {
-    setGeneratingId(suggestion.id);
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch("/api/content-plan?type=products");
+      const data = await res.json();
+      setProducts(data.products || []);
+    } catch (err) {
+      console.error("加载商品失败:", err);
+    }
+  };
+
+  const fetchRadar = async () => {
+    try {
+      const res = await fetch("/api/radar");
+      const data = await res.json();
+      setSignals(data.signals || []);
+    } catch (err) {
+      console.error("加载雷达失败:", err);
+    }
+  };
+
+  const fetchTasks = async () => {
+    try {
+      const res = await fetch("/api/content-plan?type=tasks");
+      const data = await res.json();
+      setPendingTasks(data.pending || []);
+    } catch (err) {
+      console.error("加载任务失败:", err);
+    }
+  };
+
+  const handleScanRadar = async () => {
+    setScanningRadar(true);
+    try {
+      const res = await fetch("/api/radar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "scan" }),
+      });
+      const data = await res.json();
+      setSignals(data.signals || []);
+    } catch (err) {
+      console.error("扫描失败:", err);
+    }
+    setScanningRadar(false);
+  };
+
+  const handleSelectSkill = (skill: Skill) => {
+    setSelectedSkill(skill);
+    setSkillResult(null);
+    // 初始化默认值
+    const defaults: Record<string, unknown> = {};
+    for (const input of skill.inputs) {
+      if (input.default) defaults[input.key] = input.default;
+    }
+    if (selectedProduct) defaults.product = selectedProduct;
+    setSkillInputs(defaults);
+  };
+
+  const handleSelectProduct = (product: Product) => {
+    setSelectedProduct(product);
+    if (selectedSkill) {
+      setSkillInputs((prev) => ({ ...prev, product }));
+    }
+  };
+
+  const handleExecute = async () => {
+    if (!selectedSkill) return;
+
+    // 验证必填
+    for (const input of selectedSkill.inputs) {
+      if (input.required && !skillInputs[input.key]) {
+        alert(`请填写: ${input.label}`);
+        return;
+      }
+    }
+
+    setExecuting(true);
+    setSkillResult(null);
     try {
       const res = await fetch("/api/content-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "generate",
-          topic: suggestion.description,
-          platform: suggestion.target_platforms[0] || "shopify",
-          product_name: suggestion.product_name,
+          action: "execute_skill",
+          skill_id: selectedSkill.id,
+          inputs: skillInputs,
+          product_id: selectedProduct?.id,
+          product_name: selectedProduct?.name,
         }),
       });
       const data = await res.json();
-      if (data.content) {
-        setEditorContent({
-          title: data.content.title || suggestion.title,
-          body: data.content.body || "",
-          hashtags: data.content.hashtags,
-          image_prompt: data.content.image_prompt,
-          cta: data.content.cta,
-          platform: suggestion.target_platforms[0] || "shopify",
-          content_type: suggestion.content_type || "image_post",
-          tags: data.content.hashtags || [],
+      if (data.result) {
+        setSkillResult({
+          task_id: data.task_id,
+          skill_id: selectedSkill.id,
+          skill_name: selectedSkill.name,
+          output: data.result.output || data.result,
         });
+        fetchTasks();
+      } else if (data.error) {
+        alert(`执行失败: ${data.error}`);
       }
     } catch (err) {
-      console.error("生成失败:", err);
+      console.error("执行失败:", err);
     }
-    setGeneratingId(null);
+    setExecuting(false);
   };
 
-  // Manual generate
-  const handleManualGenerate = async () => {
-    if (!manualTopic.trim()) return;
-    setManualGenerating(true);
-    try {
-      const res = await fetch("/api/content-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "generate",
-          topic: manualTopic,
-          platform: manualPlatform,
-          tone: manualTone,
-        }),
-      });
-      const data = await res.json();
-      if (data.content) {
-        setEditorContent({
-          title: data.content.title || manualTopic,
-          body: data.content.body || "",
-          hashtags: data.content.hashtags,
-          image_prompt: data.content.image_prompt,
-          cta: data.content.cta,
-          platform: manualPlatform,
-          content_type: "image_post",
-          tags: data.content.hashtags || [],
-        });
-        setManualTopic("");
-      }
-    } catch (err) {
-      console.error("生成失败:", err);
-    }
-    setManualGenerating(false);
-  };
+  const filteredProducts = products.filter((p) =>
+    productSearch ? p.name.toLowerCase().includes(productSearch.toLowerCase()) : true
+  );
 
-  // Delete content
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteContent(id);
-      fetchContents();
-    } catch (err) {
-      console.error("删除失败:", err);
-    }
-  };
-
-  // Content stats
-  const draftContents = contents.filter((c) => c.status === "draft" || c.status === "pending");
-  const publishedContents = contents.filter((c) => c.status === "published");
+  const websiteSkills = skills.filter((s) => s.category === "website");
+  const socialSkills = skills.filter((s) => s.category === "social");
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="内容工厂"
-        description="AI 驱动的内容制作中心 — 自动提案、智能生成、审批发布"
+        description="AI Skills 驱动的全栈内容生产中心 — 12 个专业技能 + 雷达情报 + 跨模块联动"
       />
 
-      {/* KPI Cards */}
-      <KPICardGrid>
-        <KPICard label="内容总数" value={kpis.total} icon="FileText" format="number" trend="flat" />
-        <KPICard label="已发布" value={kpis.published} icon="CheckCircle" format="number" trend="flat" />
-        <KPICard label="待审核" value={kpis.pending} icon="Clock" format="number" trend="flat" />
-        <KPICard label="互动率" value={kpis.avgEngagement} icon="TrendingUp" format="percent" trend="flat" />
-      </KPICardGrid>
+      {/* Top: Product Selector Bar */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex items-center gap-3">
+            <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="搜索你的商品..."
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+            {selectedProduct && (
+              <Badge variant="secondary" className="gap-1">
+                已选: {selectedProduct.name}
+                <button onClick={() => setSelectedProduct(null)}>
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+          </div>
 
-      {/* Main layout: 2 columns */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* Left: Task panel */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Section 1: AI Suggestions */}
+          {productSearch && (
+            <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
+              {filteredProducts.slice(0, 10).map((p) => (
+                <button
+                  key={p.id}
+                  className={cn(
+                    "w-full text-left rounded-md px-2 py-1.5 text-xs hover:bg-muted",
+                    selectedProduct?.id === p.id && "bg-primary/10"
+                  )}
+                  onClick={() => {
+                    handleSelectProduct(p);
+                    setProductSearch("");
+                  }}
+                >
+                  <span className="font-medium">{p.name}</span>
+                  {p.category && <span className="text-muted-foreground ml-2">{p.category}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Main Layout: 3 columns */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        {/* Left: Skills Library + Radar + Inbox */}
+        <div className="lg:col-span-4 space-y-4">
+          {/* Skills Library */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-sm">Skills 库</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-2">
+              <Tabs defaultValue="website">
+                <TabsList className="w-full grid grid-cols-2 h-8">
+                  <TabsTrigger value="website" className="text-xs gap-1">
+                    <Globe className="h-3 w-3" />
+                    网站 ({websiteSkills.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="social" className="text-xs gap-1">
+                    <MessageSquare className="h-3 w-3" />
+                    社媒 ({socialSkills.length})
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="website" className="mt-2 space-y-1">
+                  {loadingSkills ? (
+                    <Skeleton className="h-32" />
+                  ) : (
+                    websiteSkills.map((s) => (
+                      <SkillItem
+                        key={s.id}
+                        skill={s}
+                        selected={selectedSkill?.id === s.id}
+                        onClick={() => handleSelectSkill(s)}
+                      />
+                    ))
+                  )}
+                </TabsContent>
+                <TabsContent value="social" className="mt-2 space-y-1">
+                  {loadingSkills ? (
+                    <Skeleton className="h-32" />
+                  ) : (
+                    socialSkills.map((s) => (
+                      <SkillItem
+                        key={s.id}
+                        skill={s}
+                        selected={selectedSkill?.id === s.id}
+                        onClick={() => handleSelectSkill(s)}
+                      />
+                    ))
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+
+          {/* Radar */}
+          <Card>
+            <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Lightbulb className="h-4 w-4 text-amber-500" />
-                  <CardTitle className="text-sm font-medium">AI 内容建议</CardTitle>
+                  <Radar className="h-4 w-4 text-cyan-500" />
+                  <CardTitle className="text-sm">市场雷达</CardTitle>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs"
-                  onClick={fetchSuggestions}
+                  className="h-6 text-xs"
+                  onClick={handleScanRadar}
+                  disabled={scanningRadar}
                 >
-                  <RefreshCw className="mr-1 h-3 w-3" />
-                  刷新
+                  {scanningRadar ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {suggestionsLoading ? (
-                <>
-                  <Skeleton className="h-32" />
-                  <Skeleton className="h-32" />
-                </>
-              ) : suggestions.length > 0 ? (
-                suggestions.map((s) => (
-                  <ContentTaskCard
-                    key={s.id}
-                    suggestion={s}
-                    onGenerate={handleGenerateFromSuggestion}
-                    generating={generatingId === s.id}
-                  />
+            <CardContent className="p-2 space-y-1.5">
+              {signals.length > 0 ? (
+                signals.slice(0, 5).map((s) => (
+                  <RadarSignalCard key={s.id} signal={s} skills={skills} onUseSkill={handleSelectSkill} />
                 ))
               ) : (
-                <div className="text-center py-6 text-sm text-muted-foreground">
-                  <Lightbulb className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
-                  <p>暂无 AI 建议</p>
-                  <p className="text-xs mt-1">运行店铺诊断可获取内容建议</p>
+                <div className="text-center py-3 text-xs text-muted-foreground">
+                  暂无雷达信号<br />
+                  <button onClick={handleScanRadar} className="text-primary underline mt-1">
+                    立即扫描
+                  </button>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Section 2: Manual Create */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <PenLine className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm font-medium">手动创建</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <Select value={manualPlatform} onValueChange={(v) => v && setManualPlatform(v)}>
-                  <SelectTrigger className="w-28 h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PLATFORMS.map((p) => (
-                      <SelectItem key={p.value} value={p.value} className="text-xs">
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={manualTone} onValueChange={(v) => v && setManualTone(v)}>
-                  <SelectTrigger className="w-24 h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TONES.map((t) => (
-                      <SelectItem key={t.value} value={t.value} className="text-xs">
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Textarea
-                value={manualTopic}
-                onChange={(e) => setManualTopic(e.target.value)}
-                placeholder="描述你想创建的内容，例如：为夏季新品系列创建 Instagram 推广图文..."
-                className="text-sm min-h-[80px]"
-              />
-              <Button
-                className="w-full h-8 text-xs"
-                onClick={handleManualGenerate}
-                disabled={manualGenerating || !manualTopic.trim()}
-              >
-                {manualGenerating ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                    AI 生成中...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-1.5 h-3 w-3" />
-                    AI 生成内容
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Section 3: In-progress tasks */}
-          {draftContents.length > 0 && (
+          {/* Inbox */}
+          {pendingTasks.length > 0 && (
             <Card>
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-2">
                 <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-blue-500" />
-                  <CardTitle className="text-sm font-medium">
-                    草稿 & 待审核 ({draftContents.length})
-                  </CardTitle>
+                  <Inbox className="h-4 w-4 text-blue-500" />
+                  <CardTitle className="text-sm">任务收件箱 ({pendingTasks.length})</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {draftContents.slice(0, 5).map((c) => (
+              <CardContent className="p-2 space-y-1.5">
+                {pendingTasks.slice(0, 5).map((task) => (
                   <div
-                    key={c.id}
-                    className="flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors"
+                    key={task.id}
+                    className="rounded-md border px-2 py-1.5 text-xs hover:bg-muted/50"
                   >
-                    <PlatformIcon platform={c.platform} size="sm" />
-                    <span className="flex-1 text-xs truncate">{c.title}</span>
-                    <StatusBadge status={c.status} />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 text-muted-foreground hover:text-red-500"
-                      onClick={() => handleDelete(c.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    <p className="font-medium truncate">{task.product_name || task.skill_id}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      来源: {task.source_module} · {task.status}
+                    </p>
                   </div>
                 ))}
               </CardContent>
@@ -382,100 +431,272 @@ export default function ContentPage() {
           )}
         </div>
 
-        {/* Right: Editor/Preview */}
-        <div className="lg:col-span-3">
-          {editorContent ? (
-            <Card className="sticky top-6">
-              <CardContent className="p-4">
-                <ContentEditor
-                  content={editorContent}
-                  onClose={() => setEditorContent(null)}
-                  onSaved={() => {
-                    fetchContents();
-                    // Keep editor open so user can see success state
-                  }}
-                />
+        {/* Middle: Skill Input Panel */}
+        <div className="lg:col-span-4">
+          {selectedSkill ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm">{selectedSkill.name}</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">{selectedSkill.description}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedSkill(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-2">
+                  <span className="flex items-center gap-1">
+                    <DollarSign className="h-3 w-3" />
+                    ~${(selectedSkill.estimated_cost.text + selectedSkill.estimated_cost.image).toFixed(2)}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    ~{selectedSkill.estimated_time_seconds}s
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {selectedSkill.inputs.map((input) => (
+                  <SkillInputField
+                    key={input.key}
+                    input={input}
+                    value={skillInputs[input.key]}
+                    onChange={(v) => setSkillInputs((prev) => ({ ...prev, [input.key]: v }))}
+                    products={products}
+                    selectedProduct={selectedProduct}
+                  />
+                ))}
+                <Button className="w-full" onClick={handleExecute} disabled={executing}>
+                  {executing ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />AI 生成中...</>
+                  ) : (
+                    <><Sparkles className="mr-2 h-4 w-4" />执行 Skill</>
+                  )}
+                </Button>
               </CardContent>
             </Card>
           ) : (
             <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-20">
-                <Sparkles className="h-12 w-12 text-muted-foreground/20 mb-4" />
-                <p className="text-sm text-muted-foreground text-center">
-                  选择 AI 建议或手动创建
-                  <br />
-                  AI 将生成完整内容方案供你编辑和发布
-                </p>
+              <CardContent className="py-16 text-center text-sm text-muted-foreground">
+                <Sparkles className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+                <p>从左侧选择一个 Skill</p>
+                <p className="text-xs mt-1">12 个专业内容生产技能</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Right: Result Viewer */}
+        <div className="lg:col-span-4">
+          {skillResult ? (
+            <SkillResultViewer
+              skillId={skillResult.skill_id}
+              skillName={skillResult.skill_name}
+              taskId={skillResult.task_id}
+              result={skillResult.output}
+              onClose={() => setSkillResult(null)}
+            />
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="py-16 text-center text-sm text-muted-foreground">
+                <ChevronRight className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+                <p>执行 Skill 后</p>
+                <p className="text-xs mt-1">AI 生成结果将显示在此</p>
               </CardContent>
             </Card>
           )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Bottom: Published content library */}
-      <Card>
-        <CardHeader className="pb-3">
-          <button
-            className="flex w-full items-center justify-between"
-            onClick={() => setShowLibrary(!showLibrary)}
-          >
-            <CardTitle className="text-sm font-medium">
-              已发布内容库 ({publishedContents.length})
-            </CardTitle>
-            {showLibrary ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
-        </CardHeader>
-        {showLibrary && (
-          <CardContent>
-            {publishedContents.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {publishedContents.map((c) => (
-                  <Card key={c.id} className="overflow-hidden">
-                    <CardContent className="p-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <PlatformIcon platform={c.platform} size="sm" />
-                        <span className="text-xs text-muted-foreground">{c.platform}</span>
-                        <StatusBadge status={c.status} />
-                      </div>
-                      <p className="text-sm font-medium line-clamp-2">{c.title}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{c.body}</p>
-                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                        <span className="flex items-center gap-0.5">
-                          <Eye className="h-3 w-3" /> {formatNumber(c.views || 0)}
-                        </span>
-                        <span className="flex items-center gap-0.5">
-                          <Heart className="h-3 w-3" /> {formatNumber(c.likes || 0)}
-                        </span>
-                        <span className="flex items-center gap-0.5">
-                          <MessageSquare className="h-3 w-3" /> {formatNumber(c.comments || 0)}
-                        </span>
-                        <span className="ml-auto">{formatDate(c.published_at || c.created_at)}</span>
-                      </div>
-                      {c.tags && c.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {c.tags.slice(0, 3).map((tag: string, i: number) => (
-                            <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                暂无已发布内容
-              </div>
-            )}
-          </CardContent>
+// ========== Sub Components ==========
+
+function SkillItem({ skill, selected, onClick }: { skill: Skill; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full text-left rounded-md px-2 py-2 hover:bg-muted transition-colors",
+        selected && "bg-primary/10 ring-1 ring-primary/30"
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
+        <span className="text-xs font-medium flex-1">{skill.name}</span>
+        <span className="text-[10px] text-muted-foreground">
+          ${(skill.estimated_cost.text + skill.estimated_cost.image).toFixed(2)}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function RadarSignalCard({
+  signal,
+  skills,
+  onUseSkill,
+}: {
+  signal: RadarSignal;
+  skills: Skill[];
+  onUseSkill: (skill: Skill) => void;
+}) {
+  const skill = skills.find((s) => s.id === signal.suggested_skill_id);
+  const typeIcons: Record<string, React.ElementType> = {
+    competitor: AlertCircle,
+    trend: TrendingUp,
+    viral: Sparkles,
+  };
+  const Icon = typeIcons[signal.type] || AlertCircle;
+  const priorityColors: Record<string, string> = {
+    high: "text-red-500",
+    medium: "text-yellow-500",
+    low: "text-gray-400",
+  };
+
+  return (
+    <div className="rounded-md border px-2 py-1.5 text-xs space-y-1">
+      <div className="flex items-start gap-1.5">
+        <Icon className={cn("h-3 w-3 mt-0.5 shrink-0", priorityColors[signal.priority])} />
+        <div className="flex-1 min-w-0">
+          <p className="font-medium truncate">{signal.title}</p>
+          <p className="text-[10px] text-muted-foreground line-clamp-1">
+            {String((signal.signal as { insight?: string }).insight || signal.source)}
+          </p>
+        </div>
+      </div>
+      {skill && (
+        <button
+          onClick={() => onUseSkill(skill)}
+          className="text-[10px] text-primary hover:underline"
+        >
+          → 用 {skill.name} 应对
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SkillInputField({
+  input,
+  value,
+  onChange,
+  products,
+  selectedProduct,
+}: {
+  input: SkillInputDef;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  products: Product[];
+  selectedProduct: Product | null;
+}) {
+  if (input.type === "product") {
+    return (
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">{input.label}</label>
+        {value || selectedProduct ? (
+          <div className="mt-1 rounded-md border px-2 py-1.5 text-xs">
+            {((value as Product) || selectedProduct)?.name}
+          </div>
+        ) : (
+          <div className="mt-1 rounded-md border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
+            请在顶部搜索栏选择商品
+          </div>
         )}
-      </Card>
+      </div>
+    );
+  }
+
+  if (input.type === "products") {
+    const list = (value as Product[]) || [];
+    return (
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">{input.label}</label>
+        <div className="mt-1 space-y-1">
+          {list.length > 0 ? (
+            list.map((p) => (
+              <div key={p.id} className="rounded-md border px-2 py-1 text-xs flex items-center justify-between">
+                <span>{p.name}</span>
+                <button onClick={() => onChange(list.filter((x) => x.id !== p.id))}>
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground">未选择商品</p>
+          )}
+          {selectedProduct && !list.find((p) => p.id === selectedProduct.id) && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-7 text-xs"
+              onClick={() => onChange([...list, selectedProduct])}
+            >
+              + 添加 {selectedProduct.name}
+            </Button>
+          )}
+          {list.length === 0 && !selectedProduct && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-7 text-xs"
+              onClick={() => onChange(products.slice(0, 5))}
+            >
+              使用全部商品 (前 5 个)
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (input.type === "select" || input.type === "platform") {
+    const opts = input.type === "platform" ? PLATFORM_OPTIONS : input.options || [];
+    return (
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">{input.label}</label>
+        <Select value={(value as string) || ""} onValueChange={(v) => v && onChange(v)}>
+          <SelectTrigger className="mt-1 h-8 text-xs">
+            <SelectValue placeholder="选择..." />
+          </SelectTrigger>
+          <SelectContent>
+            {opts.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
+
+  if (input.type === "textarea") {
+    return (
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">{input.label}</label>
+        <textarea
+          value={(value as string) || ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={input.placeholder}
+          className="mt-1 w-full rounded-md border px-2 py-1.5 text-xs min-h-[80px]"
+        />
+      </div>
+    );
+  }
+
+  // default text
+  return (
+    <div>
+      <label className="text-xs font-medium text-muted-foreground">{input.label}</label>
+      <Input
+        value={(value as string) || ""}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={input.placeholder}
+        className="mt-1 h-8 text-xs"
+      />
     </div>
   );
 }
