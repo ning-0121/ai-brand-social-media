@@ -35,8 +35,12 @@ export async function POST(request: Request) {
         if (!body.finding_id) {
           return NextResponse.json({ error: "缺少 finding_id" }, { status: 400 });
         }
-        const ref = await executeFinding(body.finding_id);
-        return NextResponse.json({ success: true, execution_ref: ref });
+        const result = await executeFinding(body.finding_id);
+        return NextResponse.json({
+          success: true,
+          execution_ref: result,
+          generated_content: result.generated_content,
+        });
       }
 
       case "dismiss_finding": {

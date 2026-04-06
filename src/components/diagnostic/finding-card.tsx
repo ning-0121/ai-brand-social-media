@@ -18,7 +18,7 @@ import type { DiagnosticFinding } from "@/lib/diagnostic-types";
 
 interface FindingCardProps {
   finding: DiagnosticFinding;
-  onExecute?: (findingId: string) => Promise<void>;
+  onExecute?: (findingId: string) => Promise<unknown>;
   onDismiss?: (findingId: string) => Promise<void>;
 }
 
@@ -57,10 +57,61 @@ const CATEGORY_LABELS: Record<string, string> = {
   content: "内容",
 };
 
+function GeneratedContentPreview({ content }: { content: Record<string, unknown> }) {
+  const c = content;
+  const lines: { label: string; value: string }[] = [];
+
+  if (c.title) lines.push({ label: "标题", value: String(c.title) });
+  if (c.meta_title) lines.push({ label: "Meta 标题", value: String(c.meta_title) });
+  if (c.meta_description) lines.push({ label: "Meta 描述", value: String(c.meta_description) });
+  if (c.body) lines.push({ label: "正文", value: String(c.body).slice(0, 200) });
+  if (c.body_html && !c.body) lines.push({ label: "描述", value: String(c.body_html).slice(0, 200) });
+  if (c.tags) lines.push({ label: "标签", value: String(c.tags) });
+  if (c.cta) lines.push({ label: "CTA", value: String(c.cta) });
+  if (c.hashtags && Array.isArray(c.hashtags)) lines.push({ label: "话题", value: c.hashtags.join(" ") });
+
+  const actions = c.priority_actions as { title: string; description?: string }[] | undefined;
+
+  if (lines.length === 0 && !actions?.length) {
+    // 显示原始 JSON 摘要
+    const raw = JSON.stringify(c, null, 2).slice(0, 300);
+    return (
+      <div className="rounded-md bg-blue-50 border border-blue-100 p-2.5 text-xs">
+        <p className="font-medium text-blue-700 mb-1">AI 生成方案:</p>
+        <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">{raw}</pre>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md bg-blue-50 border border-blue-100 p-2.5 text-xs space-y-1">
+      <p className="font-medium text-blue-700">AI 生成方案:</p>
+      {lines.map((l, i) => (
+        <p key={i} className="line-clamp-2">
+          <span className="text-muted-foreground">{l.label}:</span> {l.value}
+        </p>
+      ))}
+      {actions && actions.length > 0 && (
+        <div>
+          <span className="text-muted-foreground">行动建议:</span>
+          <ul className="list-disc list-inside mt-0.5">
+            {actions.slice(0, 3).map((a, i) => (
+              <li key={i}>{a.title}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FindingCard({ finding, onExecute, onDismiss }: FindingCardProps) {
   const [executing, setExecuting] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const [localStatus, setLocalStatus] = useState(finding.status);
+  const [generatedContent, setGeneratedContent] = useState<Record<string, unknown> | null>(
+    (finding.execution_ref as Record<string, unknown>)?.generated_content as Record<string, unknown> || null
+  );
 
   const config = SEVERITY_CONFIG[finding.severity];
   const Icon = config.icon;
@@ -70,8 +121,11 @@ export function FindingCard({ finding, onExecute, onDismiss }: FindingCardProps)
     if (!onExecute) return;
     setExecuting(true);
     try {
-      await onExecute(finding.id);
+      const result = await onExecute(finding.id);
       setLocalStatus("in_progress");
+      if (result && typeof result === "object" && "generated_content" in result) {
+        setGeneratedContent((result as { generated_content: Record<string, unknown> }).generated_content);
+      }
     } catch (err) {
       console.error("执行失败:", err);
     }
@@ -163,10 +217,14 @@ export function FindingCard({ finding, onExecute, onDismiss }: FindingCardProps)
         )}
 
         {localStatus === "in_progress" && (
-          <div className="flex items-center gap-1.5 pt-0.5">
-            <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
-            <span className="text-[11px] text-blue-600">执行中 · 已提交审批</span>
-            <ExternalLink className="h-3 w-3 text-blue-400" />
+          <div className="space-y-2 pt-1">
+            {generatedContent && Object.keys(generatedContent).length > 0 && (
+              <GeneratedContentPreview content={generatedContent} />
+            )}
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3 w-3 text-blue-500" />
+              <span className="text-[11px] text-blue-600">已提交审批 · 前往审批中心查看</span>
+            </div>
           </div>
         )}
 

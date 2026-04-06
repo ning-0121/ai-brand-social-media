@@ -68,11 +68,12 @@ export default function DiagnosticPage() {
   };
 
   const handleExecute = async (findingId: string) => {
-    await fetch("/api/diagnostic", {
+    const res = await fetch("/api/diagnostic", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "execute_finding", finding_id: findingId }),
     });
+    return await res.json();
   };
 
   const handleDismiss = async (findingId: string) => {

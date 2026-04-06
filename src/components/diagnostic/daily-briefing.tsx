@@ -104,11 +104,13 @@ export function DailyBriefing() {
   };
 
   const handleExecuteFinding = async (findingId: string) => {
-    await fetch("/api/diagnostic", {
+    const res = await fetch("/api/diagnostic", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "execute_finding", finding_id: findingId }),
     });
+    const data = await res.json();
+    return data;
   };
 
   const handleDismissFinding = async (findingId: string) => {
