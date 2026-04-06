@@ -35,9 +35,11 @@ const STYLES = [
 ];
 
 const SIZES = [
-  { value: "1024x1024", label: "正方形 1:1" },
-  { value: "1792x1024", label: "横版 16:9" },
-  { value: "1024x1792", label: "竖版 9:16" },
+  { value: "1:1", label: "正方形 1:1" },
+  { value: "16:9", label: "横版 16:9" },
+  { value: "9:16", label: "竖版 9:16" },
+  { value: "4:3", label: "横版 4:3" },
+  { value: "3:4", label: "竖版 3:4" },
 ];
 
 export function ImageGenerator({
@@ -53,9 +55,10 @@ export function ImageGenerator({
       : "social_media"
   );
   const [size, setSize] = useState(() => {
-    if (platform === "tiktok" || platform === "xiaohongshu") return "1024x1792";
-    if (platform === "instagram") return "1024x1024";
-    return "1024x1024";
+    if (platform === "tiktok") return "9:16";
+    if (platform === "xiaohongshu") return "3:4";
+    if (platform === "instagram") return "1:1";
+    return "1:1";
   });
   const [generating, setGenerating] = useState(false);
   const [images, setImages] = useState<GeneratedImage[]>([]);

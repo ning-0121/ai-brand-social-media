@@ -1,23 +1,20 @@
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import { uploadBase64ToStorage } from "@/lib/image-generation";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 export async function POST(request: Request) {
   try {
-    const { prompt, size = "1024x1024", quantity = 1, style } = await request.json();
+    const { prompt, size = "1:1", quantity = 1, style } = await request.json();
 
     if (!prompt) {
       return NextResponse.json({ error: "请输入图片描述" }, { status: 400 });
     }
 
     const count = Math.min(Number(quantity) || 1, 4);
-    const validSize = ["1024x1024", "1792x1024", "1024x1792"].includes(size)
-      ? size
-      : "1024x1024";
+    const validRatios = ["1:1", "16:9", "9:16", "4:3", "3:4"];
+    const aspectRatio = validRatios.includes(size) ? size : "1:1";
 
     // Style prefix
     const styleHints: Record<string, string> = {
@@ -33,33 +30,38 @@ export async function POST(request: Request) {
 
     for (let i = 0; i < count; i++) {
       try {
-        const response = await openai.images.generate({
-          model: "dall-e-3",
-          prompt: fullPrompt,
-          n: 1,
-          size: validSize as "1024x1024" | "1792x1024" | "1024x1792",
-          response_format: "b64_json",
-          quality: "standard",
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash-image",
+          contents: fullPrompt,
+          config: {
+            responseModalities: ["IMAGE"],
+            imageConfig: {
+              aspectRatio,
+            },
+          },
         });
 
-        const imageData = response.data?.[0];
-        const b64 = imageData?.b64_json;
-        if (!b64) continue;
+        // Extract image from response parts
+        const parts = response.candidates?.[0]?.content?.parts;
+        if (!parts) continue;
 
-        // Upload to Supabase Storage
-        const filename = `img-${i + 1}.png`;
-        let url: string;
-        try {
-          url = await uploadBase64ToStorage(b64, filename);
-        } catch {
-          // If storage upload fails, return as data URL
-          url = `data:image/png;base64,${b64}`;
+        for (const part of parts) {
+          if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith("image/")) {
+            const b64 = part.inlineData.data;
+            const ext = part.inlineData.mimeType === "image/jpeg" ? "jpg" : "png";
+            const filename = `img-${i + 1}.${ext}`;
+
+            let url: string;
+            try {
+              url = await uploadBase64ToStorage(b64, filename, part.inlineData.mimeType);
+            } catch {
+              url = `data:${part.inlineData.mimeType};base64,${b64}`;
+            }
+
+            images.push({ url, prompt: fullPrompt });
+            break; // one image per generation call
+          }
         }
-
-        images.push({
-          url,
-          prompt: imageData?.revised_prompt || fullPrompt,
-        });
       } catch (imgErr: unknown) {
         console.error(`Image ${i + 1} generation failed:`, imgErr);
       }

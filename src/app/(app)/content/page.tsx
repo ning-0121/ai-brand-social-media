@@ -266,7 +266,7 @@ export default function ContentPage() {
                 body: JSON.stringify({
                   prompt: result.image_prompt,
                   style: platform === "amazon" || platform === "shopify" ? "product_photo" : "social_media",
-                  size: platform === "tiktok" || platform === "xiaohongshu" ? "1024x1792" : "1024x1024",
+                  size: platform === "tiktok" ? "9:16" : platform === "xiaohongshu" ? "3:4" : "1:1",
                   quantity: 1,
                 }),
               });

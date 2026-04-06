@@ -33,19 +33,20 @@ export function buildImagePrompt(
 export function getSizeForPlatform(platform: string): string {
   switch (platform) {
     case "tiktok":
-      return "1024x1792"; // 9:16 vertical
+      return "9:16";
     case "instagram":
-      return "1024x1024"; // 1:1 square
+      return "1:1";
     case "xiaohongshu":
-      return "1024x1792"; // 3:4 vertical-ish (closest)
+      return "3:4";
     default:
-      return "1024x1024";
+      return "1:1";
   }
 }
 
 export async function uploadBase64ToStorage(
   base64Data: string,
-  filename: string
+  filename: string,
+  contentType: string = "image/png"
 ): Promise<string> {
   // Convert base64 to Uint8Array
   const binaryString = atob(base64Data);
@@ -59,7 +60,7 @@ export async function uploadBase64ToStorage(
   const { error } = await supabase.storage
     .from("content-media")
     .upload(path, bytes, {
-      contentType: "image/png",
+      contentType,
       upsert: false,
     });
 
