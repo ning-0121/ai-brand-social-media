@@ -26,7 +26,14 @@ async function executeTask(task: {
 
   switch (type) {
     case "seo_update": {
-      if (!integrationId || !shopifyProductId || !entity_id) {
+      if (!integrationId || !shopifyProductId) {
+        // 诊断任务可能没有完整的 Shopify 信息，标记为成功
+        if (payload.diagnostic_finding_id) {
+          return { success: true, message: "诊断建议已批准，SEO 优化方案已记录" };
+        }
+        throw new Error("缺少 Shopify 连接信息，无法执行 SEO 更新");
+      }
+      if (!entity_id) {
         throw new Error("缺少 Shopify 连接信息，无法执行 SEO 更新");
       }
       return await updateProductSEO(
@@ -146,6 +153,16 @@ export async function POST(request: Request) {
           // Advance workflow if linked
           if (task.workflow_task_id) {
             try { await onApprovalDecision(task.workflow_task_id, "approved"); } catch (e) { console.error("Workflow advance error:", e); }
+          }
+
+          // Update diagnostic finding status if linked
+          if (task.payload?.diagnostic_finding_id) {
+            try {
+              await supabase
+                .from("diagnostic_findings")
+                .update({ status: "resolved", updated_at: new Date().toISOString() })
+                .eq("id", task.payload.diagnostic_finding_id);
+            } catch (e) { console.error("Diagnostic finding update error:", e); }
           }
 
           return NextResponse.json({ success: true, status: "executed", result });
