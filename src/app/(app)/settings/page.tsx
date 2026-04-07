@@ -43,12 +43,14 @@ import { useAuth } from "@/hooks/use-auth";
 /* ------------------------------------------------------------------ */
 
 const PLATFORMS = [
-  { id: "shopify", name: "Shopify", desc: "同步商品、订单和收入数据", color: "bg-green-600", fields: ["store_name", "store_url", "access_token"] },
-  { id: "tiktok_shop", name: "TikTok Shop", desc: "同步销量、直播和短视频数据", color: "bg-black", fields: ["store_name", "api_key", "api_secret"] },
-  { id: "amazon", name: "Amazon", desc: "同步产品排名、销量和评价", color: "bg-orange-500", fields: ["store_name", "api_key", "api_secret"] },
-  { id: "etsy", name: "Etsy", desc: "同步手工艺品店铺数据", color: "bg-orange-600", fields: ["store_name", "api_key"] },
-  { id: "instagram", name: "Instagram", desc: "同步粉丝、互动和内容数据", color: "bg-pink-500", fields: ["store_name", "access_token"] },
-  { id: "xiaohongshu", name: "小红书", desc: "同步笔记数据和粉丝画像", color: "bg-red-500", fields: ["store_name", "api_key"] },
+  { id: "shopify", name: "Shopify", desc: "同步商品、订单和收入数据", color: "bg-green-600", fields: ["store_name", "store_url", "access_token"], oauth: false },
+  { id: "instagram", name: "Instagram", desc: "OAuth 授权连接 IG 商业账号，发布帖子和获取数据", color: "bg-pink-500", fields: ["store_name", "access_token"], oauth: true },
+  { id: "facebook", name: "Facebook", desc: "OAuth 授权连接 Facebook Page，发布动态", color: "bg-blue-600", fields: ["store_name", "access_token"], oauth: true },
+  { id: "tiktok", name: "TikTok", desc: "OAuth 授权连接 TikTok 账号，发布短视频", color: "bg-black", fields: ["store_name", "access_token"], oauth: true },
+  { id: "tiktok_shop", name: "TikTok Shop", desc: "同步销量、直播和短视频数据", color: "bg-black", fields: ["store_name", "api_key", "api_secret"], oauth: false },
+  { id: "amazon", name: "Amazon", desc: "同步产品排名、销量和评价", color: "bg-orange-500", fields: ["store_name", "api_key", "api_secret"], oauth: false },
+  { id: "etsy", name: "Etsy", desc: "同步手工艺品店铺数据", color: "bg-orange-600", fields: ["store_name", "api_key"], oauth: false },
+  { id: "xiaohongshu", name: "小红书", desc: "同步笔记数据和粉丝画像", color: "bg-red-500", fields: ["store_name", "api_key"], oauth: false },
 ];
 
 const FIELD_LABELS: Record<string, string> = {
@@ -91,10 +93,28 @@ export default function SettingsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
 
+  const [oauthMessage, setOauthMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   // Sync fetched data to local state
   useEffect(() => {
     setLocalIntegrations(integrations);
   }, [integrations]);
+
+  // Handle OAuth callback messages
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get("oauth_success");
+    const error = params.get("oauth_error");
+    if (success) {
+      setOauthMessage({ type: "success", text: `${success} 授权成功，已连接` });
+      window.history.replaceState({}, "", window.location.pathname);
+      setTimeout(() => setOauthMessage(null), 5000);
+    } else if (error) {
+      setOauthMessage({ type: "error", text: `授权失败: ${error}` });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   const refresh = useCallback(() => {
     getIntegrations()
@@ -214,6 +234,19 @@ export default function SettingsPage() {
         }
       />
 
+      {oauthMessage && (
+        <div
+          className={cn(
+            "rounded-lg border px-4 py-3 text-sm",
+            oauthMessage.type === "success"
+              ? "bg-green-50 border-green-200 text-green-700"
+              : "bg-red-50 border-red-200 text-red-700"
+          )}
+        >
+          {oauthMessage.text}
+        </div>
+      )}
+
       <Tabs defaultValue="platforms" className="space-y-4">
         <TabsList>
           <TabsTrigger value="platforms">平台连接</TabsTrigger>
@@ -325,6 +358,27 @@ export default function SettingsPage() {
                               <Unplug className="h-3.5 w-3.5" />
                             </Button>
                           </div>
+                        </div>
+                      ) : platform.oauth ? (
+                        <div className="space-y-2">
+                          <Button
+                            size="sm"
+                            className="w-full"
+                            onClick={() => {
+                              window.location.href = `/api/oauth/${platform.id}/start`;
+                            }}
+                          >
+                            <Plug className="mr-1.5 h-3.5 w-3.5" />
+                            OAuth 授权连接
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="w-full text-xs"
+                            onClick={() => openConnect(platform)}
+                          >
+                            或手动输入 token
+                          </Button>
                         </div>
                       ) : (
                         <Button

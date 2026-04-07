@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SkillResultViewer } from "@/components/content/skill-result-viewer";
+import { SkillCard } from "@/components/content/skill-card";
 import {
   Sparkles,
   Loader2,
@@ -310,56 +311,75 @@ export default function ContentPage() {
         </CardContent>
       </Card>
 
-      {/* Main Layout: 3 columns */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      {/* Main Layout: flex 3 columns */}
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
         {/* Left: Skills Library + Radar + Inbox */}
-        <div className="lg:col-span-4 space-y-4">
+        <div className="w-full space-y-4 xl:w-[360px] xl:shrink-0">
           {/* Skills Library */}
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-amber-500" />
                 <CardTitle className="text-sm">Skills 库</CardTitle>
+                <span className="text-[10px] text-muted-foreground ml-auto">{skills.length} 个技能</span>
               </div>
             </CardHeader>
-            <CardContent className="p-2">
+            <CardContent className="p-3">
               <Tabs defaultValue="website">
-                <TabsList className="w-full grid grid-cols-2 h-8">
-                  <TabsTrigger value="website" className="text-xs gap-1">
+                <TabsList className="w-full grid grid-cols-2 h-9">
+                  <TabsTrigger value="website" className="text-xs gap-1.5">
                     <Globe className="h-3 w-3" />
                     网站 ({websiteSkills.length})
                   </TabsTrigger>
-                  <TabsTrigger value="social" className="text-xs gap-1">
+                  <TabsTrigger value="social" className="text-xs gap-1.5">
                     <MessageSquare className="h-3 w-3" />
                     社媒 ({socialSkills.length})
                   </TabsTrigger>
                 </TabsList>
-                <TabsContent value="website" className="mt-2 space-y-1">
+                <TabsContent value="website" className="mt-3">
                   {loadingSkills ? (
-                    <Skeleton className="h-32" />
+                    <div className="grid grid-cols-2 gap-2">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <Skeleton key={i} className="h-20" />
+                      ))}
+                    </div>
                   ) : (
-                    websiteSkills.map((s) => (
-                      <SkillItem
-                        key={s.id}
-                        skill={s}
-                        selected={selectedSkill?.id === s.id}
-                        onClick={() => handleSelectSkill(s)}
-                      />
-                    ))
+                    <div className="grid grid-cols-2 gap-2">
+                      {websiteSkills.map((s) => (
+                        <SkillCard
+                          key={s.id}
+                          name={s.name}
+                          icon={s.icon}
+                          color={s.color}
+                          cost={s.estimated_cost.text + s.estimated_cost.image}
+                          selected={selectedSkill?.id === s.id}
+                          onClick={() => handleSelectSkill(s)}
+                        />
+                      ))}
+                    </div>
                   )}
                 </TabsContent>
-                <TabsContent value="social" className="mt-2 space-y-1">
+                <TabsContent value="social" className="mt-3">
                   {loadingSkills ? (
-                    <Skeleton className="h-32" />
+                    <div className="grid grid-cols-2 gap-2">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <Skeleton key={i} className="h-20" />
+                      ))}
+                    </div>
                   ) : (
-                    socialSkills.map((s) => (
-                      <SkillItem
-                        key={s.id}
-                        skill={s}
-                        selected={selectedSkill?.id === s.id}
-                        onClick={() => handleSelectSkill(s)}
-                      />
-                    ))
+                    <div className="grid grid-cols-2 gap-2">
+                      {socialSkills.map((s) => (
+                        <SkillCard
+                          key={s.id}
+                          name={s.name}
+                          icon={s.icon}
+                          color={s.color}
+                          cost={s.estimated_cost.text + s.estimated_cost.image}
+                          selected={selectedSkill?.id === s.id}
+                          onClick={() => handleSelectSkill(s)}
+                        />
+                      ))}
+                    </div>
                   )}
                 </TabsContent>
               </Tabs>
@@ -377,7 +397,7 @@ export default function ContentPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-xs"
+                  className="h-7 px-2 text-xs"
                   onClick={handleScanRadar}
                   disabled={scanningRadar}
                 >
@@ -389,13 +409,13 @@ export default function ContentPage() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="p-2 space-y-1.5">
+            <CardContent className="p-3 pt-0 space-y-2">
               {signals.length > 0 ? (
                 signals.slice(0, 5).map((s) => (
                   <RadarSignalCard key={s.id} signal={s} skills={skills} onUseSkill={handleSelectSkill} />
                 ))
               ) : (
-                <div className="text-center py-3 text-xs text-muted-foreground">
+                <div className="text-center py-4 text-xs text-muted-foreground">
                   暂无雷达信号<br />
                   <button onClick={handleScanRadar} className="text-primary underline mt-1">
                     立即扫描
@@ -414,14 +434,14 @@ export default function ContentPage() {
                   <CardTitle className="text-sm">任务收件箱 ({pendingTasks.length})</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="p-2 space-y-1.5">
+              <CardContent className="p-3 pt-0 space-y-2">
                 {pendingTasks.slice(0, 5).map((task) => (
                   <div
                     key={task.id}
-                    className="rounded-md border px-2 py-1.5 text-xs hover:bg-muted/50"
+                    className="rounded-md border px-2.5 py-2 text-xs hover:bg-muted/50"
                   >
                     <p className="font-medium truncate">{task.product_name || task.skill_id}</p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
                       来源: {task.source_module} · {task.status}
                     </p>
                   </div>
@@ -432,31 +452,34 @@ export default function ContentPage() {
         </div>
 
         {/* Middle: Skill Input Panel */}
-        <div className="lg:col-span-4">
+        <div className="flex-1 min-w-0">
           {selectedSkill ? (
             <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-sm">{selectedSkill.name}</CardTitle>
-                    <p className="text-xs text-muted-foreground mt-1">{selectedSkill.description}</p>
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <SkillIconBadge icon={selectedSkill.icon} color={selectedSkill.color} />
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-base">{selectedSkill.name}</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-1">{selectedSkill.description}</p>
+                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-2">
+                        <span className="flex items-center gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          ~${(selectedSkill.estimated_cost.text + selectedSkill.estimated_cost.image).toFixed(2)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          ~{selectedSkill.estimated_time_seconds}s
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setSelectedSkill(null)}>
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-2">
-                  <span className="flex items-center gap-1">
-                    <DollarSign className="h-3 w-3" />
-                    ~${(selectedSkill.estimated_cost.text + selectedSkill.estimated_cost.image).toFixed(2)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    ~{selectedSkill.estimated_time_seconds}s
-                  </span>
-                </div>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 {selectedSkill.inputs.map((input) => (
                   <SkillInputField
                     key={input.key}
@@ -467,28 +490,28 @@ export default function ContentPage() {
                     selectedProduct={selectedProduct}
                   />
                 ))}
-                <Button className="w-full" onClick={handleExecute} disabled={executing}>
+                <Button className="w-full h-10" onClick={handleExecute} disabled={executing}>
                   {executing ? (
                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" />AI 生成中...</>
                   ) : (
-                    <><Sparkles className="mr-2 h-4 w-4" />执行 Skill</>
+                    <><Sparkles className="mr-2 h-4 w-4" />执行 Skill 生成内容</>
                   )}
                 </Button>
               </CardContent>
             </Card>
           ) : (
             <Card className="border-dashed">
-              <CardContent className="py-16 text-center text-sm text-muted-foreground">
-                <Sparkles className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
-                <p>从左侧选择一个 Skill</p>
-                <p className="text-xs mt-1">12 个专业内容生产技能</p>
+              <CardContent className="py-24 text-center text-sm text-muted-foreground">
+                <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground/20" />
+                <p className="text-base font-medium text-foreground/60">从左侧选择一个 Skill</p>
+                <p className="text-xs mt-2">12 个专业内容生产技能 · 网站 + 社媒全栈覆盖</p>
               </CardContent>
             </Card>
           )}
         </div>
 
         {/* Right: Result Viewer */}
-        <div className="lg:col-span-4">
+        <div className="w-full xl:w-[420px] xl:shrink-0">
           {skillResult ? (
             <SkillResultViewer
               skillId={skillResult.skill_id}
@@ -499,10 +522,10 @@ export default function ContentPage() {
             />
           ) : (
             <Card className="border-dashed">
-              <CardContent className="py-16 text-center text-sm text-muted-foreground">
-                <ChevronRight className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
-                <p>执行 Skill 后</p>
-                <p className="text-xs mt-1">AI 生成结果将显示在此</p>
+              <CardContent className="py-24 text-center text-sm text-muted-foreground">
+                <ChevronRight className="h-12 w-12 mx-auto mb-4 text-muted-foreground/20" />
+                <p className="text-base font-medium text-foreground/60">执行 Skill 后</p>
+                <p className="text-xs mt-2">AI 生成结果将显示在此</p>
               </CardContent>
             </Card>
           )}
@@ -514,23 +537,27 @@ export default function ContentPage() {
 
 // ========== Sub Components ==========
 
-function SkillItem({ skill, selected, onClick }: { skill: Skill; selected: boolean; onClick: () => void }) {
+function SkillIconBadge({ icon, color }: { icon: string; color: string }) {
+  // Lazy import all icons via lucide-react direct mapping (kept simple)
+  const iconClass: Record<string, string> = {
+    blue: "bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400",
+    green: "bg-green-100 text-green-600 dark:bg-green-500/20 dark:text-green-400",
+    purple: "bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400",
+    red: "bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400",
+    cyan: "bg-cyan-100 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400",
+    amber: "bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400",
+    pink: "bg-pink-100 text-pink-600 dark:bg-pink-500/20 dark:text-pink-400",
+    indigo: "bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400",
+    teal: "bg-teal-100 text-teal-600 dark:bg-teal-500/20 dark:text-teal-400",
+    violet: "bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400",
+    orange: "bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400",
+    rose: "bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400",
+  };
+  void icon; // icon name is informational, we use Sparkles for badge consistency
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full text-left rounded-md px-2 py-2 hover:bg-muted transition-colors",
-        selected && "bg-primary/10 ring-1 ring-primary/30"
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
-        <span className="text-xs font-medium flex-1">{skill.name}</span>
-        <span className="text-[10px] text-muted-foreground">
-          ${(skill.estimated_cost.text + skill.estimated_cost.image).toFixed(2)}
-        </span>
-      </div>
-    </button>
+    <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg shrink-0", iconClass[color] || iconClass.blue)}>
+      <Sparkles className="h-5 w-5" />
+    </div>
   );
 }
 
