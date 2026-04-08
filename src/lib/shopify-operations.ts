@@ -71,6 +71,23 @@ export async function syncProducts(integrationId: string) {
   let synced = 0;
   for (const sp of shopifyProducts || []) {
     const variant = sp.variants?.[0];
+
+    // Fetch SEO metafields (title_tag / description_tag in 'global' namespace)
+    // These are NOT included in the standard product payload.
+    let metaTitle: string | null = null;
+    let metaDescription: string | null = null;
+    try {
+      const { titleMetafield, descMetafield } = await fetchProductMetafields(
+        creds.domain,
+        creds.accessToken,
+        sp.id
+      );
+      metaTitle = titleMetafield?.value || null;
+      metaDescription = descMetafield?.value || null;
+    } catch {
+      // Don't fail the whole sync if one product's metafields fail
+    }
+
     const productData = {
       name: sp.title,
       sku: variant?.sku || `SHOPIFY-${sp.id}`,
@@ -85,8 +102,8 @@ export async function syncProducts(integrationId: string) {
       shopify_variant_id: variant?.id || null,
       body_html: sp.body_html || null,
       tags: sp.tags || null,
-      meta_title: sp.metafields_global_title_tag || null,
-      meta_description: sp.metafields_global_description_tag || null,
+      meta_title: metaTitle,
+      meta_description: metaDescription,
     };
 
     const { data: existing } = await supabase
@@ -353,7 +370,91 @@ export async function testShopifyConnection(domain: string, accessToken: string)
   };
 }
 
+// ============ Get Product SEO Metafields ============
+// Shopify SEO meta_title / meta_description are stored as metafields
+// in the "global" namespace with keys "title_tag" / "description_tag".
+// They are NOT returned by GET /products.json — must be fetched separately.
+async function fetchProductMetafields(
+  domain: string,
+  accessToken: string,
+  shopifyProductId: number
+): Promise<{ titleMetafield: { id: number; value: string } | null; descMetafield: { id: number; value: string } | null }> {
+  const headers = shopifyHeaders(accessToken);
+  const res = await fetch(
+    `https://${domain}/admin/api/2024-01/products/${shopifyProductId}/metafields.json?namespace=global`,
+    { headers }
+  );
+
+  if (!res.ok) return { titleMetafield: null, descMetafield: null };
+
+  const { metafields } = (await res.json()) as { metafields: Array<{ id: number; namespace: string; key: string; value: string }> };
+  const titleMf = metafields?.find((m) => m.namespace === "global" && m.key === "title_tag") || null;
+  const descMf = metafields?.find((m) => m.namespace === "global" && m.key === "description_tag") || null;
+
+  return {
+    titleMetafield: titleMf ? { id: titleMf.id, value: titleMf.value } : null,
+    descMetafield: descMf ? { id: descMf.id, value: descMf.value } : null,
+  };
+}
+
+// Create or update a single metafield (upsert pattern)
+async function upsertMetafield(
+  domain: string,
+  accessToken: string,
+  shopifyProductId: number,
+  key: "title_tag" | "description_tag",
+  value: string,
+  existingId: number | null
+): Promise<void> {
+  const headers = shopifyHeaders(accessToken);
+
+  if (existingId) {
+    // Update existing metafield
+    const res = await fetch(
+      `https://${domain}/admin/api/2024-01/products/${shopifyProductId}/metafields/${existingId}.json`,
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          metafield: {
+            id: existingId,
+            value,
+            type: "single_line_text_field",
+          },
+        }),
+      }
+    );
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Shopify metafield (${key}) 更新失败: ${res.status} - ${errText}`);
+    }
+  } else {
+    // Create new metafield
+    const res = await fetch(
+      `https://${domain}/admin/api/2024-01/products/${shopifyProductId}/metafields.json`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          metafield: {
+            namespace: "global",
+            key,
+            value,
+            type: "single_line_text_field",
+          },
+        }),
+      }
+    );
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Shopify metafield (${key}) 创建失败: ${res.status} - ${errText}`);
+    }
+  }
+}
+
 // ============ Update Product SEO ============
+// Handles both standard fields (title, body_html, tags) via PUT /products/{id}.json
+// AND SEO metafields (meta_title, meta_description) via /metafields endpoints.
 export async function updateProductSEO(
   integrationId: string,
   shopifyProductId: number,
@@ -369,42 +470,68 @@ export async function updateProductSEO(
   const creds = await getCredentials(integrationId);
   const headers = shopifyHeaders(creds.accessToken);
 
-  // Build Shopify product update payload
-  const shopifyUpdate: Record<string, unknown> = {};
-  if (updates.title) shopifyUpdate.title = updates.title;
-  if (updates.body_html) shopifyUpdate.body_html = updates.body_html;
-  if (updates.tags) shopifyUpdate.tags = updates.tags;
-  if (updates.meta_title)
-    shopifyUpdate.metafields_global_title_tag = updates.meta_title;
-  if (updates.meta_description)
-    shopifyUpdate.metafields_global_description_tag = updates.meta_description;
+  // Step 1: update standard product fields (title, body_html, tags)
+  const standardUpdate: Record<string, unknown> = {};
+  if (updates.title) standardUpdate.title = updates.title;
+  if (updates.body_html) standardUpdate.body_html = updates.body_html;
+  if (updates.tags) standardUpdate.tags = updates.tags;
 
-  const res = await fetch(
-    `https://${creds.domain}/admin/api/2024-01/products/${shopifyProductId}.json`,
-    {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({ product: { id: shopifyProductId, ...shopifyUpdate } }),
+  if (Object.keys(standardUpdate).length > 0) {
+    const res = await fetch(
+      `https://${creds.domain}/admin/api/2024-01/products/${shopifyProductId}.json`,
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ product: { id: shopifyProductId, ...standardUpdate } }),
+      }
+    );
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Shopify 商品更新失败: ${res.status} - ${errText}`);
     }
-  );
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Shopify SEO 更新失败: ${res.status} - ${errText}`);
   }
 
-  // Update local DB
+  // Step 2: update SEO metafields (separate API)
+  if (updates.meta_title || updates.meta_description) {
+    const { titleMetafield, descMetafield } = await fetchProductMetafields(
+      creds.domain,
+      creds.accessToken,
+      shopifyProductId
+    );
+
+    if (updates.meta_title) {
+      await upsertMetafield(
+        creds.domain,
+        creds.accessToken,
+        shopifyProductId,
+        "title_tag",
+        updates.meta_title,
+        titleMetafield?.id || null
+      );
+    }
+    if (updates.meta_description) {
+      await upsertMetafield(
+        creds.domain,
+        creds.accessToken,
+        shopifyProductId,
+        "description_tag",
+        updates.meta_description,
+        descMetafield?.id || null
+      );
+    }
+  }
+
+  // Step 3: update local DB
   const localUpdate: Record<string, unknown> = {};
   if (updates.title) localUpdate.name = updates.title;
   if (updates.body_html) localUpdate.body_html = updates.body_html;
   if (updates.tags) localUpdate.tags = updates.tags;
   if (updates.meta_title) localUpdate.meta_title = updates.meta_title;
-  if (updates.meta_description)
-    localUpdate.meta_description = updates.meta_description;
+  if (updates.meta_description) localUpdate.meta_description = updates.meta_description;
 
   await supabase.from("products").update(localUpdate).eq("id", localProductId);
 
-  return { success: true, shopify_response: await res.json() };
+  return { success: true };
 }
 
 // ============ Update Product Basic Info ============

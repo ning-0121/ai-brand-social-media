@@ -55,9 +55,15 @@ export async function runDiagnostic(
       console.error("Sales diagnostic failed:", salesResult.reason);
     }
 
-    // 4. 加载商品用于匹配 ID
+    // 4. 加载商品用于匹配
     const products = (await getProducts()) || [];
-    const productMap = new Map(
+    const productById = new Map<string, { id: string; name: string; shopify_product_id?: number }>(
+      products.map((p: { id: string; name: string; shopify_product_id?: number }) => [
+        p.id,
+        { id: p.id, name: p.name, shopify_product_id: p.shopify_product_id },
+      ])
+    );
+    const productByName = new Map<string, { id: string; name: string; shopify_product_id?: number }>(
       products.map((p: { id: string; name: string; shopify_product_id?: number }) => [
         p.name.toLowerCase(),
         { id: p.id, name: p.name, shopify_product_id: p.shopify_product_id },
@@ -66,32 +72,49 @@ export async function runDiagnostic(
 
     // 5. 转换为 DB findings
     const dbFindings = rawFindings.map((raw) => {
-      const entities: AffectedEntity[] = (raw.affected_product_names || [])
-        .map((name) => {
-          const match = productMap.get(name.toLowerCase());
-          if (match) {
-            return {
-              entity_type: "product" as const,
+      const entities: AffectedEntity[] = [];
+
+      // Preferred: AI returned product IDs (UUIDs from our prompt)
+      if (raw.affected_product_ids && Array.isArray(raw.affected_product_ids)) {
+        for (const id of raw.affected_product_ids) {
+          const match = productById.get(id);
+          if (match && match.shopify_product_id) {
+            entities.push({
+              entity_type: "product",
               entity_id: match.id,
               name: match.name,
               shopify_product_id: match.shopify_product_id,
-            };
+            });
           }
-          // 尝试模糊匹配
+        }
+      }
+
+      // Fallback: AI returned names (try fuzzy match)
+      if (entities.length === 0 && raw.affected_product_names) {
+        for (const name of raw.affected_product_names) {
+          const match = productByName.get(name.toLowerCase());
+          if (match) {
+            entities.push({
+              entity_type: "product",
+              entity_id: match.id,
+              name: match.name,
+              shopify_product_id: match.shopify_product_id,
+            });
+            continue;
+          }
           const lowerName = name.toLowerCase();
-          const entries = Array.from(productMap.entries());
+          const entries = Array.from(productByName.entries());
           const fuzzy = entries.find(([key]) => key.includes(lowerName) || lowerName.includes(key));
           if (fuzzy) {
-            return {
-              entity_type: "product" as const,
+            entities.push({
+              entity_type: "product",
               entity_id: fuzzy[1].id,
               name: fuzzy[1].name,
               shopify_product_id: fuzzy[1].shopify_product_id,
-            };
+            });
           }
-          return null;
-        })
-        .filter(Boolean) as AffectedEntity[];
+        }
+      }
 
       const action: RecommendedAction = {
         action_type: raw.recommended_action_type || "info_only",

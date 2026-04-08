@@ -26,15 +26,10 @@ async function executeTask(task: {
 
   switch (type) {
     case "seo_update": {
-      if (!integrationId || !shopifyProductId) {
-        // 诊断任务可能没有完整的 Shopify 信息，标记为成功
-        if (payload.diagnostic_finding_id) {
-          return { success: true, message: "诊断建议已批准，SEO 优化方案已记录" };
-        }
-        throw new Error("缺少 Shopify 连接信息，无法执行 SEO 更新");
-      }
-      if (!entity_id) {
-        throw new Error("缺少 Shopify 连接信息，无法执行 SEO 更新");
+      if (!integrationId || !shopifyProductId || !entity_id) {
+        throw new Error(
+          `缺少 Shopify 连接信息：integration_id=${!!integrationId}, shopify_product_id=${!!shopifyProductId}, entity_id=${!!entity_id}`
+        );
       }
       return await updateProductSEO(
         integrationId,

@@ -68,6 +68,9 @@ export interface RawFinding {
   severity: FindingSeverity;
   title: string;
   description: string;
+  // Preferred: AI returns local product UUIDs we passed in via [id] prefix in the prompt
+  affected_product_ids?: string[];
+  // Fallback: AI returns names that we then fuzzy-match
   affected_product_names?: string[];
   recommended_action_type: RecommendedAction["action_type"];
   recommended_action_label: string;

@@ -21,7 +21,27 @@ export const storeOptimizerConfig: AgentConfigMap = {
     scene: "seo_apply",
     buildPrompt: (input, _data, context) => {
       const positioning = (context["1"] as Record<string, unknown>)?.positioning || "";
-      return `商品名称: ${input.product_name || "新品"}\n当前描述: ${input.body_html || ""}\n品牌定位: ${positioning}\n\n请生成优化后的 SEO 文案，包含标题、描述、Meta 标签和标签。`;
+      const productName = input.product_name || "新品";
+      const currentBody = input.body_html || "";
+      const missingFields = input.missing_fields || "all SEO fields";
+      const findingContext = input.finding_context || "";
+
+      return `Product: ${productName}
+Current body_html (truncated): ${String(currentBody).slice(0, 600)}
+Missing/needs improvement: ${missingFields}
+${findingContext ? `Why this needs fixing: ${findingContext}` : ""}
+${positioning ? `Brand positioning: ${positioning}` : ""}
+
+Generate optimized SEO copy that can be applied directly to Shopify.
+
+Rules:
+- title: keep concise but search-friendly (50-70 chars)
+- body_html: 2-4 short paragraphs in HTML, keep brand voice, include key features
+- meta_title: 50-60 chars, include main keyword, brand name if it fits
+- meta_description: 140-160 chars, must include CTA
+- tags: comma-separated, 5-10 relevant tags
+
+Only include the fields listed in 'Missing/needs improvement' if you'd be improving on the current state. Do not invent fictional product attributes.`;
     },
   },
 
@@ -64,29 +84,54 @@ export const storeOptimizerConfig: AgentConfigMap = {
         meta_description?: string; body_html?: string; tags?: string;
         image_url?: string; stock?: number; stock_quantity?: number;
         price?: number; category?: string; status?: string;
+        shopify_product_id?: number;
       }[]) || [];
 
-      const productList = products.map((p) => {
+      // Only include real Shopify-synced products (skip seed/fake data)
+      const realProducts = products.filter((p) => p.shopify_product_id);
+
+      // Pre-compute issue categories so we can give the LLM clear hints
+      const missingMetaTitle = realProducts.filter((p) => !p.meta_title);
+      const missingMetaDesc = realProducts.filter((p) => !p.meta_description);
+      const missingBody = realProducts.filter((p) => !p.body_html || p.body_html.length < 50);
+      const missingTags = realProducts.filter((p) => !p.tags);
+      const missingImage = realProducts.filter((p) => !p.image_url);
+      const outOfStock = realProducts.filter((p) => (p.stock_quantity ?? p.stock ?? 0) === 0);
+
+      const productList = realProducts.map((p) => {
         const issues: string[] = [];
-        if (!p.meta_title) issues.push("缺少 meta_title");
-        if (!p.meta_description) issues.push("缺少 meta_description");
-        if (!p.body_html || p.body_html.length < 50) issues.push("描述过短或缺失");
-        if (!p.tags) issues.push("缺少标签");
-        if (!p.image_url) issues.push("缺少图片");
-        if ((p.stock_quantity ?? p.stock ?? 0) === 0) issues.push("库存为0");
-        if ((p.stock_quantity ?? p.stock ?? 0) > 0 && (p.stock_quantity ?? p.stock ?? 0) < 5) issues.push("库存偏低");
-        if (p.seo_score < 50) issues.push(`SEO 分极低(${p.seo_score})`);
-        else if (p.seo_score < 70) issues.push(`SEO 分偏低(${p.seo_score})`);
-        return `- [${p.id}] ${p.name} | 价格:${p.price || "?"} | 库存:${p.stock_quantity ?? p.stock ?? "?"} | SEO:${p.seo_score} | 问题: ${issues.length > 0 ? issues.join(", ") : "无明显问题"}`;
+        if (!p.meta_title) issues.push("missing meta_title");
+        if (!p.meta_description) issues.push("missing meta_description");
+        if (!p.body_html || p.body_html.length < 50) issues.push("body too short");
+        if (!p.tags) issues.push("no tags");
+        if (!p.image_url) issues.push("no image");
+        if ((p.stock_quantity ?? p.stock ?? 0) === 0) issues.push("out of stock");
+        return `[${p.id}] "${p.name}" | issues: ${issues.length > 0 ? issues.join(", ") : "ok"}`;
       }).join("\n");
 
-      return `请对以下 ${products.length} 个商品进行全面诊断，找出 SEO、商品信息、库存方面的问题。
-将问题归类为多个 findings，每个 finding 包含一组相关的问题商品。
+      return `You are diagnosing a Shopify store. ${realProducts.length} real products synced from Shopify.
 
-商品列表：
+PRE-COMPUTED ISSUE COUNTS (use these as ground truth, do not over-claim or under-claim):
+- ${missingMetaTitle.length} products missing meta_title
+- ${missingMetaDesc.length} products missing meta_description
+- ${missingBody.length} products with empty/very short body_html
+- ${missingTags.length} products with no tags
+- ${missingImage.length} products with no image
+- ${outOfStock.length} products out of stock
+
+PRODUCTS:
 ${productList}
 
-请严格按要求的 JSON 格式返回 findings 数组。`;
+REQUIRED OUTPUT RULES:
+1. If ${missingMetaTitle.length} > 0, you MUST create a finding with category="seo", action_type="seo_update". Group up to 5 affected product IDs in affected_product_ids.
+2. If ${missingMetaDesc.length} > 0, MUST create a separate seo finding for it (also action_type="seo_update").
+3. If ${missingBody.length} > 0, MUST create a finding with category="product", action_type="seo_update".
+4. For inventory issues use category="inventory", action_type="inventory_update".
+5. ALWAYS use the bracketed UUID (e.g. "ae4a4f0c-89f1-4c72-90a2-4178ca8bc41f") in affected_product_ids — NEVER product names.
+6. Do NOT invent issues. Only report what the pre-computed counts confirm.
+7. Each finding should have severity reflecting how many products are affected.
+
+Return JSON array of findings.`;
     },
   },
 
