@@ -16,6 +16,14 @@ import { hashtagStrategySkill } from "./social/hashtag-strategy";
 import { influencerBriefSkill } from "./social/influencer-brief";
 import { ugcResponseSkill } from "./social/ugc-response";
 
+// OEM B2B skills
+import { oemInquiryReplySkill } from "./oem/oem-inquiry-reply";
+import { oemQuotationGenSkill } from "./oem/oem-quotation-gen";
+import { oemCapabilityPitchSkill } from "./oem/oem-capability-pitch";
+import { oemSampleStrategySkill } from "./oem/oem-sample-strategy";
+import { oemFollowupMessageSkill } from "./oem/oem-followup-message";
+import { oemBuyerResearchSkill } from "./oem/oem-buyer-research";
+
 const allSkills: ContentSkill[] = [
   // Website
   productDetailPageSkill,
@@ -31,6 +39,13 @@ const allSkills: ContentSkill[] = [
   hashtagStrategySkill,
   influencerBriefSkill,
   ugcResponseSkill,
+  // OEM
+  oemInquiryReplySkill,
+  oemQuotationGenSkill,
+  oemCapabilityPitchSkill,
+  oemSampleStrategySkill,
+  oemFollowupMessageSkill,
+  oemBuyerResearchSkill,
 ];
 
 const skillMap = new Map(allSkills.map((s) => [s.id, s]));

@@ -13,6 +13,10 @@ import {
   Settings,
   ClipboardCheck,
   Cpu,
+  Inbox,
+  MessageCircle,
+  Briefcase,
+  FileSpreadsheet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -36,6 +40,10 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "达人中心", href: "/influencers", icon: Users, group: "增长" },
   { label: "广告投放", href: "/ads", icon: Megaphone, group: "增长" },
   { label: "渠道拓展", href: "/channels", icon: GitBranch, group: "增长" },
+  { label: "询盘看板", href: "/oem/inquiries", icon: Inbox, group: "OEM 业务" },
+  { label: "WhatsApp", href: "/oem/whatsapp", icon: MessageCircle, group: "OEM 业务" },
+  { label: "买家 CRM", href: "/oem/buyers", icon: Briefcase, group: "OEM 业务" },
+  { label: "报价单", href: "/oem/quotations", icon: FileSpreadsheet, group: "OEM 业务" },
   { label: "技能包", href: "/skills", icon: GraduationCap, group: "学习" },
   { label: "系统设置", href: "/settings", icon: Settings, group: "系统" },
 ];
