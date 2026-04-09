@@ -195,16 +195,29 @@ export default function SettingsPage() {
     }
   };
 
-  // Handle sync
+  // Handle sync — actually calls the Shopify sync API
   const handleSync = async (integration: Integration) => {
     setSyncing(integration.id);
     try {
-      await updateIntegration(integration.id, {
-        last_synced_at: new Date().toISOString(),
+      const res = await fetch("/api/shopify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "sync_all",
+          integration_id: integration.id,
+          user_id: user?.id,
+        }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`同步失败: ${data.error || res.status}`);
+      } else {
+        alert(`同步完成: ${data.synced_products || 0} 商品, ${data.synced_orders || 0} 订单, ${data.synced_customers || 0} 客户`);
+      }
       refresh();
     } catch (err) {
       console.error("同步失败:", err);
+      alert("同步失败，请查看控制台");
     } finally {
       setSyncing(null);
     }
