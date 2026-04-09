@@ -16,6 +16,14 @@ import { hashtagStrategySkill } from "./social/hashtag-strategy";
 import { influencerBriefSkill } from "./social/influencer-brief";
 import { ugcResponseSkill } from "./social/ugc-response";
 
+// Image skills
+import { aiProductPhotoSkill } from "./image/ai-product-photo";
+import { bannerDesignSkill } from "./image/banner-design";
+
+// Page skills
+import { shopifyDetailPageSkill } from "./page/shopify-detail-page";
+import { campaignPageSkill } from "./page/campaign-page";
+
 // OEM B2B skills
 import { oemInquiryReplySkill } from "./oem/oem-inquiry-reply";
 import { oemQuotationGenSkill } from "./oem/oem-quotation-gen";
@@ -25,7 +33,13 @@ import { oemFollowupMessageSkill } from "./oem/oem-followup-message";
 import { oemBuyerResearchSkill } from "./oem/oem-buyer-research";
 
 const allSkills: ContentSkill[] = [
-  // Website
+  // Image
+  aiProductPhotoSkill,
+  bannerDesignSkill,
+  // Page
+  shopifyDetailPageSkill,
+  campaignPageSkill,
+  // Website (legacy, kept as "copy" category conceptually)
   productDetailPageSkill,
   productSeoOptimizeSkill,
   homepageDesignSkill,

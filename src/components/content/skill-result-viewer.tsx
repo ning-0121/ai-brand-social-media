@@ -4,7 +4,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, Copy, Check } from "lucide-react";
+import { Loader2, Send, Copy, Check, Image as ImageIcon } from "lucide-react";
+import { HtmlPreview } from "./html-preview";
+import { ImageTemplateRenderer } from "./image-template-renderer";
+import { getTemplate } from "./image-templates";
+import type { TemplateData } from "./image-template-renderer";
 
 interface SkillResultViewerProps {
   skillId: string;
@@ -62,7 +66,46 @@ export function SkillResultViewer({ skillId, skillName, taskId, result, onClose 
       </div>
 
       <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-        <ResultRenderer result={result} />
+        {/* Special rendering for HTML results (detail pages, campaign pages) */}
+        {typeof result.body_html === "string" && (
+          <HtmlPreview html={result.body_html as string} />
+        )}
+
+        {/* Special rendering for image template results */}
+        {typeof result.template_id === "string" && (() => {
+          const tpl = getTemplate(result.template_id as string);
+          if (!tpl) return null;
+          const data: TemplateData = {
+            headline: (result.headline as string) || "",
+            subheadline: (result.subheadline as string) || undefined,
+            cta: (result.cta as string) || undefined,
+            productImageUrl: (result.product_image_url as string) || undefined,
+            backgroundColor: (result.backgroundColor as string) || undefined,
+            textColor: (result.textColor as string) || undefined,
+            accentColor: (result.accentColor as string) || undefined,
+            brandName: (result.brandName as string) || undefined,
+            discount: (result.discount as string) || undefined,
+            badge: (result.badge as string) || undefined,
+          };
+          return <ImageTemplateRenderer template={tpl} data={data} />;
+        })()}
+
+        {/* Special rendering for AI image prompts */}
+        {typeof result.image_prompt === "string" && !result.template_id && (
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <ImageIcon className="h-3.5 w-3.5" />
+              AI 图片 Prompt
+            </div>
+            <p className="text-xs text-muted-foreground">{result.image_prompt as string}</p>
+            <p className="text-[10px] text-muted-foreground">点击下方提交审批后，可在审批通过时调用图片生成 API</p>
+          </div>
+        )}
+
+        {/* Generic JSON rendering for everything else */}
+        {!result.body_html && !result.template_id && (
+          <ResultRenderer result={result} />
+        )}
       </div>
 
       {!submitted ? (

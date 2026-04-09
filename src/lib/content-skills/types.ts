@@ -1,4 +1,4 @@
-export type SkillCategory = "website" | "social" | "campaign" | "ugc" | "oem";
+export type SkillCategory = "website" | "social" | "campaign" | "ugc" | "oem" | "image" | "page" | "copy" | "video";
 
 export interface SkillInputDef {
   key: string;

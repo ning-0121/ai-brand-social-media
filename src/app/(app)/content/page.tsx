@@ -26,8 +26,6 @@ import {
   Inbox,
   Package,
   ChevronRight,
-  Globe,
-  MessageSquare,
   TrendingUp,
   AlertCircle,
   X,
@@ -254,8 +252,11 @@ export default function ContentPage() {
     productSearch ? p.name.toLowerCase().includes(productSearch.toLowerCase()) : true
   );
 
-  const websiteSkills = skills.filter((s) => s.category === "website");
-  const socialSkills = skills.filter((s) => s.category === "social");
+  const imageSkills = skills.filter((s) => s.category === "image");
+  const pageSkills = skills.filter((s) => s.category === "page" || s.category === "website");
+  const copySkills = skills.filter((s) => s.category === "social" || s.category === "copy");
+  const videoSkills = skills.filter((s) => s.category === "video");
+  const oemSkills = skills.filter((s) => s.category === "oem");
 
   return (
     <div className="space-y-6">
@@ -325,63 +326,59 @@ export default function ContentPage() {
               </div>
             </CardHeader>
             <CardContent className="p-3">
-              <Tabs defaultValue="website">
-                <TabsList className="w-full grid grid-cols-2 h-9">
-                  <TabsTrigger value="website" className="text-xs gap-1.5">
-                    <Globe className="h-3 w-3" />
-                    网站 ({websiteSkills.length})
+              <Tabs defaultValue="image">
+                <TabsList className="w-full flex h-9 overflow-x-auto">
+                  <TabsTrigger value="image" className="text-[11px] flex-1 min-w-0 gap-1">
+                    📸 图片 ({imageSkills.length})
                   </TabsTrigger>
-                  <TabsTrigger value="social" className="text-xs gap-1.5">
-                    <MessageSquare className="h-3 w-3" />
-                    社媒 ({socialSkills.length})
+                  <TabsTrigger value="page" className="text-[11px] flex-1 min-w-0 gap-1">
+                    📄 页面 ({pageSkills.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="copy" className="text-[11px] flex-1 min-w-0 gap-1">
+                    ✍️ 文案 ({copySkills.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="video" className="text-[11px] flex-1 min-w-0 gap-1">
+                    🎬 视频 ({videoSkills.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="oem" className="text-[11px] flex-1 min-w-0 gap-1">
+                    🏢 OEM ({oemSkills.length})
                   </TabsTrigger>
                 </TabsList>
-                <TabsContent value="website" className="mt-3">
-                  {loadingSkills ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-20" />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      {websiteSkills.map((s) => (
-                        <SkillCard
-                          key={s.id}
-                          name={s.name}
-                          icon={s.icon}
-                          color={s.color}
-                          cost={s.estimated_cost.text + s.estimated_cost.image}
-                          selected={selectedSkill?.id === s.id}
-                          onClick={() => handleSelectSkill(s)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-                <TabsContent value="social" className="mt-3">
-                  {loadingSkills ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-20" />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      {socialSkills.map((s) => (
-                        <SkillCard
-                          key={s.id}
-                          name={s.name}
-                          icon={s.icon}
-                          color={s.color}
-                          cost={s.estimated_cost.text + s.estimated_cost.image}
-                          selected={selectedSkill?.id === s.id}
-                          onClick={() => handleSelectSkill(s)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
+                {[
+                  { key: "image", items: imageSkills },
+                  { key: "page", items: pageSkills },
+                  { key: "copy", items: copySkills },
+                  { key: "video", items: videoSkills },
+                  { key: "oem", items: oemSkills },
+                ].map((tab) => (
+                  <TabsContent key={tab.key} value={tab.key} className="mt-3">
+                    {loadingSkills ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <Skeleton key={i} className="h-20" />
+                        ))}
+                      </div>
+                    ) : tab.items.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {tab.items.map((s) => (
+                          <SkillCard
+                            key={s.id}
+                            name={s.name}
+                            icon={s.icon}
+                            color={s.color}
+                            cost={s.estimated_cost.text + s.estimated_cost.image}
+                            selected={selectedSkill?.id === s.id}
+                            onClick={() => handleSelectSkill(s)}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-xs text-muted-foreground py-6">
+                        此类别暂无 Skills
+                      </p>
+                    )}
+                  </TabsContent>
+                ))}
               </Tabs>
             </CardContent>
           </Card>
