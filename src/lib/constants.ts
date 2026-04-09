@@ -18,6 +18,7 @@ import {
   Briefcase,
   FileSpreadsheet,
   CalendarDays,
+  Headphones,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "内容工厂", href: "/content", icon: FileText, group: "核心" },
   { label: "店铺优化", href: "/store", icon: Store, group: "核心" },
   { label: "社媒规划", href: "/social", icon: Share2, group: "核心" },
+  { label: "AI 客服", href: "/customer-service", icon: Headphones, group: "核心" },
   { label: "审批中心", href: "/approvals", icon: ClipboardCheck, group: "核心" },
   { label: "活动策划", href: "/campaigns", icon: CalendarDays, group: "运营" },
   { label: "品牌策略", href: "/strategy", icon: Target, group: "增长" },

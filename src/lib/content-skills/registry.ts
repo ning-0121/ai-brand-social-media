@@ -41,6 +41,7 @@ import { adAudienceStrategySkill } from "./copy/ad-audience-strategy";
 import { campaignPlannerSkill } from "./copy/campaign-planner";
 import { campaignReviewSkill } from "./copy/campaign-review";
 import { inventoryForecastSkill } from "./copy/inventory-forecast";
+import { d2cCustomerReplySkill } from "./copy/d2c-customer-reply";
 
 // OEM B2B skills
 import { oemInquiryReplySkill } from "./oem/oem-inquiry-reply";
@@ -73,6 +74,7 @@ const allSkills: ContentSkill[] = [
   campaignPlannerSkill,
   campaignReviewSkill,
   inventoryForecastSkill,
+  d2cCustomerReplySkill,
   // Website (legacy, serves as additional copy/page skills)
   productDetailPageSkill,
   productSeoOptimizeSkill,

@@ -6,6 +6,7 @@ export interface AiReplyContext {
   buyerDisplayName: string;
   conversationId: string;
   isFirstMessage: boolean;
+  businessType?: "oem" | "d2c"; // defaults to "oem" for backward compat
 }
 
 export interface AiReplyResult {
@@ -19,14 +20,15 @@ export async function generateAiReply(ctx: AiReplyContext): Promise<AiReplyResul
   if (!ctx.buyerMessage || ctx.buyerMessage.trim().length === 0) return null;
 
   try {
+    const isD2C = ctx.businessType === "d2c";
+    const skillId = isD2C ? "d2c_customer_reply" : "oem_inquiry_reply";
+    const skillInputs = isD2C
+      ? { customer_message: ctx.buyerMessage, issue_type: "general" }
+      : { buyer_message: ctx.buyerMessage, buyer_country: "", buyer_company: ctx.buyerDisplayName, tone: "professional" };
+
     const { result } = await executeSkill(
-      "oem_inquiry_reply",
-      {
-        buyer_message: ctx.buyerMessage,
-        buyer_country: "",
-        buyer_company: ctx.buyerDisplayName,
-        tone: "professional",
-      },
+      skillId,
+      skillInputs,
       {
         sourceModule: "whatsapp_auto",
       }
