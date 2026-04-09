@@ -15,14 +15,25 @@ import { contentCalendarSkill } from "./social/content-calendar";
 import { hashtagStrategySkill } from "./social/hashtag-strategy";
 import { influencerBriefSkill } from "./social/influencer-brief";
 import { ugcResponseSkill } from "./social/ugc-response";
+import { liveStreamScriptSkill } from "./social/live-stream-script";
 
 // Image skills
 import { aiProductPhotoSkill } from "./image/ai-product-photo";
 import { bannerDesignSkill } from "./image/banner-design";
+import { socialMediaImageSkill } from "./image/social-media-image";
+import { campaignPosterSkill } from "./image/campaign-poster";
 
 // Page skills
 import { shopifyDetailPageSkill } from "./page/shopify-detail-page";
 import { campaignPageSkill } from "./page/campaign-page";
+import { homepageHeroSkill } from "./page/homepage-hero";
+import { landingPageSkill } from "./page/landing-page";
+
+// Copy skills
+import { adCopySkill } from "./copy/ad-copy";
+import { emailCopySkill } from "./copy/email-copy";
+import { customerReviewSkill } from "./copy/customer-review";
+import { productDescriptionSkill } from "./copy/product-description";
 
 // OEM B2B skills
 import { oemInquiryReplySkill } from "./oem/oem-inquiry-reply";
@@ -33,13 +44,22 @@ import { oemFollowupMessageSkill } from "./oem/oem-followup-message";
 import { oemBuyerResearchSkill } from "./oem/oem-buyer-research";
 
 const allSkills: ContentSkill[] = [
-  // Image
+  // Image (4)
   aiProductPhotoSkill,
   bannerDesignSkill,
-  // Page
+  socialMediaImageSkill,
+  campaignPosterSkill,
+  // Page (4)
   shopifyDetailPageSkill,
   campaignPageSkill,
-  // Website (legacy, kept as "copy" category conceptually)
+  homepageHeroSkill,
+  landingPageSkill,
+  // Copy (4 new + existing website/social reclassified below)
+  adCopySkill,
+  emailCopySkill,
+  customerReviewSkill,
+  productDescriptionSkill,
+  // Website (legacy, serves as additional copy/page skills)
   productDetailPageSkill,
   productSeoOptimizeSkill,
   homepageDesignSkill,
@@ -53,6 +73,8 @@ const allSkills: ContentSkill[] = [
   hashtagStrategySkill,
   influencerBriefSkill,
   ugcResponseSkill,
+  // Video
+  liveStreamScriptSkill,
   // OEM
   oemInquiryReplySkill,
   oemQuotationGenSkill,

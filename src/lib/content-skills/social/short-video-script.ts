@@ -4,7 +4,7 @@ import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 export const shortVideoScriptSkill: ContentSkill = {
   id: "short_video_script",
   name: "短视频脚本",
-  category: "social",
+  category: "video",
   description: "生成 15s/30s/60s 短视频分镜脚本、BGM 建议、标签",
   icon: "Video",
   color: "indigo",
