@@ -246,7 +246,23 @@ export default function TrendsPage() {
     <div className="space-y-6">
       <PageHeader
         title="趋势雷达中心"
-        description="实时追踪市场热点、品类趋势与竞品动态"
+        description="实时追踪市场热点、品类趋势与竞品动态 — AI 定价分析 + 选品建议"
+        actions={
+          <div className="flex gap-2">
+            <a href="/content">
+              <Button variant="outline" size="sm">
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                AI 定价分析
+              </Button>
+            </a>
+            <a href="/content">
+              <Button variant="outline" size="sm">
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                AI 选品建议
+              </Button>
+            </a>
+          </div>
+        }
       />
 
       <KPICardGrid>

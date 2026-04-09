@@ -73,6 +73,48 @@ function getDateString() {
   return `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdays[now.getDay()]}`;
 }
 
+function AutoOpsStatusCard() {
+  const [logs, setLogs] = useState<Array<{ id: string; run_type: string; created_at: string; results_summary: { success?: number; failed?: number; total?: number } }>>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/cron/daily")
+      .catch(() => {}); // trigger on page load is too heavy, just load logs
+    fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/auto_ops_logs?select=id,run_type,created_at,results_summary&order=created_at.desc&limit=3`, {
+      headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "" },
+    })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setLogs(d); })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  if (!loaded || logs.length === 0) return null;
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-xs font-medium">自动运营引擎</span>
+          <span className="text-[10px] text-muted-foreground ml-auto">每小时 + 每天 8:00 自动运行</span>
+        </div>
+        <div className="flex gap-3">
+          {logs.map((log) => (
+            <div key={log.id} className="text-[11px] text-muted-foreground">
+              <span className="font-medium">{log.run_type}</span>
+              {" · "}
+              {log.results_summary?.success || 0}/{log.results_summary?.total || 0} 成功
+              {" · "}
+              {new Date(log.created_at).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function GreetingBanner({ todayRevenue, todayOrders }: { todayRevenue: number; todayOrders: number }) {
   const [mounted, setMounted] = useState(false);
   const { user } = useAuth();
@@ -261,6 +303,9 @@ export default function DashboardPage() {
       </KPICardGrid>
 
       <DailyBriefing />
+
+      {/* Auto-Ops Engine Status */}
+      <AutoOpsStatusCard />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
         {/* Revenue chart */}

@@ -244,6 +244,7 @@ export default function StorePage() {
           <TabsTrigger value="products">商品管理</TabsTrigger>
           <TabsTrigger value="seo">SEO 优化</TabsTrigger>
           <TabsTrigger value="health">店铺健康</TabsTrigger>
+          <TabsTrigger value="reviews">评价运营</TabsTrigger>
         </TabsList>
 
         {/* 商品管理 */}
@@ -552,6 +553,59 @@ export default function StorePage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* 评价运营 */}
+        <TabsContent value="reviews" className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Sparkles className="h-8 w-8 mx-auto mb-3 text-amber-500" />
+                <p className="text-sm font-semibold">AI 生成评价文案</p>
+                <p className="text-xs text-muted-foreground mt-1">生成真实感的商品评价，用于新品上架和社媒引用</p>
+                <a href="/content" className="inline-block mt-3">
+                  <Button size="sm" variant="outline">
+                    <Sparkles className="mr-1.5 h-3 w-3" />
+                    去内容工厂
+                  </Button>
+                </a>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Wand2 className="h-8 w-8 mx-auto mb-3 text-blue-500" />
+                <p className="text-sm font-semibold">评价邀请邮件</p>
+                <p className="text-xs text-muted-foreground mt-1">AI 生成评价邀请邮件，提升好评率</p>
+                <a href="/content" className="inline-block mt-3">
+                  <Button size="sm" variant="outline">
+                    <Sparkles className="mr-1.5 h-3 w-3" />
+                    生成邀请邮件
+                  </Button>
+                </a>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="py-12 text-center">
+                <CheckCircle2 className="h-8 w-8 mx-auto mb-3 text-green-500" />
+                <p className="text-sm font-semibold">评价回复模板</p>
+                <p className="text-xs text-muted-foreground mt-1">接入 Shopify Reviews 后可自动生成回复</p>
+                <Button size="sm" variant="outline" disabled>
+                  即将上线
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium mb-2">评价运营路线图</p>
+              <ul className="text-xs text-muted-foreground space-y-1.5">
+                <li>· 阶段 1 (已上线): AI 生成评价文案 + 评价邀请邮件（通过内容工厂 Skills）</li>
+                <li>· 阶段 2: 接入 Shopify Product Reviews API，自动拉取真实评价</li>
+                <li>· 阶段 3: AI 自动回复差评 + 好评感谢 + 转发社媒</li>
+                <li>· 阶段 4: 评价数据分析（好评率趋势、关键词提取、情感分析）</li>
+              </ul>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
