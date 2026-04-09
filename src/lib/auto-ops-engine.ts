@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { runRadarScan } from "./radar-engine";
 import { runDiagnostic } from "./diagnostic-engine";
+import { autoPublishDuePosts } from "./social-publisher";
 
 interface TaskResult {
   task: string;
@@ -50,6 +51,23 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
       task: "whatsapp_unread_check",
       status: "failed",
       message: err instanceof Error ? err.message : "Check failed",
+    });
+  }
+
+  // 3. Auto-publish due social posts
+  try {
+    const pubResult = await autoPublishDuePosts();
+    results.push({
+      task: "social_auto_publish",
+      status: "success",
+      message: `Published ${pubResult.published}, failed ${pubResult.failed}`,
+      data: pubResult as unknown as Record<string, unknown>,
+    });
+  } catch (err) {
+    results.push({
+      task: "social_auto_publish",
+      status: "failed",
+      message: err instanceof Error ? err.message : "Auto-publish failed",
     });
   }
 

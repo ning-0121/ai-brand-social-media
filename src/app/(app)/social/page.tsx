@@ -43,7 +43,9 @@ import {
   createSocialAccount,
   deleteSocialAccount,
 } from "@/lib/supabase-mutations";
-import { Plus, MoreHorizontal, User, Trash2, Loader2 } from "lucide-react";
+import { Plus, MoreHorizontal, User, Trash2, Loader2, Sparkles } from "lucide-react";
+import { ContentCalendarView } from "@/components/social/content-calendar-view";
+import Link from "next/link";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -154,10 +156,38 @@ export default function SocialPage() {
 
       <Tabs defaultValue="queue" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="calendar">内容日历</TabsTrigger>
           <TabsTrigger value="queue">发布队列</TabsTrigger>
           <TabsTrigger value="accounts">账号管理</TabsTrigger>
           <TabsTrigger value="analytics">数据分析</TabsTrigger>
         </TabsList>
+
+        {/* ---------- 内容日历 ---------- */}
+        <TabsContent value="calendar" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">社媒内容日历</p>
+            <Link href="/content">
+              <Button size="sm" variant="outline">
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                AI 生成 30 天日历
+              </Button>
+            </Link>
+          </div>
+          <Card>
+            <CardContent className="p-4">
+              <ContentCalendarView
+                posts={posts.map((p: Record<string, unknown>) => ({
+                  id: p.id as string,
+                  title: (p.title as string) || (p.content_preview as string) || "",
+                  content_preview: p.content_preview as string,
+                  platform: p.platform as string,
+                  scheduled_at: p.scheduled_at as string,
+                  status: p.status as string,
+                }))}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* ---------- 发布队列 ---------- */}
         <TabsContent value="queue" className="space-y-4">
@@ -303,14 +333,45 @@ export default function SocialPage() {
         </TabsContent>
 
         {/* ---------- 数据分析 ---------- */}
-        <TabsContent value="analytics">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <p className="text-sm text-muted-foreground">
-                连接社交媒体账号后，可查看各平台互动率趋势
-              </p>
-            </CardContent>
-          </Card>
+        <TabsContent value="analytics" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">本月发布</p><p className="text-2xl font-bold mt-1">{posts.filter((p: Record<string, unknown>) => p.status === "published").length}</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">排队中</p><p className="text-2xl font-bold mt-1 text-blue-600">{posts.filter((p: Record<string, unknown>) => p.status === "queued").length}</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">发布成功率</p><p className="text-2xl font-bold mt-1 text-green-600">{(() => { const total = posts.filter((p: Record<string, unknown>) => p.status === "published" || p.status === "failed").length; const ok = posts.filter((p: Record<string, unknown>) => p.status === "published").length; return total > 0 ? Math.round(ok / total * 100) : 0; })()}%</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">失败</p><p className="text-2xl font-bold mt-1 text-red-600">{posts.filter((p: Record<string, unknown>) => p.status === "failed").length}</p></CardContent></Card>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Card><CardContent className="p-6 space-y-3">
+              <p className="text-sm font-medium">平台分布</p>
+              {(() => {
+                const platforms: Record<string, number> = {};
+                posts.forEach((p: Record<string, unknown>) => { platforms[p.platform as string] = (platforms[p.platform as string] || 0) + 1; });
+                return Object.entries(platforms).length > 0 ? Object.entries(platforms).map(([platform, count]) => (
+                  <div key={platform} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2"><PlatformIcon platform={platform as import("@/lib/types").Platform} size="sm" /><span>{platform}</span></div>
+                    <Badge variant="secondary">{count}</Badge>
+                  </div>
+                )) : <p className="text-xs text-muted-foreground">暂无数据</p>;
+              })()}
+            </CardContent></Card>
+            <Card><CardContent className="p-6 space-y-3">
+              <p className="text-sm font-medium">AI 运营建议</p>
+              <div className="space-y-2">
+                {[
+                  { l: "AI 30 天内容日历", d: "智能规划每日发布主题", href: "/content" },
+                  { l: "AI 社媒帖子包", d: "3 角度爆款帖子 + 配图", href: "/content" },
+                  { l: "AI Hashtag 策略", d: "核心 + 长尾 + 趋势标签", href: "/content" },
+                ].map((item) => (
+                  <Link key={item.l} href={item.href}>
+                    <div className="flex items-center gap-2 rounded-md p-2 hover:bg-muted cursor-pointer">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <div><p className="text-xs font-medium">{item.l}</p><p className="text-[10px] text-muted-foreground">{item.d}</p></div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </CardContent></Card>
+          </div>
         </TabsContent>
       </Tabs>
 
