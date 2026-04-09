@@ -34,6 +34,13 @@ import { adCopySkill } from "./copy/ad-copy";
 import { emailCopySkill } from "./copy/email-copy";
 import { customerReviewSkill } from "./copy/customer-review";
 import { productDescriptionSkill } from "./copy/product-description";
+import { pricingAnalysisSkill } from "./copy/pricing-analysis";
+import { productResearchSkill } from "./copy/product-research";
+import { adBudgetPlannerSkill } from "./copy/ad-budget-planner";
+import { adAudienceStrategySkill } from "./copy/ad-audience-strategy";
+import { campaignPlannerSkill } from "./copy/campaign-planner";
+import { campaignReviewSkill } from "./copy/campaign-review";
+import { inventoryForecastSkill } from "./copy/inventory-forecast";
 
 // OEM B2B skills
 import { oemInquiryReplySkill } from "./oem/oem-inquiry-reply";
@@ -59,6 +66,13 @@ const allSkills: ContentSkill[] = [
   emailCopySkill,
   customerReviewSkill,
   productDescriptionSkill,
+  pricingAnalysisSkill,
+  productResearchSkill,
+  adBudgetPlannerSkill,
+  adAudienceStrategySkill,
+  campaignPlannerSkill,
+  campaignReviewSkill,
+  inventoryForecastSkill,
   // Website (legacy, serves as additional copy/page skills)
   productDetailPageSkill,
   productSeoOptimizeSkill,
