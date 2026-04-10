@@ -58,7 +58,8 @@ export async function executeFinding(findingId: string): Promise<ExecutionResult
   return await executeGenericFinding(f, integrationId);
 }
 
-// SEO 修复 — 为 finding 涉及的每个商品生成独立的 SEO 方案和独立的审批任务
+// SEO 修复 — 处理 finding 中第一个有效商品（避免 Vercel 10s 超时）
+// 后续商品由 ops-director 的 dailyTasks 逐日处理
 async function executeSeoFinding(f: DiagnosticFinding, integrationId: string | null): Promise<ExecutionResult> {
   if (!integrationId) {
     throw new Error("未连接 Shopify 店铺，无法执行 SEO 优化");
@@ -67,93 +68,84 @@ async function executeSeoFinding(f: DiagnosticFinding, integrationId: string | n
     throw new Error("此 finding 没有关联的商品，无法执行");
   }
 
-  const generatedAll: Array<{ product: string; output: Record<string, unknown> }> = [];
-  let firstApprovalId = "";
-
-  for (const entity of f.affected_entities) {
-    const productInfo = await getProductInfo(entity.entity_id);
-    if (!productInfo?.shopify_product_id) {
-      // skip products that aren't really synced from Shopify
-      continue;
+  // Pick the first valid product to stay within timeout
+  let productInfo = null;
+  let entity = null;
+  for (const e of f.affected_entities) {
+    const info = await getProductInfo(e.entity_id);
+    if (info?.shopify_product_id) {
+      productInfo = info;
+      entity = e;
+      break;
     }
+  }
 
-    // Tell the AI exactly which fields are missing
-    const missingFields: string[] = [];
-    if (!productInfo.meta_title) missingFields.push("meta_title");
-    if (!productInfo.meta_description) missingFields.push("meta_description");
-    if (!productInfo.body_html || productInfo.body_html.length < 50) missingFields.push("body_html");
-    if (!productInfo.tags) missingFields.push("tags");
+  if (!productInfo || !entity) {
+    throw new Error("未找到有效的 Shopify 商品");
+  }
 
-    let generated: Record<string, unknown> = {};
-    try {
-      generated = await executeAgent(
-        "store_optimizer",
-        "seo_apply",
-        {
-          product_name: productInfo.name || entity.name,
-          body_html: productInfo.body_html || "",
-          missing_fields: missingFields.join(", ") || "全部 SEO 字段",
-          finding_context: f.title + " - " + (f.description || ""),
-        },
-        {}
-      );
-    } catch (err) {
-      console.error("seo_apply failed for", entity.entity_id, err);
-      continue;
-    }
+  const missingFields: string[] = [];
+  if (!productInfo.meta_title) missingFields.push("meta_title");
+  if (!productInfo.meta_description) missingFields.push("meta_description");
+  if (!productInfo.body_html || productInfo.body_html.length < 50) missingFields.push("body_html");
+  if (!productInfo.tags) missingFields.push("tags");
 
-    // Build the new_values payload — only include fields that the AI actually returned
-    const newValues: Record<string, unknown> = {};
-    if (generated.title) newValues.title = generated.title;
-    if (generated.body_html) newValues.body_html = generated.body_html;
-    if (generated.meta_title) newValues.meta_title = generated.meta_title;
-    if (generated.meta_description) newValues.meta_description = generated.meta_description;
-    if (generated.tags) newValues.tags = generated.tags;
+  const generated = await executeAgent(
+    "store_optimizer",
+    "seo_apply",
+    {
+      product_name: productInfo.name || entity.name,
+      body_html: productInfo.body_html || "",
+      missing_fields: missingFields.join(", ") || "全部 SEO 字段",
+      finding_context: f.title + " - " + (f.description || ""),
+    },
+    {}
+  );
 
-    if (Object.keys(newValues).length === 0) {
-      console.error("seo_apply returned empty for", entity.entity_id);
-      continue;
-    }
+  const newValues: Record<string, unknown> = {};
+  if (generated.title) newValues.title = generated.title;
+  if (generated.body_html) newValues.body_html = generated.body_html;
+  if (generated.meta_title) newValues.meta_title = generated.meta_title;
+  if (generated.meta_description) newValues.meta_description = generated.meta_description;
+  if (generated.tags) newValues.tags = generated.tags;
 
-    const approval = await createApprovalTask({
-      type: "seo_update",
-      entity_id: entity.entity_id,
-      entity_type: "product",
-      title: `[SEO] ${productInfo.name}`,
-      description: `${f.title}\n\n${formatGeneratedContent("SEO 优化方案", generated, f)}`,
-      payload: {
-        diagnostic_finding_id: f.id,
-        integration_id: integrationId,
-        shopify_product_id: productInfo.shopify_product_id,
-        old_values: {
-          title: productInfo.name,
-          body_html: productInfo.body_html,
-          meta_title: productInfo.meta_title,
-          meta_description: productInfo.meta_description,
-          tags: productInfo.tags,
-        },
-        new_values: newValues,
+  if (Object.keys(newValues).length === 0) {
+    throw new Error("AI 未能生成有效的 SEO 方案");
+  }
+
+  const approval = await createApprovalTask({
+    type: "seo_update",
+    entity_id: entity.entity_id,
+    entity_type: "product",
+    title: `[SEO] ${productInfo.name}`,
+    description: `${f.title}\n\n${formatGeneratedContent("SEO 优化方案", generated, f)}\n\n(共 ${f.affected_entities.length} 个商品需优化，本次先处理 1 个，其余由 AI 自动运营引擎逐日处理)`,
+    payload: {
+      diagnostic_finding_id: f.id,
+      integration_id: integrationId,
+      shopify_product_id: productInfo.shopify_product_id,
+      old_values: {
+        title: productInfo.name,
+        body_html: productInfo.body_html,
+        meta_title: productInfo.meta_title,
+        meta_description: productInfo.meta_description,
+        tags: productInfo.tags,
       },
-    });
+      new_values: newValues,
+      remaining_products: f.affected_entities.length - 1,
+    },
+  });
 
-    if (!firstApprovalId) firstApprovalId = approval.id;
-    generatedAll.push({ product: productInfo.name, output: generated });
-  }
-
-  if (generatedAll.length === 0) {
-    throw new Error("AI 未能生成任何有效的 SEO 方案");
-  }
-
-  // Mark the finding as in_progress; we use the first approval as the reference.
   const summaryPayload = {
-    products_processed: generatedAll.length,
-    samples: generatedAll.slice(0, 3),
+    products_processed: 1,
+    total_affected: f.affected_entities.length,
+    product: productInfo.name,
+    generated: newValues,
   } as Record<string, unknown>;
-  await updateFindingStatus(f.id, firstApprovalId, summaryPayload);
+  await updateFindingStatus(f.id, approval.id, summaryPayload);
 
   return {
     type: "approval_task",
-    id: firstApprovalId,
+    id: approval.id,
     generated_content: summaryPayload,
   };
 }
