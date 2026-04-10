@@ -98,8 +98,8 @@ export async function runProductPageWorkflow(productId: string): Promise<Workflo
     lifestyleUrl ? [{ label: "lifestyle", url: lifestyleUrl }] : []
   );
 
-  // 7. QA review
-  const qa = await reviewContent("detail_page", { body_html: bodyHtml, ...copy }, { name: product.name, category: product.category });
+  // 7. QA review — review the COPY quality, not the assembled HTML
+  const qa = await reviewContent("detail_page", copy, { name: product.name, category: product.category });
 
   if (!qa.passed) {
     // Log failed QA but still create the task for manual review
