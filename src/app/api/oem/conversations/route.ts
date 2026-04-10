@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const url = new URL(request.url);
     const id = url.searchParams.get("id");
@@ -41,6 +45,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const body = await request.json();
     const { action, id, ...data } = body;

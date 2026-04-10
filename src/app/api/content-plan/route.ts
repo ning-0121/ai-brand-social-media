@@ -6,8 +6,12 @@ import { createApprovalTask } from "@/lib/supabase-approval";
 import { createContent } from "@/lib/supabase-mutations";
 import { getPendingTasks, getCompletedTasks } from "@/lib/content-task-dispatcher";
 import { supabase } from "@/lib/supabase";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const url = new URL(request.url);
     const type = url.searchParams.get("type");
@@ -35,6 +39,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const body = await request.json();
     const { action } = body;

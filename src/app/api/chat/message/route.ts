@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { generateAiReply } from "@/lib/whatsapp/ai-replier";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const body = await request.json();
     const { conversation_id, message, visitor_name, channel = "chat", business_type = "d2c" } = body;

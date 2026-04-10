@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/api-auth";
 
 const MODASH_API_BASE = "https://api.modash.io/v1";
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const { action, ...params } = await request.json();
     const apiKey = process.env.MODASH_API_KEY;

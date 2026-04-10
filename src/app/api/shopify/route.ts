@@ -42,13 +42,13 @@ export async function POST(request: Request) {
     }
 
     const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
 
     switch (action) {
       case "sync":
       case "sync_all": {
-        if (!userId) {
-          return NextResponse.json({ error: "未登录" }, { status: 401 });
-        }
         const result = await syncAll(integration_id, userId);
         return NextResponse.json({ success: true, ...result });
       }

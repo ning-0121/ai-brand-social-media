@@ -5,6 +5,14 @@ import { uploadBase64ToStorage } from "@/lib/image-generation";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 export async function POST(request: Request) {
+  const { requireAuth } = await import("@/lib/api-auth");
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
+  const { rateLimitGemini } = await import("@/lib/rate-limiter");
+  const rl = await rateLimitGemini(auth.userId);
+  if (!rl.allowed) return rl.error;
+
   try {
     const { prompt, size = "1:1", quantity = 1, style } = await request.json();
 

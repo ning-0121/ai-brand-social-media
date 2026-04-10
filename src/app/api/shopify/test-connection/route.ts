@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { testShopifyConnection } from "@/lib/shopify-operations";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const { domain, access_token } = await request.json();
 

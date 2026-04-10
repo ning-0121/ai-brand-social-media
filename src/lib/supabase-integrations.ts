@@ -17,10 +17,13 @@ export interface Integration {
   updated_at: string;
 }
 
+// Safe columns to return (excludes api_key, api_secret, access_token)
+const SAFE_COLUMNS = "id,user_id,platform,store_name,store_url,status,last_synced_at,sync_enabled,metadata,created_at,updated_at";
+
 export async function getIntegrations() {
   const { data, error } = await supabase
     .from("integrations")
-    .select("*")
+    .select(SAFE_COLUMNS)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data || []) as Integration[];
@@ -63,11 +66,25 @@ export async function deleteIntegration(id: string) {
 export async function getIntegrationByPlatform(platform: string) {
   const { data, error } = await supabase
     .from("integrations")
-    .select("*")
+    .select(SAFE_COLUMNS)
     .eq("platform", platform)
     .eq("status", "active")
     .limit(1)
     .single();
   if (error && error.code !== "PGRST116") throw error;
   return data as Integration | null;
+}
+
+/**
+ * Get integration with credentials — use only in server-side code
+ * that needs the actual API keys (e.g., Shopify sync, OAuth).
+ */
+export async function getIntegrationWithCredentials(id: string) {
+  const { data, error } = await supabase
+    .from("integrations")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return data as Integration;
 }

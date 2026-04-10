@@ -8,7 +8,9 @@ export async function GET(
   { params }: { params: Promise<{ provider: string }> }
 ) {
   const { provider } = await params;
-  const state = Math.random().toString(36).substring(2, 15);
+  const stateBytes = new Uint8Array(24);
+  crypto.getRandomValues(stateBytes);
+  const state = Array.from(stateBytes, (b) => b.toString(16).padStart(2, "0")).join("");
 
   let authUrl: string | null = null;
 

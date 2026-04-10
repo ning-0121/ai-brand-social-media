@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { runRadarScan, getRadarSignals } from "@/lib/radar-engine";
 import { supabase } from "@/lib/supabase";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const signals = await getRadarSignals(20);
     return NextResponse.json({ signals });
@@ -13,6 +17,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const body = await request.json();
     const { action } = body;

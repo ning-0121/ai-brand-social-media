@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { getAgentRoles, getRecentAgentActivity } from "@/lib/supabase-workflows";
 import { executeAgent } from "@/lib/agent-executor";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
@@ -21,6 +25,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const { action, agent_name, task_type, input_data } = await request.json();
 

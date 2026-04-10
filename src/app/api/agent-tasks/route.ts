@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { runTask, runNextPendingTask, analyzeAll } from "@/agents/task-runner";
+import { requireAuth } from "@/lib/api-auth";
+import { rateLimitAgent } from "@/lib/rate-limiter";
 
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const url = new URL(request.url);
     const agentId = url.searchParams.get("agent_id");
@@ -16,7 +21,11 @@ export async function GET(request: Request) {
 
     if (agentId) query = query.eq("agent_id", agentId);
     if (status) query = query.eq("status", status);
-    if (mod) query = query.or(`source_module.eq.${mod},target_module.eq.${mod}`);
+    if (mod) {
+      // Whitelist module names to prevent filter injection
+      const safeModule = mod.replace(/[^a-zA-Z0-9_-]/g, "");
+      query = query.or(`source_module.eq.${safeModule},target_module.eq.${safeModule}`);
+    }
 
     const { data, error } = await query;
     if (error) throw error;
@@ -39,6 +48,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
+  const rl = await rateLimitAgent(auth.userId);
+  if (!rl.allowed) return rl.error;
+
   try {
     const body = await request.json();
     const { action } = body;

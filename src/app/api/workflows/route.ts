@@ -5,8 +5,12 @@ import {
   getWorkflowTemplates,
   getWorkflowKPIs,
 } from "@/lib/supabase-workflows";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
@@ -31,6 +35,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const { action, ...params } = await request.json();
 

@@ -1,5 +1,6 @@
 "use client";
 
+import DOMPurify from "isomorphic-dompurify";
 import { cn } from "@/lib/utils";
 
 interface DiffViewProps {
@@ -57,7 +58,7 @@ export function DiffView({ oldValues, newValues, fieldLabels }: DiffViewProps) {
                   {isHtml ? (
                     <div
                       className="prose prose-sm dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ __html: String(oldVal || "（空）") }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(String(oldVal || "（空）")) }}
                     />
                   ) : (
                     String(oldVal ?? "（空）")
@@ -77,7 +78,7 @@ export function DiffView({ oldValues, newValues, fieldLabels }: DiffViewProps) {
                   {isHtml ? (
                     <div
                       className="prose prose-sm dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ __html: String(newVal || "（空）") }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(String(newVal || "（空）")) }}
                     />
                   ) : (
                     String(newVal ?? "（空）")

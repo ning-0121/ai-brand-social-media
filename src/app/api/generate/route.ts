@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/api-auth";
+import { rateLimitClaude } from "@/lib/rate-limiter";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -468,6 +470,12 @@ trend 只能是 "up"、"down" 或 "flat"。growth_rate 是百分比数字。只�
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
+  const rl = await rateLimitClaude(auth.userId);
+  if (!rl.allowed) return rl.error;
+
   try {
     const body = await request.json();
     const { scene = "content", topic, ...params } = body;

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { sendTextMessage } from "@/lib/whatsapp/client";
 import { supabase } from "@/lib/supabase";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const body = await request.json();
     const { conversation_id, message_id, text, phone, approve } = body;

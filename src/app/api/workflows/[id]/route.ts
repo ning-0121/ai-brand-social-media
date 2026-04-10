@@ -4,11 +4,15 @@ import {
   getWorkflowTasks,
 } from "@/lib/supabase-workflows";
 import { processTask } from "@/lib/workflow-engine";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const workflow = await getWorkflowInstanceById(params.id);
     const tasks = await getWorkflowTasks(params.id);
@@ -30,6 +34,9 @@ export async function GET(
 export async function POST(
   request: Request,
 ) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const { action, task_id } = await request.json();
 

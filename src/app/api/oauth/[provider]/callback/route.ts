@@ -13,11 +13,24 @@ export async function GET(
   const { provider } = await params;
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const returnedState = url.searchParams.get("state");
   const error = url.searchParams.get("error");
   const errorDesc = url.searchParams.get("error_description");
 
   if (error || !code) {
     return redirectToSettings(`oauth_error=${encodeURIComponent(errorDesc || error || "授权被拒绝")}`);
+  }
+
+  // Validate CSRF state parameter
+  const cookieName = `oauth_state_${provider}`;
+  const savedState = request.headers.get("cookie")
+    ?.split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${cookieName}=`))
+    ?.split("=")[1];
+
+  if (!savedState || !returnedState || savedState !== returnedState) {
+    return redirectToSettings(`oauth_error=${encodeURIComponent("CSRF 验证失败，请重新授权")}`);
   }
 
   try {

@@ -7,6 +7,8 @@ import {
   updateProductPrice,
   updateProductInventory,
 } from "@/lib/shopify-operations";
+import { requireAuth } from "@/lib/api-auth";
+import { logAudit } from "@/lib/audit-logger";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -107,6 +109,9 @@ async function executeTask(task: {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const body = await request.json();
     const { action, ...params } = body;
@@ -197,6 +202,17 @@ export async function POST(request: Request) {
             } catch (e) { console.error("Campaign export error:", e); }
           }
 
+          logAudit({
+            actorType: "user",
+            actorId: auth.userId,
+            actionType: "approval.approve",
+            targetType: "approval_task",
+            targetId: id,
+            requestPayload: { task_type: task.type, entity_id: task.entity_id },
+            responsePayload: result as Record<string, unknown>,
+            status: "success",
+          });
+
           return NextResponse.json({ success: true, status: "executed", result });
         } catch (execErr: unknown) {
           const errMsg = execErr instanceof Error ? execErr.message : "执行失败";
@@ -207,6 +223,17 @@ export async function POST(request: Request) {
               execution_result: { error: errMsg },
             })
             .eq("id", id);
+
+          logAudit({
+            actorType: "user",
+            actorId: auth.userId,
+            actionType: "approval.approve",
+            targetType: "approval_task",
+            targetId: id,
+            status: "failed",
+            error: errMsg,
+          });
+
           return NextResponse.json({
             success: false,
             status: "failed",
@@ -227,6 +254,15 @@ export async function POST(request: Request) {
             reviewed_at: new Date().toISOString(),
           })
           .eq("id", id);
+
+        logAudit({
+          actorType: "user",
+          actorId: auth.userId,
+          actionType: "approval.reject",
+          targetType: "approval_task",
+          targetId: id,
+          status: "success",
+        });
 
         return NextResponse.json({ success: true, status: "rejected" });
       }

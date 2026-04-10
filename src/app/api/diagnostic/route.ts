@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { runDiagnostic, getLatestReport } from "@/lib/diagnostic-engine";
 import { executeFinding, dismissFinding } from "@/lib/diagnostic-executor";
+import { requireAuth } from "@/lib/api-auth";
 
 // Allow up to 60s for AI generation (default 10s is too short)
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const url = new URL(request.url);
     const type = url.searchParams.get("type") || "latest";
@@ -24,6 +28,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const body = await request.json();
     const { action } = body;

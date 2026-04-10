@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { runProductPageWorkflow } from "@/agents/workflows/product-page-workflow";
 import { runContentPublishWorkflow } from "@/agents/workflows/content-publish-workflow";
 import { runCampaignPackWorkflow } from "@/agents/workflows/campaign-pack-workflow";
+import { requireAuth } from "@/lib/api-auth";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const body = await request.json();
     const { workflow, product_id, campaign_name, campaign_type, product_ids } = body;

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { generateWeeklyPlan, executeDailyTasks, recordPerformanceSnapshot, weeklyReview } from "@/lib/ops-director";
+import { requireAuth } from "@/lib/api-auth";
 
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const url = new URL(request.url);
     const type = url.searchParams.get("type");
@@ -47,6 +51,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     const body = await request.json();
     const { action } = body;
