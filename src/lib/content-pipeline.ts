@@ -11,6 +11,20 @@ import { reviewContent } from "./content-qa";
 import { updateProductSEO, updateProductBodyHtml, createShopifyPage } from "./shopify-operations";
 import { publishPost } from "./social-publisher";
 
+/**
+ * Pull existing images from media library for a product.
+ * Pipeline uses these FIRST, then generates new ones only if needed.
+ */
+async function getProductMedia(productId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from("media_library")
+    .select("original_url")
+    .eq("product_id", productId)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  return (data || []).map((m) => m.original_url);
+}
+
 interface PipelineResult {
   success: boolean;
   action: string;
@@ -55,10 +69,11 @@ export async function productContentPipeline(
   );
   const seo = seoResult.output as Record<string, unknown>;
 
-  // 3. Generate images
+  // 3. Check media library for existing images, then generate missing ones
+  const existingMedia = await getProductMedia(product.id);
   const imagePrompts = [];
 
-  // Lifestyle image from the detail page image_prompt or generate one
+  // Only generate images if we don't have enough from the media library
   const lifestylePrompt = (copy.image_prompt as string) ||
     `Professional lifestyle photo of ${product.name}, ${product.category || "fashion"} product, model wearing, natural lighting, aspirational setting`;
 
@@ -77,7 +92,16 @@ export async function productContentPipeline(
     label: "detail",
   });
 
-  const images = await generateImages(imagePrompts);
+  // Use existing media library images if available, generate only what's missing
+  let images: Array<{ label: string; url: string }> = [];
+  if (existingMedia.length >= 2) {
+    images = [
+      { label: "lifestyle", url: existingMedia[0] },
+      { label: "detail", url: existingMedia[1] },
+    ];
+  } else {
+    images = await generateImages(imagePrompts);
+  }
 
   // 4. Assemble complete detail page HTML
   const bodyHtml = assembleDetailPage(
