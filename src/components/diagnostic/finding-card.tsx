@@ -121,12 +121,19 @@ export function FindingCard({ finding, onExecute, onDismiss }: FindingCardProps)
     setExecuting(true);
     try {
       const result = await onExecute(finding.id);
-      setLocalStatus("in_progress");
-      if (result && typeof result === "object" && "generated_content" in result) {
-        setGeneratedContent((result as { generated_content: Record<string, unknown> }).generated_content);
+      // Only update status if backend actually succeeded
+      if (result && typeof result === "object" && "success" in result && result.success) {
+        setLocalStatus("in_progress");
+        if ("generated_content" in result) {
+          setGeneratedContent((result as { generated_content: Record<string, unknown> }).generated_content);
+        }
+      } else {
+        const errorMsg = (result as { error?: string })?.error || "执行失败";
+        alert(`执行失败: ${errorMsg}`);
       }
     } catch (err) {
       console.error("执行失败:", err);
+      alert("执行失败，请重试");
     }
     setExecuting(false);
   };

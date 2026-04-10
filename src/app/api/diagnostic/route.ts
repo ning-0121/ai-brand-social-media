@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { runDiagnostic, getLatestReport } from "@/lib/diagnostic-engine";
 import { executeFinding, dismissFinding } from "@/lib/diagnostic-executor";
 
+// Allow up to 60s for AI generation (default 10s is too short)
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);

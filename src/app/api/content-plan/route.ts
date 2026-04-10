@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { executeSkill } from "@/lib/content-skills/executor";
+
+export const maxDuration = 60;
 import { createApprovalTask } from "@/lib/supabase-approval";
 import { createContent } from "@/lib/supabase-mutations";
 import { getPendingTasks, getCompletedTasks } from "@/lib/content-task-dispatcher";
