@@ -160,6 +160,43 @@ export async function POST(request: Request) {
             } catch (e) { console.error("Diagnostic finding update error:", e); }
           }
 
+          // Execute workflow-specific post-approval actions
+          if (task.payload?.workflow === "product_page_workflow" && task.payload?.new_values) {
+            try {
+              const { deployProductPage } = await import("@/agents/workflows/product-page-workflow");
+              await deployProductPage(
+                task.payload.integration_id as string,
+                task.payload.shopify_product_id as number,
+                task.payload.product_id as string,
+                task.payload.new_values as { body_html: string; meta_title?: string; meta_description?: string; tags?: string }
+              );
+            } catch (e) { console.error("Product page deploy error:", e); }
+          }
+
+          if (task.payload?.workflow === "content_publish_workflow" && task.payload?.content_items) {
+            try {
+              const { publishContentToQueue } = await import("@/agents/workflows/content-publish-workflow");
+              await publishContentToQueue(
+                task.payload.content_items as Array<{ content_type: string; platform: string; title: string; body: string; hashtags?: string[]; skill_used: string }>,
+                task.payload.product_id as string || "",
+                task.payload.product_name as string || "",
+                id
+              );
+            } catch (e) { console.error("Content queue error:", e); }
+          }
+
+          if (task.payload?.workflow === "campaign_pack_workflow" && task.payload?.project_id) {
+            try {
+              await supabase.from("creative_projects").update({ status: "approved" }).eq("id", task.payload.project_id);
+              await supabase.from("creative_exports").insert({
+                project_id: task.payload.project_id as string,
+                export_type: "asset_pack",
+                assets: task.payload.assets,
+                status: "ready",
+              });
+            } catch (e) { console.error("Campaign export error:", e); }
+          }
+
           return NextResponse.json({ success: true, status: "executed", result });
         } catch (execErr: unknown) {
           const errMsg = execErr instanceof Error ? execErr.message : "执行失败";
