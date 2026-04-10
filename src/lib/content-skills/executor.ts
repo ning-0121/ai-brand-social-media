@@ -57,6 +57,17 @@ export async function executeSkill(
       .update({ usage_count: 1 })
       .eq("id", skillId);
 
+    const { logAudit } = await import("@/lib/audit-logger");
+    logAudit({
+      actorType: "agent",
+      sourceAgent: "content_skills",
+      actionType: `skill.execute.${skillId}`,
+      targetType: "content_task",
+      targetId: task.id,
+      requestPayload: inputs as Record<string, unknown>,
+      status: "success",
+    });
+
     return { task_id: task.id, result };
   } catch (err) {
     await supabase
@@ -67,6 +78,18 @@ export async function executeSkill(
         updated_at: new Date().toISOString(),
       })
       .eq("id", task.id);
+
+    const { logAudit } = await import("@/lib/audit-logger");
+    logAudit({
+      actorType: "agent",
+      sourceAgent: "content_skills",
+      actionType: `skill.execute.${skillId}`,
+      targetType: "content_task",
+      targetId: task.id,
+      status: "failed",
+      error: err instanceof Error ? err.message : "执行失败",
+    });
+
     throw err;
   }
 }

@@ -306,4 +306,17 @@ async function logRun(
     errors: results.filter((r) => r.status === "failed").map((r) => ({ task: r.task, error: r.message })),
     duration_ms: durationMs,
   });
+
+  // Also write to audit_logs for unified tracking
+  const { logAudit } = await import("./audit-logger");
+  await logAudit({
+    actorType: "cron",
+    actorId: runType,
+    actionType: `auto_ops.${runType}`,
+    requestPayload: { trigger, tasks: results.map((r) => r.task) },
+    responsePayload: { total: results.length, success: successCount, failed: failedCount },
+    status: failedCount > 0 ? (successCount > 0 ? "partial" : "failed") : "success",
+    error: failedCount > 0 ? results.filter((r) => r.status === "failed").map((r) => r.message).join("; ") : undefined,
+    durationMs,
+  });
 }
