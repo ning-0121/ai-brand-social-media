@@ -21,8 +21,10 @@ export function assembleDetailPage(
   productImageUrl?: string,
   aiImages?: Array<{ label: string; url: string }>
 ): string {
-  const heroImg = productImageUrl || aiImages?.[0]?.url || "";
-  const lifestyleImg = aiImages?.find((i) => i.label === "lifestyle")?.url || aiImages?.[1]?.url || "";
+  // Filter out data URLs (base64 strings are too large for HTML and break QA)
+  const isValidUrl = (url?: string) => url && !url.startsWith("data:") && url.startsWith("http");
+  const heroImg = isValidUrl(productImageUrl) ? productImageUrl : (aiImages?.find(i => isValidUrl(i.url))?.url || "");
+  const lifestyleImg = aiImages?.find((i) => i.label === "lifestyle" && isValidUrl(i.url))?.url || "";
 
   let html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:800px;margin:0 auto;color:#1a1a2e">`;
 

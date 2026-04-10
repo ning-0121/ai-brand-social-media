@@ -79,6 +79,11 @@ export async function runProductPageWorkflow(productId: string): Promise<Workflo
     // Image generation is optional — don't block the workflow
   }
 
+  // Filter out data URLs — they're too large and break HTML
+  if (lifestyleUrl && lifestyleUrl.startsWith("data:")) {
+    lifestyleUrl = null;
+  }
+
   // 6. Assemble complete HTML
   const bodyHtml = assembleDetailPage(
     {
