@@ -34,49 +34,22 @@ export async function runContentPublishWorkflow(productId: string): Promise<{
 
   const contentItems: ContentItem[] = [];
 
-  // 1. Instagram Caption
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { result } = await executeSkill("social_post_pack", { product, platform: "instagram" } as any, { sourceModule: "workflow-b" });
-    const posts = ((result.output as Record<string, unknown>).posts as Array<Record<string, unknown>>) || [];
-    if (posts[0]) {
-      contentItems.push({
-        content_type: "instagram_caption",
-        platform: "instagram",
-        title: posts[0].title as string || `${product.name} IG Post`,
-        body: posts[0].body as string || "",
-        hashtags: posts[0].hashtags as string[],
-        skill_used: "social_post_pack",
-      });
-    }
-  } catch (e) { console.error("IG generation failed:", e); }
+  // Generate 1 content item per call to stay within Vercel 60s timeout.
+  // Multiple calls can be chained via cron for full multi-platform coverage.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { result } = await executeSkill("social_post_pack", { product, platform: "instagram" } as any, { sourceModule: "workflow-b" });
+  const posts = ((result.output as Record<string, unknown>).posts as Array<Record<string, unknown>>) || [];
 
-  // 2. TikTok Script
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { result } = await executeSkill("short_video_script", { product, platform: "tiktok", duration: "30s" } as any, { sourceModule: "workflow-b" });
-    const output = result.output as Record<string, unknown>;
+  for (const post of posts.slice(0, 3)) {
     contentItems.push({
-      content_type: "tiktok_script",
-      platform: "tiktok",
-      title: output.title as string || `${product.name} TikTok`,
-      body: output.caption as string || JSON.stringify(output.scenes || output.hook || ""),
-      skill_used: "short_video_script",
+      content_type: "instagram_caption",
+      platform: "instagram",
+      title: post.title as string || `${product.name} IG Post`,
+      body: post.body as string || "",
+      hashtags: post.hashtags as string[],
+      skill_used: "social_post_pack",
     });
-  } catch (e) { console.error("TikTok generation failed:", e); }
-
-  // 3. Email Copy
-  try {
-    const { result } = await executeSkill("email_copy", { email_type: "new_arrival", product, brand_name: "JOJOFEIFEI" }, { sourceModule: "workflow-b" });
-    const output = result.output as Record<string, unknown>;
-    contentItems.push({
-      content_type: "email_copy",
-      platform: "email",
-      title: output.subject_line as string || `${product.name} Email`,
-      body: output.plain_text as string || output.body_html as string || "",
-      skill_used: "email_copy",
-    });
-  } catch (e) { console.error("Email generation failed:", e); }
+  }
 
   if (contentItems.length === 0) {
     return { success: false, items_generated: 0 };

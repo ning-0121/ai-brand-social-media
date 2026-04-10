@@ -7,7 +7,6 @@
 
 import { supabase } from "@/lib/supabase";
 import { executeSkill } from "@/lib/content-skills/executor";
-import { generateImage } from "@/lib/image-service";
 import { assembleBanner } from "@/lib/content-assembler";
 import { createApprovalTask } from "@/lib/supabase-approval";
 
@@ -32,18 +31,8 @@ export async function runCampaignPackWorkflow(
     }
   }
 
-  // 1. Landing page
-  try {
-    const { result } = await executeSkill("landing_page", {
-      page_goal: "purchase",
-      headline_idea: campaignName,
-      product: products[0],
-    }, { sourceModule: "workflow-c" });
-    assets.landing_page = result.output;
-    assetsGenerated++;
-  } catch (e) { assets.landing_page_error = (e as Error).message; }
-
-  // 2. Banner + image
+  // Generate 1 key asset per call to stay within Vercel 60s timeout.
+  // Campaign poster + banner is the most impactful single asset.
   try {
     const { result } = await executeSkill("campaign_poster", {
       campaign_theme: campaignName,
@@ -51,44 +40,20 @@ export async function runCampaignPackWorkflow(
     }, { sourceModule: "workflow-c" });
     assets.banner_copy = result.output;
 
-    const bannerUrl = await generateImage(
-      `Campaign banner for "${campaignName}", fashion brand, bold colors, professional`,
-      { style: "social_media", size: "16:9" }
-    );
-    assets.banner_image = bannerUrl;
-
     if (result.output) {
       const out = result.output as Record<string, unknown>;
       assets.banner_html = assembleBanner(
         out.headline as string || campaignName,
         out.subheadline as string || "",
-        out.cta as string || "Shop Now",
-        bannerUrl || undefined
+        out.cta as string || "Shop Now"
       );
     }
     assetsGenerated++;
   } catch (e) { assets.banner_error = (e as Error).message; }
 
-  // 3. Social post
-  try {
-    const { result } = await executeSkill("social_post_pack", {
-      platform: "instagram",
-      product: products[0],
-    }, { sourceModule: "workflow-c" });
-    assets.social_posts = result.output;
-    assetsGenerated++;
-  } catch (e) { assets.social_error = (e as Error).message; }
-
-  // 4. Email
-  try {
-    const { result } = await executeSkill("email_copy", {
-      email_type: "promotion",
-      brand_name: "JOJOFEIFEI",
-      offer: campaignName,
-    }, { sourceModule: "workflow-c" });
-    assets.email = result.output;
-    assetsGenerated++;
-  } catch (e) { assets.email_error = (e as Error).message; }
+  // Note: Landing page, social posts, email can be generated in follow-up
+  // workflow calls to avoid Vercel timeout. Each takes ~15s with Claude.
+  assets.pending_assets = ["landing_page", "social_posts", "email"];
 
   // 5. Create creative project
   const { data: project } = await supabase.from("creative_projects").insert({
