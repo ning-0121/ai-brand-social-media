@@ -59,7 +59,9 @@ export async function POST(request: Request) {
     }
   } catch (error: unknown) {
     console.error("Diagnostic POST error:", error);
-    const msg = error instanceof Error ? error.message : "诊断操作失败";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const msg = error instanceof Error
+      ? `${error.message}${error.stack ? "\n" + error.stack.split("\n").slice(0, 3).join("\n") : ""}`
+      : JSON.stringify(error);
+    return NextResponse.json({ error: msg, success: false }, { status: 500 });
   }
 }
