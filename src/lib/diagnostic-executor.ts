@@ -116,7 +116,7 @@ async function executeSeoFinding(f: DiagnosticFinding, integrationId: string | n
   const approval = await createApprovalTask({
     type: "seo_update",
     entity_id: entity.entity_id,
-    entity_type: "product",
+    entity_type: "products",
     title: `[SEO] ${productInfo.name}`,
     description: `${f.title}\n\n${formatGeneratedContent("SEO 优化方案", generated, f)}\n\n(共 ${f.affected_entities.length} 个商品需优化，本次先处理 1 个，其余由 AI 自动运营引擎逐日处理)`,
     payload: {
@@ -167,7 +167,7 @@ async function executeContentFinding(f: DiagnosticFinding, integrationId: string
   const approval = await createApprovalTask({
     type: "content_publish",
     entity_id: f.affected_entities[0]?.entity_id,
-    entity_type: "product",
+    entity_type: "products",
     title: `[诊断] ${f.title}`,
     description: formatGeneratedContent("内容方案", generated, f),
     payload: {
@@ -195,7 +195,7 @@ async function executeGenericFinding(f: DiagnosticFinding, integrationId: string
   const approval = await createApprovalTask({
     type: "product_edit",
     entity_id: f.affected_entities[0]?.entity_id,
-    entity_type: "product",
+    entity_type: "products",
     title: `[诊断] ${f.title}`,
     description: formatGeneratedContent("行动方案", generated, f),
     payload: {
