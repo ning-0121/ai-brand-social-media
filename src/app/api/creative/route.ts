@@ -1,0 +1,61 @@
+import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
+
+export const maxDuration = 60;
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const projectType = url.searchParams.get("type");
+    const status = url.searchParams.get("status");
+
+    let query = supabase.from("creative_projects").select("*").order("created_at", { ascending: false }).limit(50);
+    if (projectType) query = query.eq("project_type", projectType);
+    if (status) query = query.eq("status", status);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const all = data || [];
+    return NextResponse.json({
+      projects: all,
+      kpis: {
+        total: all.length,
+        pages: all.filter((p) => p.project_type === "page").length,
+        designs: all.filter((p) => p.project_type === "design").length,
+        videos: all.filter((p) => p.project_type === "video").length,
+        campaigns: all.filter((p) => p.project_type === "campaign").length,
+        pending_review: all.filter((p) => p.status === "review" || p.status === "generating").length,
+      },
+    });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "查询失败" }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { action, id, ...data } = body;
+
+    if (action === "create") {
+      const { data: project, error } = await supabase.from("creative_projects").insert(data).select().single();
+      if (error) throw error;
+      return NextResponse.json({ success: true, project });
+    }
+
+    if (action === "update") {
+      await supabase.from("creative_projects").update({ ...data, updated_at: new Date().toISOString() }).eq("id", id);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "delete") {
+      await supabase.from("creative_projects").delete().eq("id", id);
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: "未知操作" }, { status: 400 });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "操作失败" }, { status: 500 });
+  }
+}

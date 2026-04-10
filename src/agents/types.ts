@@ -2,7 +2,7 @@
 
 export type TaskStatus = "pending" | "running" | "completed" | "approved" | "rejected" | "failed" | "qa_rejected";
 export type Priority = "critical" | "high" | "medium" | "low";
-export type AgentId = "trend" | "content" | "store" | "social" | "support" | "ads";
+export type AgentId = "trend" | "content" | "store" | "social" | "support" | "ads" | "page" | "design" | "image_edit" | "video" | "campaign";
 
 export interface AgentTask {
   id: string;
