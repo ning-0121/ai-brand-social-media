@@ -5,6 +5,7 @@ import { updateProductSEO, updateProductBodyHtml, createShopifyPage } from "./sh
 import { publishPost } from "./social-publisher";
 import { getDashboardKPIs, getStoreKPIs } from "./supabase-queries";
 import { createApprovalTask } from "./supabase-approval";
+import { reviewContent } from "./content-qa";
 
 // ============ 1. Generate Weekly Plan ============
 export async function generateWeeklyPlan(module: "social" | "store"): Promise<string> {
@@ -230,8 +231,30 @@ async function executeTask(
         .from("products").select("*").eq("id", task.target_product_id).single();
       if (!product?.shopify_product_id) return { skipped: true, reason: "no shopify product" };
 
-      const { result } = await executeSkill("product_seo_optimize", { product }, { sourceModule: "ops_director" });
-      const seoData = result.output as Record<string, unknown>;
+      // Generate + QA review (retry up to 2x if quality < 70)
+      let seoData: Record<string, unknown> = {};
+      let qaScore = 0;
+      let attempts = 0;
+      let qaFeedback = "";
+
+      for (let i = 0; i < 3; i++) {
+        attempts++;
+        const inputs: Record<string, unknown> = { product };
+        if (qaFeedback) inputs.qa_feedback = qaFeedback;
+
+        const { result } = await executeSkill("product_seo_optimize", inputs, { sourceModule: "ops_director" });
+        seoData = result.output as Record<string, unknown>;
+
+        const qa = await reviewContent("seo", seoData, { name: product.name, category: product.category });
+        qaScore = qa.score;
+
+        if (qa.passed) break;
+        qaFeedback = qa.improvements.join("; ");
+      }
+
+      if (qaScore < 70) {
+        return { action: "qa_rejected", product: product.name, score: qaScore, attempts };
+      }
 
       await updateProductSEO(integrationId, product.shopify_product_id, product.id, {
         meta_title: seoData.meta_title as string,
@@ -240,7 +263,7 @@ async function executeTask(
         tags: seoData.tags as string,
       });
 
-      return { action: "seo_updated", product: product.name, fields: Object.keys(seoData) };
+      return { action: "seo_updated", product: product.name, qa_score: qaScore, attempts, fields: Object.keys(seoData) };
     }
 
     case "detail_page": {
@@ -250,14 +273,34 @@ async function executeTask(
         .from("products").select("*").eq("id", task.target_product_id).single();
       if (!product?.shopify_product_id) return { skipped: true };
 
-      const { result } = await executeSkill("product_detail_page", { product }, { sourceModule: "ops_director" });
-      const pageData = result.output as Record<string, unknown>;
+      // Generate + QA
+      let pageData: Record<string, unknown> = {};
+      let dpQaScore = 0;
+      let dpFeedback = "";
+
+      for (let i = 0; i < 3; i++) {
+        const inputs: Record<string, unknown> = { product };
+        if (dpFeedback) inputs.qa_feedback = dpFeedback;
+
+        const { result } = await executeSkill("product_detail_page", inputs, { sourceModule: "ops_director" });
+        pageData = result.output as Record<string, unknown>;
+
+        const qa = await reviewContent("detail_page", pageData, { name: product.name, category: product.category });
+        dpQaScore = qa.score;
+
+        if (qa.passed) break;
+        dpFeedback = qa.improvements.join("; ");
+      }
+
+      if (dpQaScore < 70) {
+        return { action: "qa_rejected", product: product.name, score: dpQaScore };
+      }
 
       if (pageData.description) {
         await updateProductBodyHtml(integrationId, product.shopify_product_id, product.id, pageData.description as string);
       }
 
-      return { action: "detail_page_updated", product: product.name };
+      return { action: "detail_page_updated", product: product.name, qa_score: dpQaScore };
     }
 
     case "post": {

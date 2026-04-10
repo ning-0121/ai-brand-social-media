@@ -1,461 +1,155 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
-import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
-import { AIInsightCard } from "@/components/shared/ai-insight-card";
-import { ChartCard } from "@/components/shared/chart-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  BarChart,
-  Bar,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from "recharts";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
+  Video,
   Plus,
-  Loader2,
-  Copy,
-  Eye,
-  ShoppingCart,
-  TrendingUp,
-  Mic,
-  Package,
-  HandCoins,
+  ExternalLink,
+  Sparkles,
+  Clock,
   Users,
-  MessageSquareText,
-  PartyPopper,
-  CalendarDays,
-  Lightbulb,
-  CheckCircle2,
+  DollarSign,
+  MessageSquare,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
 
-/* ------------------------------------------------------------------ */
-/*  Mock data                                                          */
-/* ------------------------------------------------------------------ */
+interface LiveSession {
+  id: string;
+  title: string;
+  platform: string;
+  virtual_host: string | null;
+  scheduled_start: string | null;
+  status: string;
+  metrics: Record<string, number> | null;
+}
 
-const kpis = [
-  { label: "本月直播场次", value: "12", trend: "up" as const, trendPercent: 20, icon: "Radio", format: undefined },
-  { label: "累计观看", value: "28.5万", trend: "up" as const, trendPercent: 15.3, icon: "Eye", format: undefined },
-  { label: "直播GMV", value: "¥18.6万", trend: "up" as const, trendPercent: 8.7, icon: "ShoppingCart", format: undefined },
-  { label: "平均转化率", value: "3.8%", trend: "up" as const, trendPercent: 0.5, icon: "TrendingUp", format: undefined },
-];
-
-const liveSessions = [
-  { id: 1, title: "春季新品首发专场", platform: "抖音", date: "2026-03-28 19:00", status: "待开始", viewers: 5000 },
-  { id: 2, title: "会员日特惠直播", platform: "小红书", date: "2026-03-27 20:00", status: "进行中", viewers: 3200 },
-  { id: 3, title: "爆款返场 - 限时秒杀", platform: "淘宝", date: "2026-03-25 19:30", status: "已完成", viewers: 8600 },
-  { id: 4, title: "护肤专场 - 成分解析", platform: "抖音", date: "2026-03-22 20:00", status: "已完成", viewers: 6200 },
-  { id: 5, title: "穿搭分享 - 早春系列", platform: "小红书", date: "2026-03-20 19:00", status: "已完成", viewers: 4800 },
-  { id: 6, title: "家居好物推荐", platform: "淘宝", date: "2026-03-18 20:30", status: "已完成", viewers: 7100 },
-];
-
-const scriptTemplates = [
-  {
-    id: 1,
-    title: "开场话术",
-    icon: PartyPopper,
-    lines: [
-      "家人们，欢迎来到直播间！今天给大家准备了超多惊喜福利~",
-      "新来的宝宝先点个关注，等会儿有专属红包雨哦！",
-      "话不多说，我们直接上干货！",
-    ],
-  },
-  {
-    id: 2,
-    title: "产品讲解话术",
-    icon: Package,
-    lines: [
-      "这款产品我自己用了整整三个月，真的是回购了无数次。",
-      "大家看一下成分表，主打的就是一个安心好用。",
-      "和市面上同类产品对比，性价比真的绝了。",
-    ],
-  },
-  {
-    id: 3,
-    title: "促单话术",
-    icon: HandCoins,
-    lines: [
-      "库存只剩最后 200 单了，拍完真的就没了！",
-      "今天直播间专属价，比日常便宜了整整 50 元！",
-      "犹豫就会败北，果断就会白给~赶紧拍！",
-    ],
-  },
-  {
-    id: 4,
-    title: "留人话术",
-    icon: Users,
-    lines: [
-      "下一个品更炸！千万别走，马上就来~",
-      "后面还有一波超大福利，先留在直播间等一下。",
-    ],
-  },
-  {
-    id: 5,
-    title: "互动话术",
-    icon: MessageSquareText,
-    lines: [
-      "觉得好看的宝宝扣 1，想要链接的扣 2！",
-      "有什么问题直接打在公屏上，主播一个一个回答~",
-      "点赞到 10 万，直接再加一波福利！",
-    ],
-  },
-  {
-    id: 6,
-    title: "结束话术",
-    icon: Mic,
-    lines: [
-      "今天的直播就到这里啦，感谢所有家人的陪伴！",
-      "别忘了点关注，下次开播第一时间通知你~",
-    ],
-  },
-];
-
-const lastLiveStats = {
-  viewers: 8600,
-  peakOnline: 1250,
-  interactions: 3420,
-  gmv: 42800,
+const STATUS_COLORS: Record<string, string> = {
+  scheduled: "bg-blue-100 text-blue-700",
+  live: "bg-red-100 text-red-700",
+  ended: "bg-gray-100 text-gray-600",
+  cancelled: "bg-gray-50 text-gray-400",
 };
 
-const performanceData = [
-  { name: "3/18", viewers: 7100, gmv: 38000 },
-  { name: "3/20", viewers: 4800, gmv: 22000 },
-  { name: "3/22", viewers: 6200, gmv: 31000 },
-  { name: "3/25", viewers: 8600, gmv: 42800 },
-  { name: "3/27", viewers: 3200, gmv: 15000 },
-  { name: "3/28", viewers: 5000, gmv: 28000 },
-];
-
-const improvements = [
-  "开场节奏可以更快，前5分钟流失率偏高，建议开场即亮出核心福利",
-  "产品讲解时长控制在3-5分钟为宜，上一场部分商品讲解超过8分钟导致互动下降",
-  "促单环节可增加倒计时和库存播报频次，营造紧迫感提升转化",
-  "建议增加整点抽奖环节，有效提升直播间停留时长和在线人数峰值",
-];
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
-
-function statusColor(status: string) {
-  if (status === "已完成") return "bg-emerald-500/10 text-emerald-600";
-  if (status === "进行中") return "bg-blue-500/10 text-blue-600";
-  return "bg-gray-500/10 text-gray-500";
-}
-
-function formatNumber(num: number): string {
-  if (num >= 10000) return (num / 10000).toFixed(1) + "万";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "k";
-  return num.toString();
-}
-
-/* ------------------------------------------------------------------ */
-/*  Page                                                               */
-/* ------------------------------------------------------------------ */
-
 export default function LivePage() {
-  const [generating, setGenerating] = useState(false);
-  const [activeScript, setActiveScript] = useState("");
-  const [generatedScripts, setGeneratedScripts] = useState<{title: string; body: string}[]>([]);
-  const [genTopic, setGenTopic] = useState("");
+  const [sessions, setSessions] = useState<LiveSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ title: "", platform: "tiktok", scheduled_start: "", scheduled_end: "" });
 
-  const handleGenerate = async (scriptType: string) => {
-    if (!genTopic.trim()) return;
-    setGenerating(true);
-    setActiveScript(scriptType);
-    setGeneratedScripts([]);
+  useEffect(() => { fetchSessions(); }, []);
+
+  const fetchSessions = async () => {
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scene: "live_script", topic: `产品/主题：${genTopic}`, script_type: scriptType }),
-      });
+      const res = await fetch("/api/live");
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setGeneratedScripts(data.results || []);
+      setSessions(data.sessions || []);
     } catch (err) { console.error(err); }
-    setGenerating(false);
+    setLoading(false);
+  };
+
+  const handleCreate = async () => {
+    await fetch("/api/live", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "create", ...form, virtual_host: "BocaLive AI" }),
+    });
+    setShowCreate(false);
+    fetchSessions();
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <PageHeader
         title="直播中心"
-        description="直播排期、话术管理与直播复盘"
+        description="BocaLive 虚拟人 24h 直播 — AI 脚本 + 排期 + 数据"
         actions={
-          <Button>
-            <Plus className="h-4 w-4" data-icon="inline-start" />
-            新建直播
-          </Button>
+          <div className="flex gap-2">
+            <Link href="/content"><Button size="sm" variant="outline"><Sparkles className="mr-1 h-3.5 w-3.5" />AI 直播脚本</Button></Link>
+            <a href="https://app.bocalive.ai" target="_blank" rel="noopener noreferrer"><Button size="sm" variant="outline"><ExternalLink className="mr-1 h-3.5 w-3.5" />BocaLive</Button></a>
+            <Button size="sm" onClick={() => setShowCreate(!showCreate)}><Plus className="mr-1 h-3.5 w-3.5" />新建直播</Button>
+          </div>
         }
       />
 
-      {/* KPI Cards */}
-      <KPICardGrid>
-        {kpis.map((kpi) => (
-          <KPICard key={kpi.label} {...kpi} />
-        ))}
-      </KPICardGrid>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">直播中</p><p className="text-2xl font-bold mt-1 text-red-600">{sessions.filter(s => s.status === "live").length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">待开播</p><p className="text-2xl font-bold mt-1 text-blue-600">{sessions.filter(s => s.status === "scheduled").length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">总场次</p><p className="text-2xl font-bold mt-1">{sessions.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">累计观看</p><p className="text-2xl font-bold mt-1">{sessions.reduce((s, se) => s + (se.metrics?.viewers || 0), 0)}</p></CardContent></Card>
+      </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="plan" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="plan">直播计划</TabsTrigger>
-          <TabsTrigger value="scripts">话术库</TabsTrigger>
-          <TabsTrigger value="review">直播复盘</TabsTrigger>
-        </TabsList>
-
-        {/* ---- 直播计划 ---- */}
-        <TabsContent value="plan">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {liveSessions.map((session) => (
-              <Card key={session.id} className="transition-shadow hover:shadow-sm">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-sm font-medium leading-snug">
-                      {session.title}
-                    </CardTitle>
-                    <Badge
-                      className={`shrink-0 text-xs ${statusColor(session.status)}`}
-                    >
-                      {session.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs font-normal">
-                      {session.platform}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <CalendarDays className="h-3 w-3" />
-                    {session.date}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Eye className="h-3 w-3" />
-                    预计观看: {formatNumber(session.viewers)}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+      {showCreate && (
+        <Card><CardContent className="p-4 space-y-3">
+          <p className="text-sm font-semibold">新建直播排期</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-xs text-muted-foreground">标题</label><Input className="mt-1" value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="春季新品直播" /></div>
+            <div><label className="text-xs text-muted-foreground">平台</label><Select value={form.platform} onValueChange={v => v && setForm({...form, platform: v})}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tiktok">TikTok</SelectItem><SelectItem value="instagram">Instagram</SelectItem><SelectItem value="youtube">YouTube</SelectItem></SelectContent></Select></div>
+            <div><label className="text-xs text-muted-foreground">开始</label><Input className="mt-1" type="datetime-local" value={form.scheduled_start} onChange={e => setForm({...form, scheduled_start: e.target.value})} /></div>
+            <div><label className="text-xs text-muted-foreground">结束</label><Input className="mt-1" type="datetime-local" value={form.scheduled_end} onChange={e => setForm({...form, scheduled_end: e.target.value})} /></div>
           </div>
-        </TabsContent>
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowCreate(false)}>取消</Button><Button onClick={handleCreate} disabled={!form.title}>创建</Button></div>
+        </CardContent></Card>
+      )}
 
-        {/* ---- 话术库 ---- */}
-        <TabsContent value="scripts" className="space-y-4">
-          {/* AI 生成输入区 */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="输入产品名或直播主题..."
-                  value={genTopic}
-                  onChange={(e) => setGenTopic(e.target.value)}
-                  className="flex-1"
-                />
-                {generating && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    正在生成...
-                  </div>
-                )}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                输入主题后，点击下方话术卡片的「AI 生成」按钮，即可生成对应类型的直播话术
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* 话术模板卡片 */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {scriptTemplates.map((tpl) => {
-              const Icon = tpl.icon;
-              const isActive = generating && activeScript === tpl.title;
-              return (
-                <Card key={tpl.id} className="transition-shadow hover:shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                      <div className="rounded-md bg-primary/10 p-1.5">
-                        <Icon className="h-4 w-4 text-primary" />
-                      </div>
-                      {tpl.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <ul className="space-y-1.5">
-                      {tpl.lines.map((line, idx) => (
-                        <li
-                          key={idx}
-                          className="text-xs leading-relaxed text-muted-foreground"
-                        >
-                          {line}
-                        </li>
-                      ))}
-                    </ul>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      disabled={generating || !genTopic.trim()}
-                      onClick={() => handleGenerate(tpl.title)}
-                    >
-                      {isActive ? (
-                        <>
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          生成中...
-                        </>
-                      ) : (
-                        "AI 生成"
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
+      <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+        <CardContent className="p-6 space-y-3">
+          <div className="flex items-center gap-2"><Video className="h-5 w-5 text-purple-600" /><h3 className="text-base font-semibold text-purple-900">BocaLive 虚拟人直播</h3></div>
+          <p className="text-sm text-purple-700">AI 数字人 24 小时不间断直播带货，$58/月起</p>
+          <div className="grid grid-cols-3 gap-3 text-xs">
+            <div className="rounded-lg bg-white/70 p-3"><p className="font-semibold text-purple-800">1. 生成脚本</p><p className="text-purple-600 mt-1">内容工厂 → 直播脚本 Skill</p></div>
+            <div className="rounded-lg bg-white/70 p-3"><p className="font-semibold text-purple-800">2. 配置虚拟人</p><p className="text-purple-600 mt-1">BocaLive 选形象 + 导入脚本</p></div>
+            <div className="rounded-lg bg-white/70 p-3"><p className="font-semibold text-purple-800">3. 开播</p><p className="text-purple-600 mt-1">推流到 TikTok/IG/YouTube</p></div>
           </div>
+          <a href="https://www.bocalive.ai" target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" className="border-purple-300 text-purple-700"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />注册 BocaLive</Button>
+          </a>
+        </CardContent>
+      </Card>
 
-          {/* AI 生成结果 */}
-          {generatedScripts.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium">AI 生成结果</h3>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {generatedScripts.map((script, idx) => (
-                  <Card key={idx} className="transition-shadow hover:shadow-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        {script.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-                        {script.body}
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => navigator.clipboard.writeText(script.body)}
-                      >
-                        <Copy className="mr-1.5 h-3.5 w-3.5" />
-                        复制话术
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* ---- 直播复盘 ---- */}
-        <TabsContent value="review" className="space-y-4">
-          <AIInsightCard
-            title="AI 直播复盘分析"
-            description="基于直播数据，AI 生成具体改进方案"
-            scene="live_review"
-            topic="最近一场直播数据: 主题「爆款返场 限时秒杀」，观看 8,600 人，峰值在线 1,250，互动数 3,420，GMV ¥42,800。平均观看时长 4.2 分钟，转化率 3.2%。请分析表现并给出改进建议。"
-          />
-          {/* 基本数据 */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">
-                上场直播数据 - 爆款返场 限时秒杀 (3/25)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div className="text-center">
-                  <Eye className="mx-auto h-4 w-4 text-muted-foreground" />
-                  <p className="mt-1 text-lg font-bold tabular-nums">
-                    {formatNumber(lastLiveStats.viewers)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">观看人数</p>
+      {sessions.length > 0 ? (
+        <div className="space-y-3">
+          {sessions.map(s => (
+            <Card key={s.id}><CardContent className="p-4 flex items-center gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted"><Video className="h-5 w-5 text-muted-foreground" /></div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-sm font-semibold">{s.title}</span>
+                  <Badge variant="outline" className={cn("text-[10px]", STATUS_COLORS[s.status])}>{s.status}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{s.platform}</Badge>
                 </div>
-                <div className="text-center">
-                  <TrendingUp className="mx-auto h-4 w-4 text-muted-foreground" />
-                  <p className="mt-1 text-lg font-bold tabular-nums">
-                    {formatNumber(lastLiveStats.peakOnline)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">峰值在线</p>
-                </div>
-                <div className="text-center">
-                  <MessageSquareText className="mx-auto h-4 w-4 text-muted-foreground" />
-                  <p className="mt-1 text-lg font-bold tabular-nums">
-                    {formatNumber(lastLiveStats.interactions)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">互动数</p>
-                </div>
-                <div className="text-center">
-                  <ShoppingCart className="mx-auto h-4 w-4 text-muted-foreground" />
-                  <p className="mt-1 text-lg font-bold tabular-nums">
-                    ¥{formatNumber(lastLiveStats.gmv)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">GMV</p>
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                  {s.virtual_host && <span>主播: {s.virtual_host}</span>}
+                  {s.scheduled_start && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(s.scheduled_start).toLocaleString("zh-CN")}</span>}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* 趋势图表 */}
-          <ChartCard title="近6场直播数据趋势" description="观看人数与GMV对比">
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={performanceData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="name" className="text-xs" tick={{ fontSize: 12 }} />
-                  <YAxis yAxisId="left" className="text-xs" tick={{ fontSize: 12 }} />
-                  <YAxis yAxisId="right" orientation="right" className="text-xs" tick={{ fontSize: 12 }} />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid hsl(var(--border))",
-                      backgroundColor: "hsl(var(--popover))",
-                      color: "hsl(var(--popover-foreground))",
-                      fontSize: "12px",
-                    }}
-                    formatter={(value, name) => [
-                      name === "viewers" ? formatNumber(Number(value)) : `¥${formatNumber(Number(value))}`,
-                      name === "viewers" ? "观看人数" : "GMV",
-                    ]}
-                  />
-                  <Bar yAxisId="left" dataKey="viewers" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="viewers" />
-                  <Bar yAxisId="right" dataKey="gmv" fill="hsl(var(--primary)/0.4)" radius={[4, 4, 0, 0]} name="gmv" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </ChartCard>
-
-          {/* 改进建议 */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <Lightbulb className="h-4 w-4 text-amber-500" />
-                改进建议
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {improvements.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              {s.metrics && (
+                <div className="flex gap-3 text-xs text-muted-foreground">
+                  {s.metrics.viewers !== undefined && <span className="flex items-center gap-1"><Users className="h-3 w-3" />{s.metrics.viewers}</span>}
+                  {s.metrics.orders !== undefined && <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" />{s.metrics.orders}单</span>}
+                  {s.metrics.comments !== undefined && <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{s.metrics.comments}</span>}
+                </div>
+              )}
+            </CardContent></Card>
+          ))}
+        </div>
+      ) : !loading ? (
+        <Card className="border-dashed"><CardContent className="py-12 text-center text-sm text-muted-foreground">
+          <Video className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />暂无直播排期
+        </CardContent></Card>
+      ) : null}
     </div>
   );
 }
