@@ -650,3 +650,87 @@ export async function updateProductInventory(
 
   return { success: true };
 }
+
+// ============ Create / Update Shopify Page ============
+// Used by AI to create landing pages, campaign pages, etc.
+export async function createShopifyPage(
+  integrationId: string,
+  title: string,
+  bodyHtml: string
+): Promise<{ success: boolean; page_id?: number; handle?: string }> {
+  const creds = await getCredentials(integrationId);
+  const headers = shopifyHeaders(creds.accessToken);
+
+  const res = await fetch(
+    `https://${creds.domain}/admin/api/2024-01/pages.json`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        page: { title, body_html: bodyHtml, published: true },
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Shopify 页面创建失败: ${res.status} - ${errText}`);
+  }
+
+  const { page } = await res.json();
+  return { success: true, page_id: page.id, handle: page.handle };
+}
+
+export async function updateShopifyPage(
+  integrationId: string,
+  pageId: number,
+  updates: { title?: string; body_html?: string }
+): Promise<{ success: boolean }> {
+  const creds = await getCredentials(integrationId);
+  const headers = shopifyHeaders(creds.accessToken);
+
+  const res = await fetch(
+    `https://${creds.domain}/admin/api/2024-01/pages/${pageId}.json`,
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ page: { id: pageId, ...updates } }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Shopify 页面更新失败: ${res.status} - ${errText}`);
+  }
+
+  return { success: true };
+}
+
+// Update product body_html (for detail page optimization by AI)
+export async function updateProductBodyHtml(
+  integrationId: string,
+  shopifyProductId: number,
+  localProductId: string,
+  bodyHtml: string
+): Promise<{ success: boolean }> {
+  const creds = await getCredentials(integrationId);
+  const headers = shopifyHeaders(creds.accessToken);
+
+  const res = await fetch(
+    `https://${creds.domain}/admin/api/2024-01/products/${shopifyProductId}.json`,
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ product: { id: shopifyProductId, body_html: bodyHtml } }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Shopify 详情页更新失败: ${res.status} - ${errText}`);
+  }
+
+  await supabase.from("products").update({ body_html: bodyHtml }).eq("id", localProductId);
+
+  return { success: true };
+}

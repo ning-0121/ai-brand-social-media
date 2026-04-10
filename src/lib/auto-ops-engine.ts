@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 import { runRadarScan } from "./radar-engine";
 import { runDiagnostic } from "./diagnostic-engine";
 import { autoPublishDuePosts } from "./social-publisher";
+import { executeDailyTasks, recordPerformanceSnapshot, generateWeeklyPlan, weeklyReview } from "./ops-director";
 
 interface TaskResult {
   task: string;
@@ -222,6 +223,50 @@ export async function runDailyTasks(): Promise<TaskResult[]> {
       status: "failed",
       message: err instanceof Error ? err.message : "Radar failed",
     });
+  }
+
+  // 7. Record KPI snapshot
+  try {
+    await recordPerformanceSnapshot();
+    results.push({ task: "kpi_snapshot", status: "success", message: "KPI 快照已记录" });
+  } catch (err) {
+    results.push({ task: "kpi_snapshot", status: "failed", message: err instanceof Error ? err.message : "快照失败" });
+  }
+
+  // 8. Execute today's AI-planned tasks
+  try {
+    const opsResult = await executeDailyTasks();
+    results.push({
+      task: "ops_daily_tasks",
+      status: "success",
+      message: `执行 ${opsResult.executed}, 审批 ${opsResult.approval}, 失败 ${opsResult.failed}`,
+      data: opsResult as unknown as Record<string, unknown>,
+    });
+  } catch (err) {
+    results.push({ task: "ops_daily_tasks", status: "failed", message: err instanceof Error ? err.message : "任务执行失败" });
+  }
+
+  // 9. Monday: generate weekly plans
+  const dayOfWeek = new Date().getDay();
+  if (dayOfWeek === 1) {
+    try {
+      await generateWeeklyPlan("store");
+      await generateWeeklyPlan("social");
+      results.push({ task: "weekly_plan_generation", status: "success", message: "已生成本周店铺和社媒计划" });
+    } catch (err) {
+      results.push({ task: "weekly_plan_generation", status: "failed", message: err instanceof Error ? err.message : "计划生成失败" });
+    }
+  }
+
+  // 10. Sunday: weekly review
+  if (dayOfWeek === 0) {
+    try {
+      await weeklyReview("store");
+      await weeklyReview("social");
+      results.push({ task: "weekly_review", status: "success", message: "已完成本周复盘" });
+    } catch (err) {
+      results.push({ task: "weekly_review", status: "failed", message: err instanceof Error ? err.message : "复盘失败" });
+    }
   }
 
   await logRun("daily", "cron", results, Date.now() - startTime);
