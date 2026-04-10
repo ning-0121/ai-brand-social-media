@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { generateWeeklyPlan, executeDailyTasks, recordPerformanceSnapshot, weeklyReview } from "@/lib/ops-director";
 
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);

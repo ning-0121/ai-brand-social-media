@@ -143,16 +143,24 @@ Generate JSON:
 }
 
 // ============ 2. Execute Daily Tasks ============
+// Executes ONE pending task per call to stay within Vercel timeout.
+// Cron calls this hourly, so all daily tasks get processed over the day.
+// Also picks up past-due tasks from previous days that weren't completed.
 export async function executeDailyTasks(): Promise<{ executed: number; skipped: number; approval: number; failed: number }> {
   const today = new Date().toISOString().split("T")[0];
 
+  // Get the NEXT single pending task (today or overdue)
   const { data: tasks } = await supabase
     .from("ops_daily_tasks")
     .select("*")
-    .eq("task_date", today)
-    .eq("execution_status", "pending");
+    .eq("execution_status", "pending")
+    .lte("task_date", today)
+    .order("task_date", { ascending: true })
+    .limit(1);
 
   if (!tasks || tasks.length === 0) return { executed: 0, skipped: 0, approval: 0, failed: 0 };
+
+  const task = tasks[0];
 
   // Get Shopify integration
   const { data: integration } = await supabase
@@ -162,50 +170,48 @@ export async function executeDailyTasks(): Promise<{ executed: number; skipped: 
   let executed = 0, approval = 0, failed = 0;
   const skipped = 0;
 
-  for (const task of tasks) {
-    try {
-      if (task.auto_executable) {
-        await supabase.from("ops_daily_tasks").update({ execution_status: "running" }).eq("id", task.id);
+  try {
+    if (task.auto_executable) {
+      await supabase.from("ops_daily_tasks").update({ execution_status: "running" }).eq("id", task.id);
 
-        const result = await executeTask(task, integrationId);
+      const result = await executeTask(task, integrationId);
 
-        await supabase.from("ops_daily_tasks").update({
-          execution_status: "auto_executed",
-          execution_result: result,
-          updated_at: new Date().toISOString(),
-        }).eq("id", task.id);
-
-        executed++;
-      } else {
-        // Create approval task
-        const approvalResult = await createApprovalTask({
-          type: "product_edit",
-          title: `[AI 运营] ${task.title}`,
-          description: task.description || "",
-          payload: {
-            ops_task_id: task.id,
-            task_type: task.task_type,
-            module: task.module,
-          },
-        });
-
-        await supabase.from("ops_daily_tasks").update({
-          execution_status: "awaiting_approval",
-          approval_task_id: approvalResult.id,
-          updated_at: new Date().toISOString(),
-        }).eq("id", task.id);
-
-        approval++;
-      }
-    } catch (err) {
-      console.error(`Task ${task.id} failed:`, err);
       await supabase.from("ops_daily_tasks").update({
-        execution_status: "failed",
-        execution_result: { error: err instanceof Error ? err.message : "执行失败" },
+        execution_status: "auto_executed",
+        execution_result: result,
         updated_at: new Date().toISOString(),
       }).eq("id", task.id);
-      failed++;
+
+      executed++;
+    } else {
+      // Create approval task
+      const approvalResult = await createApprovalTask({
+        type: "products",
+        title: `[AI 运营] ${task.title}`,
+        description: task.description || "",
+        payload: {
+          ops_task_id: task.id,
+          task_type: task.task_type,
+          module: task.module,
+        },
+      });
+
+      await supabase.from("ops_daily_tasks").update({
+        execution_status: "awaiting_approval",
+        approval_task_id: approvalResult.id,
+        updated_at: new Date().toISOString(),
+      }).eq("id", task.id);
+
+      approval++;
     }
+  } catch (err) {
+    console.error(`Task ${task.id} failed:`, err);
+    await supabase.from("ops_daily_tasks").update({
+      execution_status: "failed",
+      execution_result: { error: err instanceof Error ? err.message : "执行失败" },
+      updated_at: new Date().toISOString(),
+    }).eq("id", task.id);
+    failed++;
   }
 
   return { executed, skipped, approval, failed };

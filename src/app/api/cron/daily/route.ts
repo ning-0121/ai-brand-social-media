@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { runDailyTasks } from "@/lib/auto-ops-engine";
 
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {

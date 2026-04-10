@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { runHourlyTasks } from "@/lib/auto-ops-engine";
 
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   // Verify cron secret (Vercel injects CRON_SECRET automatically)
   const authHeader = request.headers.get("authorization");
