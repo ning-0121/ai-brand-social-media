@@ -1,11 +1,11 @@
 import { supabase } from "./supabase";
 import { callLLM } from "./content-skills/llm";
 import { executeSkill } from "./content-skills/executor";
-import { updateProductSEO, updateProductBodyHtml, createShopifyPage } from "./shopify-operations";
-import { publishPost } from "./social-publisher";
+import { updateProductSEO, updateProductBodyHtml } from "./shopify-operations";
 import { getDashboardKPIs, getStoreKPIs } from "./supabase-queries";
 import { createApprovalTask } from "./supabase-approval";
 import { reviewContent } from "./content-qa";
+import { productContentPipeline, socialContentPipeline, campaignPipeline } from "./content-pipeline";
 
 // ============ 1. Generate Weekly Plan ============
 export async function generateWeeklyPlan(module: "social" | "store"): Promise<string> {
@@ -304,64 +304,14 @@ async function executeTask(
     }
 
     case "post": {
-      const platform = task.target_platform || "instagram";
-      let product;
-      if (task.target_product_id) {
-        const { data } = await supabase.from("products").select("*").eq("id", task.target_product_id).single();
-        product = data;
-      }
-
-      const { result } = await executeSkill("social_post_pack", {
-        product: product || undefined,
-        platform,
-      }, { sourceModule: "ops_director" });
-
-      const posts = (result.output as { posts?: Array<{ title: string; body: string; hashtags?: string[] }> }).posts;
-      const bestPost = posts?.[0];
-
-      if (bestPost) {
-        const { data: scheduled } = await supabase.from("scheduled_posts").insert({
-          title: bestPost.title,
-          body: bestPost.body,
-          content_preview: bestPost.body?.slice(0, 100),
-          platform,
-          hashtags: bestPost.hashtags,
-          scheduled_at: new Date().toISOString(),
-          status: "queued",
-        }).select().single();
-
-        if (scheduled) {
-          const pubResult = await publishPost({
-            id: scheduled.id,
-            platform,
-            account_id: null,
-            title: bestPost.title,
-            body: bestPost.body,
-            hashtags: bestPost.hashtags,
-          });
-
-          return { action: "post_published", platform, success: pubResult.success, error: pubResult.error };
-        }
-      }
-
-      return { action: "post_generated", platform, posts_count: posts?.length || 0 };
+      const postResult = await socialContentPipeline(task.target_product_id || null, task.target_platform || "instagram");
+      return postResult as unknown as Record<string, unknown>;
     }
 
     case "landing_page": {
-      if (!integrationId) return { skipped: true };
-
-      const { result } = await executeSkill("landing_page", {
-        page_goal: "purchase",
-        headline_idea: task.description,
-      }, { sourceModule: "ops_director" });
-
-      const html = (result.output as { body_html?: string }).body_html;
-      if (html) {
-        const page = await createShopifyPage(integrationId, task.target_product_name || "Campaign Page", html);
-        return { action: "landing_page_created", page_id: page.page_id, handle: page.handle };
-      }
-
-      return { action: "landing_page_generated" };
+      if (!integrationId) return { skipped: true, reason: "no integration" };
+      const lpResult = await campaignPipeline(task.description || "Campaign", [], integrationId);
+      return lpResult as unknown as Record<string, unknown>;
     }
 
     case "homepage_update": {
@@ -375,31 +325,8 @@ async function executeTask(
 
     case "new_product_content": {
       if (!task.target_product_id || !integrationId) return { skipped: true };
-
-      const { data: product } = await supabase
-        .from("products").select("*").eq("id", task.target_product_id).single();
-      if (!product?.shopify_product_id) return { skipped: true };
-
-      // SEO
-      const { result: seoResult } = await executeSkill("product_seo_optimize", { product }, { sourceModule: "ops_director" });
-      const seo = seoResult.output as Record<string, unknown>;
-      await updateProductSEO(integrationId, product.shopify_product_id, product.id, {
-        meta_title: seo.meta_title as string,
-        meta_description: seo.meta_description as string,
-        tags: seo.tags as string,
-      });
-
-      // Detail page
-      const { result: detailResult } = await executeSkill("product_detail_page", { product }, { sourceModule: "ops_director" });
-      const detail = detailResult.output as Record<string, unknown>;
-      if (detail.description) {
-        await updateProductBodyHtml(integrationId, product.shopify_product_id, product.id, detail.description as string);
-      }
-
-      // Social post
-      await executeSkill("social_post_pack", { product, platform: "instagram" }, { sourceModule: "ops_director" });
-
-      return { action: "new_product_full_content", product: product.name, seo: true, detail_page: true, social: true };
+      const pcResult = await productContentPipeline(task.target_product_id, integrationId);
+      return pcResult as unknown as Record<string, unknown>;
     }
 
     default:
