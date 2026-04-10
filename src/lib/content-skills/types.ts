@@ -32,6 +32,11 @@ export interface SkillContext {
   competitors?: unknown[];
   trends?: unknown[];
   brand_tone?: string;
+  brand_name?: string;
+  brand_visual?: string;
+  target_audience?: string;
+  banned_words?: string[];
+  primary_colors?: string[];
 }
 
 export interface SkillResult {

@@ -55,7 +55,26 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
     });
   }
 
-  // 3. Auto-publish due social posts
+  // 3. Process content queue → create scheduled_posts
+  try {
+    const { processContentQueue, syncQueueStatus } = await import("./content-queue-processor");
+    const queueResult = await processContentQueue();
+    const synced = await syncQueueStatus();
+    results.push({
+      task: "content_queue_process",
+      status: queueResult.errors.length > 0 ? "failed" : "success",
+      message: `Processed ${queueResult.processed}, synced ${synced}`,
+      data: { ...queueResult, synced } as unknown as Record<string, unknown>,
+    });
+  } catch (err) {
+    results.push({
+      task: "content_queue_process",
+      status: "failed",
+      message: err instanceof Error ? err.message : "Queue processing failed",
+    });
+  }
+
+  // 4. Auto-publish due social posts
   try {
     const pubResult = await autoPublishDuePosts();
     results.push({

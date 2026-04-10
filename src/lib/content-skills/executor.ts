@@ -95,10 +95,27 @@ export async function executeSkill(
 }
 
 async function loadContext(): Promise<SkillContext> {
-  // 从品牌策略表加载品牌信息
   const context: SkillContext = {};
 
   try {
+    // 加载品牌画像（缓存 60s）
+    const { getBrandProfileCached } = await import("@/lib/brand-profile");
+    const bp = await getBrandProfileCached();
+    if (bp) {
+      context.brand_name = bp.brand_name;
+      context.brand_tone = bp.voice_style || undefined;
+      context.brand_visual = bp.visual_style || undefined;
+      context.target_audience = bp.target_audience || undefined;
+      context.banned_words = bp.banned_words?.length ? bp.banned_words : undefined;
+      context.primary_colors = bp.primary_colors?.length ? bp.primary_colors : undefined;
+      context.brand_positioning = [
+        ...(bp.core_value_props || []),
+        bp.pricing_position ? `定价策略: ${bp.pricing_position}` : "",
+      ]
+        .filter(Boolean)
+        .join("; ") || undefined;
+    }
+
     // 加载竞品 (前 3 个)
     const { data: competitors } = await supabase
       .from("competitors")

@@ -13,6 +13,14 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const projectType = url.searchParams.get("type");
     const status = url.searchParams.get("status");
+    const listTemplates = url.searchParams.get("templates");
+
+    // Return templates list if requested
+    if (listTemplates) {
+      const { getTemplates } = await import("@/lib/template-registry");
+      const templates = await getTemplates(projectType || undefined);
+      return NextResponse.json({ templates });
+    }
 
     let query = supabase.from("creative_projects").select("*").order("created_at", { ascending: false }).limit(50);
     if (projectType) query = query.eq("project_type", projectType);
@@ -50,6 +58,19 @@ export async function POST(request: Request) {
     const { action, id, ...data } = body;
 
     if (action === "create") {
+      // If template_id provided, load template and store on project
+      if (data.template_id) {
+        const { getTemplate } = await import("@/lib/template-registry");
+        const template = await getTemplate(data.template_id);
+        if (template) {
+          data.brief = {
+            ...((data.brief as Record<string, unknown>) || {}),
+            template_schema: template.schema_json,
+            template_defaults: template.default_copy_json,
+            template_title: template.title,
+          };
+        }
+      }
       const { data: project, error } = await supabase.from("creative_projects").insert(data).select().single();
       if (error) throw error;
       return NextResponse.json({ success: true, project });

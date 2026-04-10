@@ -175,6 +175,13 @@ export async function POST(request: Request) {
                 task.payload.product_id as string,
                 task.payload.new_values as { body_html: string; meta_title?: string; meta_description?: string; tags?: string }
               );
+              // Writeback: mark project + agent task as published
+              await supabase.from("creative_projects")
+                .update({ status: "published", updated_at: new Date().toISOString() })
+                .eq("approval_id", id);
+              await supabase.from("agent_tasks_v2")
+                .update({ status: "executed", updated_at: new Date().toISOString() })
+                .eq("approval_id", id);
             } catch (e) { console.error("Product page deploy error:", e); }
           }
 
@@ -187,18 +194,27 @@ export async function POST(request: Request) {
                 task.payload.product_name as string || "",
                 id
               );
+              // Writeback: mark agent task as executed (content is queued, not yet published)
+              await supabase.from("agent_tasks_v2")
+                .update({ status: "executed", updated_at: new Date().toISOString() })
+                .eq("approval_id", id);
             } catch (e) { console.error("Content queue error:", e); }
           }
 
           if (task.payload?.workflow === "campaign_pack_workflow" && task.payload?.project_id) {
             try {
               await supabase.from("creative_projects").update({ status: "approved" }).eq("id", task.payload.project_id);
-              await supabase.from("creative_exports").insert({
-                project_id: task.payload.project_id as string,
-                export_type: "asset_pack",
-                assets: task.payload.assets,
-                status: "ready",
-              });
+              // Generate remaining assets (social + email copy) and create export
+              const { generateAndExportCampaignPack } = await import("@/agents/workflows/campaign-pack-workflow");
+              await generateAndExportCampaignPack(
+                task.payload.project_id as string,
+                task.payload.campaign_name as string || "Campaign",
+                task.payload.assets as Record<string, unknown> || {}
+              );
+              // Writeback
+              await supabase.from("agent_tasks_v2")
+                .update({ status: "executed", updated_at: new Date().toISOString() })
+                .eq("approval_id", id);
             } catch (e) { console.error("Campaign export error:", e); }
           }
 

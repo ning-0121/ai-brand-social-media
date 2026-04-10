@@ -92,3 +92,65 @@ export async function runCampaignPackWorkflow(
 
   return { success: true, assets_generated: assetsGenerated, approval_id: approval.id };
 }
+
+/**
+ * Post-approval: Generate remaining assets (social + email) and create export.
+ * Called from approval/route.ts after campaign_pack_workflow approval.
+ */
+export async function generateAndExportCampaignPack(
+  projectId: string,
+  campaignName: string,
+  existingAssets: Record<string, unknown>
+): Promise<void> {
+  const allAssets = { ...existingAssets };
+
+  // Generate social posts (if not already done)
+  if (!allAssets.social_posts) {
+    try {
+      const { result } = await executeSkill("social_post_pack", {
+        campaign_theme: campaignName,
+        platform: "instagram",
+      }, { sourceModule: "workflow-c-post-approval" });
+      allAssets.social_posts = result.output;
+    } catch (e) {
+      allAssets.social_posts_error = (e as Error).message;
+    }
+  }
+
+  // Generate email copy (if not already done)
+  if (!allAssets.email_copy) {
+    try {
+      const { result } = await executeSkill("campaign_poster", {
+        campaign_theme: `${campaignName} - Email Newsletter`,
+        template_id: "email",
+      }, { sourceModule: "workflow-c-post-approval" });
+      allAssets.email_copy = result.output;
+    } catch (e) {
+      allAssets.email_copy_error = (e as Error).message;
+    }
+  }
+
+  // Remove pending_assets marker
+  delete allAssets.pending_assets;
+
+  // Update creative project with all assets
+  await supabase.from("creative_projects").update({
+    generated_output: allAssets,
+    status: "exported",
+    updated_at: new Date().toISOString(),
+  }).eq("id", projectId);
+
+  // Create creative export
+  const assetsArray = [
+    allAssets.banner_copy ? { type: "banner", label: "Banner", content: allAssets.banner_copy, html: allAssets.banner_html } : null,
+    allAssets.social_posts ? { type: "social", label: "Social Posts", content: allAssets.social_posts } : null,
+    allAssets.email_copy ? { type: "email", label: "Email Copy", content: allAssets.email_copy } : null,
+  ].filter(Boolean);
+
+  await supabase.from("creative_exports").insert({
+    project_id: projectId,
+    export_type: "asset_pack",
+    assets: assetsArray,
+    status: "ready",
+  });
+}
