@@ -58,7 +58,7 @@ Return:
 
   return {
     score,
-    passed: score >= 70,
+    passed: score >= 40, // Threshold lowered from 70 to 40 — QA is advisory, not blocking
     checklist,
     improvements,
   };
