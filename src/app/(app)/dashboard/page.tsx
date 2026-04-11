@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { KPIComparisonCard } from "@/components/analytics/kpi-comparison-card";
 import { useSupabase } from "@/hooks/use-supabase";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
 import { DailyBriefing } from "@/components/diagnostic/daily-briefing";
@@ -301,6 +302,8 @@ export default function DashboardPage() {
           format="number"
         />
       </KPICardGrid>
+
+      <KPIComparisonCard />
 
       <DailyBriefing />
 

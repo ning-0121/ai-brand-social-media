@@ -265,7 +265,21 @@ export async function runDailyTasks(): Promise<TaskResult[]> {
     results.push({ task: "ops_daily_tasks", status: "failed", message: err instanceof Error ? err.message : "任务执行失败" });
   }
 
-  // 9. Monday: generate weekly plans
+  // 9. Measure pending action impacts (7-day lookback)
+  try {
+    const { measurePendingImpacts } = await import("./action-impact-tracker");
+    const impactResult = await measurePendingImpacts();
+    results.push({
+      task: "measure_action_impacts",
+      status: impactResult.errors > 0 ? "failed" : "success",
+      message: `Measured ${impactResult.measured}, errors ${impactResult.errors}`,
+      data: impactResult as unknown as Record<string, unknown>,
+    });
+  } catch (err) {
+    results.push({ task: "measure_action_impacts", status: "failed", message: err instanceof Error ? err.message : "Impact measurement failed" });
+  }
+
+  // 10. Monday: generate weekly plans + weekly report
   const dayOfWeek = new Date().getDay();
   if (dayOfWeek === 1) {
     try {
@@ -277,7 +291,18 @@ export async function runDailyTasks(): Promise<TaskResult[]> {
     }
   }
 
-  // 10. Sunday: weekly review
+  // Monday also: generate weekly report
+  if (dayOfWeek === 1) {
+    try {
+      const { generateWeeklyReport } = await import("./weekly-report-generator");
+      await generateWeeklyReport();
+      results.push({ task: "weekly_report", status: "success", message: "已生成本周运营周报" });
+    } catch (err) {
+      results.push({ task: "weekly_report", status: "failed", message: err instanceof Error ? err.message : "周报生成失败" });
+    }
+  }
+
+  // 11. Sunday: weekly review
   if (dayOfWeek === 0) {
     try {
       await weeklyReview("store");

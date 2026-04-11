@@ -168,13 +168,30 @@ export async function POST(request: Request) {
           // Execute workflow-specific post-approval actions
           if (task.payload?.workflow === "product_page_workflow" && task.payload?.new_values) {
             try {
+              // Record before-metrics for impact tracking
+              const { recordActionBefore, captureProductBefore } = await import("@/lib/action-impact-tracker");
+              const productId = task.payload.product_id as string;
+              const beforeMetrics = await captureProductBefore(productId);
+
               const { deployProductPage } = await import("@/agents/workflows/product-page-workflow");
               await deployProductPage(
                 task.payload.integration_id as string,
                 task.payload.shopify_product_id as number,
-                task.payload.product_id as string,
+                productId,
                 task.payload.new_values as { body_html: string; meta_title?: string; meta_description?: string; tags?: string }
               );
+
+              // Record impact (after_metrics will be captured by daily cron in 7 days)
+              const auditId = await logAudit({
+                actorType: "user", actorId: auth.userId,
+                actionType: "product_page.deploy", targetType: "product", targetId: productId,
+                provider: "shopify", status: "success",
+              });
+              recordActionBefore({
+                auditLogId: auditId, actionType: "product_page.deploy",
+                targetType: "product", targetId: productId, beforeMetrics,
+              });
+
               // Writeback: mark project + agent task as published
               await supabase.from("creative_projects")
                 .update({ status: "published", updated_at: new Date().toISOString() })
