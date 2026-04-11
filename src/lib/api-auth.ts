@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import type { TeamRole } from "./permissions";
 
 /**
  * Get the authenticated user ID from the request cookies.
@@ -28,13 +29,26 @@ export async function getAuthUserId(): Promise<string | null> {
   return user?.id || null;
 }
 
+interface AuthResult {
+  userId: string;
+  teamId?: string;
+  role?: TeamRole;
+  error?: never;
+}
+
+interface AuthError {
+  userId?: never;
+  teamId?: never;
+  role?: never;
+  error: NextResponse;
+}
+
 /**
  * Require authentication for an API route.
- * Returns the user ID if authenticated, or a 401 response if not.
+ * Returns userId + teamId + role if authenticated.
+ * Team info is loaded lazily (only if teams table exists).
  */
-export async function requireAuth(): Promise<
-  { userId: string; error?: never } | { userId?: never; error: NextResponse }
-> {
+export async function requireAuth(): Promise<AuthResult | AuthError> {
   const userId = await getAuthUserId();
   if (!userId) {
     return {
@@ -44,6 +58,28 @@ export async function requireAuth(): Promise<
       ),
     };
   }
+
+  // Try to load team membership (non-blocking, gracefully handles missing table)
+  try {
+    const { supabase } = await import("./supabase");
+    const { data: membership } = await supabase
+      .from("team_members")
+      .select("team_id, role")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (membership) {
+      return {
+        userId,
+        teamId: membership.team_id,
+        role: membership.role as TeamRole,
+      };
+    }
+  } catch {
+    // teams table may not exist yet — continue without team info
+  }
+
   return { userId };
 }
 

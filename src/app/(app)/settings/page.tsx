@@ -29,6 +29,7 @@ import {
   Mail,
 } from "lucide-react";
 import { BrandProfileEditor } from "@/components/brand-profile-editor";
+import { TeamManagement } from "@/components/team/team-management";
 import {
   getIntegrations,
   createIntegration,
@@ -265,6 +266,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="platforms">平台连接</TabsTrigger>
           <TabsTrigger value="brand">品牌画像</TabsTrigger>
+          <TabsTrigger value="team">团队管理</TabsTrigger>
           <TabsTrigger value="account">账户设置</TabsTrigger>
         </TabsList>
 
@@ -416,6 +418,11 @@ export default function SettingsPage() {
         {/* ---- 品牌画像 ---- */}
         <TabsContent value="brand">
           <BrandProfileEditor />
+        </TabsContent>
+
+        {/* ---- 团队管理 ---- */}
+        <TabsContent value="team">
+          <TeamManagement />
         </TabsContent>
 
         {/* ---- 账户设置 ---- */}

@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ActionImpactList } from "@/components/analytics/action-impact-list";
 import { WeeklyReportView } from "@/components/analytics/weekly-report-view";
+import { AuditLogViewer } from "@/components/analytics/audit-log-viewer";
 import {
   Target,
   Sparkles,
@@ -238,6 +239,7 @@ export default function OpsCockpitPage() {
           <TabsTrigger value="social_plan">社媒周计划</TabsTrigger>
           <TabsTrigger value="ai_impact">AI 效果</TabsTrigger>
           <TabsTrigger value="weekly_report">周报</TabsTrigger>
+          <TabsTrigger value="audit_logs">操作日志</TabsTrigger>
         </TabsList>
 
         <TabsContent value="today" className="space-y-2 mt-4">
@@ -298,6 +300,10 @@ export default function OpsCockpitPage() {
 
         <TabsContent value="weekly_report" className="mt-4">
           <WeeklyReportView />
+        </TabsContent>
+
+        <TabsContent value="audit_logs" className="mt-4">
+          <AuditLogViewer />
         </TabsContent>
       </Tabs>
     </div>
