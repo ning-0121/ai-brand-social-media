@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Sparkles, Send } from "lucide-react";
+import { Loader2, Sparkles, Send, Zap } from "lucide-react";
+import { toast } from "sonner";
 
 interface Product {
   id: string;
@@ -40,6 +41,7 @@ export function SEOOptimizeDialog({
 }: SEOOptimizeDialogProps) {
   const [generating, setGenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [newValues, setNewValues] = useState<Record<string, string> | null>(
     null
   );
@@ -79,8 +81,8 @@ export function SEOOptimizeDialog({
           tags: result.tags || product.tags || "",
         });
       }
-    } catch (err) {
-      console.error("AI SEO 生成失败:", err);
+    } catch {
+      toast.error("AI SEO 生成失败，请重试");
     }
     setGenerating(false);
   };
@@ -126,11 +128,42 @@ export function SEOOptimizeDialog({
         setNewValues(null);
         onSubmitted();
       }
-    } catch (err) {
-      console.error("提交审批失败:", err);
+    } catch {
+      toast.error("提交审批失败，请重试");
     }
     setSubmitting(false);
   };
+
+  const handleQuickApply = async () => {
+    if (!product || !newValues || !integrationId || !product.shopify_product_id) return;
+    setApplying(true);
+    try {
+      const res = await fetch("/api/store/seo-quick-apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          integration_id: integrationId,
+          shopify_product_id: product.shopify_product_id,
+          product_id: product.id,
+          new_values: newValues,
+        }),
+      });
+      if (res.ok) {
+        toast.success("SEO 已更新到 Shopify");
+        onOpenChange(false);
+        setNewValues(null);
+        onSubmitted();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "SEO 更新失败");
+      }
+    } catch {
+      toast.error("网络错误，SEO 更新失败");
+    }
+    setApplying(false);
+  };
+
+  const canQuickApply = !!integrationId && !!product?.shopify_product_id;
 
   const handleFieldChange = (field: string, value: string) => {
     if (!newValues) return;
@@ -259,7 +292,20 @@ export function SEOOptimizeDialog({
                 )}
                 重新生成
               </Button>
-              <Button onClick={handleSubmitForApproval} disabled={submitting}>
+              <Button
+                variant="default"
+                onClick={handleQuickApply}
+                disabled={applying || !canQuickApply}
+                title={canQuickApply ? "跳过审批，直接推送到 Shopify" : "请先连接 Shopify"}
+              >
+                {applying ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="mr-1.5 h-4 w-4" />
+                )}
+                {applying ? "应用中..." : "快速应用"}
+              </Button>
+              <Button variant="outline" onClick={handleSubmitForApproval} disabled={submitting}>
                 {submitting ? (
                   <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                 ) : (

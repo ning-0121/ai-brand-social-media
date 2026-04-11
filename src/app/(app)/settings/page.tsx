@@ -38,6 +38,7 @@ import {
 } from "@/lib/supabase-integrations";
 import { useSupabase } from "@/hooks/use-supabase";
 import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
 /* ------------------------------------------------------------------ */
 /*  Platform Config                                                     */
@@ -120,7 +121,7 @@ export default function SettingsPage() {
   const refresh = useCallback(() => {
     getIntegrations()
       .then(setLocalIntegrations)
-      .catch(console.error);
+      .catch(() => toast.error("加载失败"));
   }, []);
 
   // Get connected integration for a platform
@@ -164,8 +165,8 @@ export default function SettingsPage() {
       await createIntegration(payload as Parameters<typeof createIntegration>[0]);
       setConnectDialogOpen(false);
       refresh();
-    } catch (err) {
-      console.error("连接失败:", err);
+    } catch {
+      toast.error("平台连接失败，请检查凭证");
     } finally {
       setSubmitting(false);
     }
@@ -179,8 +180,8 @@ export default function SettingsPage() {
       await updateIntegration(editingIntegration.id, formData);
       setEditDialogOpen(false);
       refresh();
-    } catch (err) {
-      console.error("更新失败:", err);
+    } catch {
+      toast.error("更新失败，请重试");
     } finally {
       setSubmitting(false);
     }
@@ -191,8 +192,8 @@ export default function SettingsPage() {
     try {
       await deleteIntegration(integration.id);
       refresh();
-    } catch (err) {
-      console.error("断开失败:", err);
+    } catch {
+      toast.error("断开连接失败");
     }
   };
 
@@ -216,9 +217,8 @@ export default function SettingsPage() {
         alert(`同步完成: ${data.synced_products || 0} 商品, ${data.synced_orders || 0} 订单, ${data.synced_customers || 0} 客户`);
       }
       refresh();
-    } catch (err) {
-      console.error("同步失败:", err);
-      alert("同步失败，请查看控制台");
+    } catch {
+      toast.error("数据同步失败，请重试");
     } finally {
       setSyncing(null);
     }

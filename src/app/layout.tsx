@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
+import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 
@@ -34,6 +35,7 @@ export default function RootLayout({
           <TooltipProvider>
             <AuthProvider>
               {children}
+              <Toaster richColors position="top-right" />
             </AuthProvider>
           </TooltipProvider>
         </ThemeProvider>

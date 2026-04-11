@@ -25,6 +25,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import type { WhatsappConversation, WhatsappMessage } from "@/lib/oem/types";
+import { toast } from "sonner";
 
 export default function WhatsappPage() {
   const [conversations, setConversations] = useState<WhatsappConversation[]>([]);
@@ -53,8 +54,8 @@ export default function WhatsappPage() {
       const res = await fetch("/api/oem/conversations");
       const data = await res.json();
       setConversations(data.conversations || []);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("加载对话失败");
     }
     setLoading(false);
   };
@@ -71,8 +72,8 @@ export default function WhatsappPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "mark_read", id }),
       });
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("加载消息失败");
     }
     setLoadingMessages(false);
   };
@@ -108,8 +109,8 @@ export default function WhatsappPage() {
       } else {
         alert(`发送失败: ${data.error || "未知错误"}`);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("发送失败，请重试");
     }
     setSending(false);
   };
@@ -125,8 +126,8 @@ export default function WhatsappPage() {
       const data = await res.json();
       if (data.success && selectedConv) fetchMessages(selectedConv.id);
       else alert(`发送失败: ${data.error || "未知错误"}`);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("审批发送失败");
     }
     setSending(false);
   };

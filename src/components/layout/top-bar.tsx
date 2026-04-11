@@ -2,7 +2,8 @@
 
 import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Menu, Moon, Sun, User, LogOut } from "lucide-react";
+import { Menu, Moon, Sun, User, LogOut } from "lucide-react";
+import { NotificationCenter } from "./notification-center";
 import { buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -77,10 +78,7 @@ export function TopBar() {
           <span className="sr-only">切换主题</span>
         </button>
 
-        <button className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative")}>
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
-        </button>
+        <NotificationCenter />
 
         <DropdownMenu>
           <DropdownMenuTrigger className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "rounded-full")}>

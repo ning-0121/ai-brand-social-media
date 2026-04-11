@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Send, Copy, Check, Image as ImageIcon } from "lucide-react";
+import { toast } from "sonner";
 import { HtmlPreview } from "./html-preview";
 import { ImageTemplateRenderer } from "./image-template-renderer";
 import { getTemplate } from "./image-templates";
@@ -38,8 +39,8 @@ export function SkillResultViewer({ skillId, skillName, taskId, result, onClose 
         }),
       });
       if ((await res.json()).success) setSubmitted(true);
-    } catch (err) {
-      console.error("提交失败:", err);
+    } catch {
+      toast.error("提交失败");
     }
     setSubmitting(false);
   };

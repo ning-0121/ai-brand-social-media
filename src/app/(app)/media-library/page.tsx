@@ -17,6 +17,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface MediaItem {
   id: string;
@@ -75,7 +76,7 @@ export default function MediaLibraryPage() {
       const res = await fetch(`/api/media?${params}`);
       const data = await res.json();
       setMedia(data.media || []);
-    } catch (err) { console.error(err); }
+    } catch { toast.error("加载素材失败"); }
     setLoading(false);
   };
 
@@ -91,7 +92,7 @@ export default function MediaLibraryPage() {
           contentType: file.type,
           upsert: false,
         });
-        if (error) { console.error("Upload error:", error); continue; }
+        if (error) { toast.error("上传失败: " + error.message); continue; }
 
         const { data: { publicUrl } } = supabase.storage.from("content-media").getPublicUrl(path);
 
@@ -108,7 +109,7 @@ export default function MediaLibraryPage() {
             category: "general",
           }),
         });
-      } catch (err) { console.error("Upload failed:", err); }
+      } catch { toast.error("上传失败，请重试"); }
     }
     setUploading(false);
     fetchMedia();
@@ -138,7 +139,7 @@ export default function MediaLibraryPage() {
       } else {
         alert(`修图失败: ${data.error}`);
       }
-    } catch (err) { console.error(err); }
+    } catch { toast.error("AI 修图失败，请重试"); }
     setEditing(false);
   };
 

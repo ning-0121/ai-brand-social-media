@@ -42,6 +42,7 @@ import { AITrendDialog } from "@/components/trends/ai-trend-dialog";
 import { AICompetitorDialog } from "@/components/trends/ai-competitor-dialog";
 import { Sparkles, Plus, Trash2, Loader2, ArrowUpDown, Search, Save } from "lucide-react";
 import { createHotProduct } from "@/lib/supabase-mutations";
+import { toast } from "sonner";
 
 
 const PLATFORM_OPTIONS: { value: string; label: string }[] = [
@@ -123,8 +124,8 @@ export default function TrendsPage() {
       const rawResults = data.results;
       const results = Array.isArray(rawResults) ? rawResults : [rawResults];
       setSearchResults(results.filter((r: Record<string, unknown>) => r && r.name));
-    } catch (err) {
-      console.error("搜索失败:", err);
+    } catch {
+      toast.error("搜索失败，请重试");
     }
     setSearching(false);
   };
@@ -150,8 +151,8 @@ export default function TrendsPage() {
       const rawResults = data.results;
       const results = Array.isArray(rawResults) ? rawResults : [rawResults];
       setCompSearchResults(results.filter((r: Record<string, unknown>) => r && r.name));
-    } catch (err) {
-      console.error("搜索失败:", err);
+    } catch {
+      toast.error("搜索竞品失败，请重试");
     }
     setSearchingComp(false);
   };
@@ -170,8 +171,8 @@ export default function TrendsPage() {
         price_range: product.price_range,
         rating: product.rating,
       });
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("保存商品失败");
     }
     setSavingProduct(null);
   };
@@ -191,8 +192,8 @@ export default function TrendsPage() {
         recent_campaigns: comp.recent_campaigns,
       });
       await refreshCompetitors();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("保存竞品失败");
     }
     setSavingComp(false);
   };
@@ -228,7 +229,7 @@ export default function TrendsPage() {
       setShowAddCompetitor(false);
       setCompForm({ name: "", platform: "tiktok", top_category: "", followers: "", avg_engagement: "", growth_rate: "" });
       await refreshCompetitors();
-    } catch (err) { console.error(err); }
+    } catch { toast.error("添加竞品失败"); }
     setSavingComp(false);
   };
 

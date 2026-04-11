@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, Palette } from "lucide-react";
+import { toast } from "sonner";
 
 interface BrandProfile {
   id?: string;
@@ -51,7 +52,7 @@ export function BrandProfileEditor() {
       .then((data) => {
         if (data.profile) setProfile({ ...EMPTY_PROFILE, ...data.profile });
       })
-      .catch(console.error)
+      .catch(() => toast.error("加载品牌画像失败"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -70,8 +71,8 @@ export function BrandProfileEditor() {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       }
-    } catch (err) {
-      console.error("保存失败:", err);
+    } catch {
+      toast.error("保存失败，请重试");
     } finally {
       setSaving(false);
     }

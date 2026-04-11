@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Search, Globe, Plus, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 import { createInfluencer } from "@/lib/supabase-mutations";
 
 interface ModashSearchDialogProps {
@@ -92,8 +93,8 @@ export function ModashSearchDialog({ open, onOpenChange, onImported }: ModashSea
       });
       setAddedIds((prev) => new Set(Array.from(prev).concat(p.username)));
       onImported();
-    } catch (err) {
-      console.error("添加失败:", err);
+    } catch {
+      toast.error("添加失败");
     }
   };
 

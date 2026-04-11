@@ -24,6 +24,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import Link from "next/link";
 
 interface LiveSession {
@@ -56,7 +57,7 @@ export default function LivePage() {
       const res = await fetch("/api/live");
       const data = await res.json();
       setSessions(data.sessions || []);
-    } catch (err) { console.error(err); }
+    } catch { toast.error("加载直播数据失败"); }
     setLoading(false);
   };
 

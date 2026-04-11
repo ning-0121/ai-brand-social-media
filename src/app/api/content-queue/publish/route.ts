@@ -48,9 +48,42 @@ export async function POST(request: Request) {
   if (auth.error) return auth.error;
 
   try {
-    const { action } = await request.json();
+    const body = await request.json();
+    const { action } = body;
 
     switch (action) {
+      case "publish_now": {
+        const { postId } = body;
+        if (!postId) return NextResponse.json({ error: "缺少 postId" }, { status: 400 });
+
+        const { data: post, error: postErr } = await supabase
+          .from("scheduled_posts")
+          .select("*")
+          .eq("id", postId)
+          .single();
+
+        if (postErr || !post) {
+          return NextResponse.json({ error: "未找到该帖子" }, { status: 404 });
+        }
+
+        const { publishPost } = await import("@/lib/social-publisher");
+        const result = await publishPost(post);
+
+        if (result.success) {
+          await supabase.from("scheduled_posts").update({
+            status: "published",
+            published_at: new Date().toISOString(),
+          }).eq("id", postId);
+          await syncQueueStatus();
+          return NextResponse.json({ success: true, post_id: result.post_id });
+        } else {
+          await supabase.from("scheduled_posts").update({
+            status: "failed",
+          }).eq("id", postId);
+          return NextResponse.json({ success: false, error: result.error || "发布失败" });
+        }
+      }
+
       case "process_queue": {
         const result = await processContentQueue();
         // Also sync status of previously scheduled items

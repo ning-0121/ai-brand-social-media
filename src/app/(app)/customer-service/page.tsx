@@ -16,6 +16,7 @@ import {
   Sparkles,
   Plus,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Conversation {
   id: string;
@@ -68,7 +69,7 @@ export default function CustomerServicePage() {
       const res = await fetch("/api/oem/conversations");
       const data = await res.json();
       setConversations(data.conversations || []);
-    } catch (err) { console.error(err); }
+    } catch { toast.error("加载对话失败"); }
     setLoading(false);
   };
 
@@ -102,7 +103,7 @@ export default function CustomerServicePage() {
       }
       setDraft("");
       fetchMessages(selected.id);
-    } catch (err) { console.error(err); }
+    } catch { toast.error("发送失败，请重试"); }
     setSending(false);
   };
 
@@ -124,7 +125,7 @@ export default function CustomerServicePage() {
         setEmailForm({ name: "", email: "", subject: "", message: "" });
         fetchConversations();
       }
-    } catch (err) { console.error(err); }
+    } catch { toast.error("创建邮件对话失败"); }
   };
 
   const filtered = channelFilter === "all" ? conversations : conversations.filter((c) => c.channel === channelFilter);

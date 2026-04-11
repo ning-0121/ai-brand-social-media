@@ -25,6 +25,7 @@ import {
   Cpu,
 } from "lucide-react";
 import type { WorkflowTemplate, WorkflowInstance, WorkflowTask } from "@/lib/agent-types";
+import { toast } from "sonner";
 
 interface AgentInfo {
   name: string;
@@ -64,8 +65,8 @@ export default function MissionControlPage() {
         const taskRes = await fetch(`/api/workflows/${wf.id}`).then((r) => r.json());
         setWorkflowTasks((prev) => ({ ...prev, [wf.id]: taskRes.tasks || [] }));
       }
-    } catch (err) {
-      console.error("Failed to load data:", err);
+    } catch {
+      toast.error("加载数据失败，请刷新页面");
     }
   }, []);
 
@@ -95,8 +96,8 @@ export default function MissionControlPage() {
         await loadData();
         router.push(`/mission-control/workflow/${data.workflow.id}`);
       }
-    } catch (err) {
-      console.error("Launch failed:", err);
+    } catch {
+      toast.error("启动工作流失败，请重试");
     }
     setLaunching(false);
   };

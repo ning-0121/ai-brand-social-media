@@ -33,6 +33,7 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Skill {
   id: string;
@@ -134,8 +135,8 @@ export default function ContentPage() {
       const res = await fetch("/api/content-skills");
       const data = await res.json();
       setSkills(data.skills || []);
-    } catch (err) {
-      console.error("加载 Skills 失败:", err);
+    } catch {
+      toast.error("加载 Skills 失败");
     }
     setLoadingSkills(false);
   };
@@ -145,8 +146,8 @@ export default function ContentPage() {
       const res = await fetch("/api/content-plan?type=products");
       const data = await res.json();
       setProducts(data.products || []);
-    } catch (err) {
-      console.error("加载商品失败:", err);
+    } catch {
+      toast.error("加载商品失败");
     }
   };
 
@@ -155,8 +156,8 @@ export default function ContentPage() {
       const res = await fetch("/api/radar");
       const data = await res.json();
       setSignals(data.signals || []);
-    } catch (err) {
-      console.error("加载雷达失败:", err);
+    } catch {
+      toast.error("加载雷达失败");
     }
   };
 
@@ -165,8 +166,8 @@ export default function ContentPage() {
       const res = await fetch("/api/content-plan?type=tasks");
       const data = await res.json();
       setPendingTasks(data.pending || []);
-    } catch (err) {
-      console.error("加载任务失败:", err);
+    } catch {
+      toast.error("加载任务失败");
     }
   };
 
@@ -180,8 +181,8 @@ export default function ContentPage() {
       });
       const data = await res.json();
       setSignals(data.signals || []);
-    } catch (err) {
-      console.error("扫描失败:", err);
+    } catch {
+      toast.error("扫描失败");
     }
     setScanningRadar(false);
   };
@@ -242,8 +243,8 @@ export default function ContentPage() {
       } else if (data.error) {
         alert(`执行失败: ${data.error}`);
       }
-    } catch (err) {
-      console.error("执行失败:", err);
+    } catch {
+      toast.error("执行失败");
     }
     setExecuting(false);
   };

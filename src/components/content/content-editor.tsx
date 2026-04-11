@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 interface ContentData {
   title: string;
   body: string;
@@ -76,8 +77,8 @@ export function ContentEditor({ content: initial, onClose, onSaved }: ContentEdi
         setSuccess("已保存草稿");
         onSaved?.();
       }
-    } catch (err) {
-      console.error("保存失败:", err);
+    } catch {
+      toast.error("保存失败");
     }
     setSaving(false);
   };
@@ -102,8 +103,8 @@ export function ContentEditor({ content: initial, onClose, onSaved }: ContentEdi
         setSuccess("已提交审批");
         onSaved?.();
       }
-    } catch (err) {
-      console.error("提交失败:", err);
+    } catch {
+      toast.error("提交失败");
     }
     setSubmitting(false);
   };

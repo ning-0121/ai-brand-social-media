@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ImagePlus, Loader2, RefreshCw, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface GeneratedImage {
   url: string;
@@ -80,8 +81,8 @@ export function ImageGenerator({
           onImageSelected(data.images[0]);
         }
       }
-    } catch (err) {
-      console.error("图片生成失败:", err);
+    } catch {
+      toast.error("图片生成失败");
     }
     setGenerating(false);
   };

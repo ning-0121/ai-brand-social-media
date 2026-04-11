@@ -29,31 +29,38 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   group?: string;
+  primary?: boolean;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: "运营总览", href: "/dashboard", icon: LayoutDashboard, group: "核心" },
-  { label: "运营驾驶舱", href: "/ops-cockpit", icon: Gauge, group: "核心" },
-  { label: "趋势雷达", href: "/trends", icon: Radar, group: "核心" },
-  { label: "内容工厂", href: "/content", icon: FileText, group: "核心" },
-  { label: "创意中心", href: "/creative", icon: Palette, group: "核心" },
-  { label: "店铺优化", href: "/store", icon: Store, group: "核心" },
-  { label: "社媒规划", href: "/social", icon: Share2, group: "核心" },
-  { label: "AI 客服", href: "/customer-service", icon: Headphones, group: "核心" },
-  { label: "素材库", href: "/media-library", icon: ImagePlus, group: "核心" },
-  { label: "审批中心", href: "/approvals", icon: ClipboardCheck, group: "核心" },
-  { label: "活动策划", href: "/campaigns", icon: CalendarDays, group: "运营" },
-  { label: "品牌策略", href: "/strategy", icon: Target, group: "增长" },
-  { label: "直播中心", href: "/live", icon: Video, group: "增长" },
-  { label: "达人中心", href: "/influencers", icon: Users, group: "增长" },
-  { label: "广告投放", href: "/ads", icon: Megaphone, group: "增长" },
-  { label: "渠道拓展", href: "/channels", icon: GitBranch, group: "增长" },
+  // ── Primary (always visible) ──
+  { label: "运营总览", href: "/dashboard", icon: LayoutDashboard, primary: true },
+  { label: "内容工厂", href: "/content", icon: FileText, primary: true },
+  { label: "店铺优化", href: "/store", icon: Store, primary: true },
+  { label: "社媒规划", href: "/social", icon: Share2, primary: true },
+  { label: "创意中心", href: "/creative", icon: Palette, primary: true },
+  { label: "审批中心", href: "/approvals", icon: ClipboardCheck, primary: true },
+  { label: "素材库", href: "/media-library", icon: ImagePlus, primary: true },
+  { label: "系统设置", href: "/settings", icon: Settings, primary: true },
+
+  // ── Secondary (collapsible groups) ──
+  { label: "运营驾驶舱", href: "/ops-cockpit", icon: Gauge, group: "运营分析" },
+  { label: "趋势雷达", href: "/trends", icon: Radar, group: "运营分析" },
+  { label: "活动策划", href: "/campaigns", icon: CalendarDays, group: "运营分析" },
+
+  { label: "品牌策略", href: "/strategy", icon: Target, group: "增长工具" },
+  { label: "达人中心", href: "/influencers", icon: Users, group: "增长工具" },
+  { label: "广告投放", href: "/ads", icon: Megaphone, group: "增长工具" },
+  { label: "直播中心", href: "/live", icon: Video, group: "增长工具" },
+  { label: "渠道拓展", href: "/channels", icon: GitBranch, group: "增长工具" },
+  { label: "AI 客服", href: "/customer-service", icon: Headphones, group: "增长工具" },
+
   { label: "询盘看板", href: "/oem/inquiries", icon: Inbox, group: "OEM 业务" },
   { label: "WhatsApp", href: "/oem/whatsapp", icon: MessageCircle, group: "OEM 业务" },
   { label: "买家 CRM", href: "/oem/buyers", icon: Briefcase, group: "OEM 业务" },
   { label: "报价单", href: "/oem/quotations", icon: FileSpreadsheet, group: "OEM 业务" },
+
   { label: "技能包", href: "/skills", icon: GraduationCap, group: "学习" },
-  { label: "系统设置", href: "/settings", icon: Settings, group: "系统" },
 ];
 
 export const PLATFORM_LABELS: Record<string, string> = {

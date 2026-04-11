@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DiagnosticFinding } from "@/lib/diagnostic-types";
+import { toast } from "sonner";
 
 interface FindingCardProps {
   finding: DiagnosticFinding;
@@ -131,8 +132,8 @@ export function FindingCard({ finding, onExecute, onDismiss }: FindingCardProps)
         const errorMsg = (result as { error?: string })?.error || "执行失败";
         alert(`执行失败: ${errorMsg}`);
       }
-    } catch (err) {
-      console.error("执行失败:", err);
+    } catch {
+      toast.error("执行失败，请重试");
       alert("执行失败，请重试");
     }
     setExecuting(false);
@@ -144,8 +145,8 @@ export function FindingCard({ finding, onExecute, onDismiss }: FindingCardProps)
     try {
       await onDismiss(finding.id);
       setLocalStatus("dismissed");
-    } catch (err) {
-      console.error("忽略失败:", err);
+    } catch {
+      toast.error("忽略失败，请重试");
     }
     setDismissing(false);
   };

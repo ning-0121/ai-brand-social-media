@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   Inbox,
   MessageCircle,
@@ -64,8 +65,8 @@ export default function InquiriesPage() {
       const res = await fetch("/api/oem/inquiries");
       const data = await res.json();
       setInquiries(data.inquiries || []);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("加载询盘失败");
     }
     setLoading(false);
   };

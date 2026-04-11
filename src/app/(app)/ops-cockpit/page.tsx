@@ -25,6 +25,7 @@ import {
   Plus,
   Play,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Goal {
   id: string;
@@ -99,7 +100,7 @@ export default function OpsCockpitPage() {
       setTasks(tasksRes.tasks || []);
       setStorePlan(storePlanRes.plan);
       setSocialPlan(socialPlanRes.plan);
-    } catch (err) { console.error(err); }
+    } catch { toast.error("加载数据失败"); }
     setLoading(false);
   };
 

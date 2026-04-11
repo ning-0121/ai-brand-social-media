@@ -48,6 +48,7 @@ import { ContentCalendarView } from "@/components/social/content-calendar-view";
 import Link from "next/link";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const PLATFORMS = [
   { value: "tiktok", label: "TikTok" },
@@ -100,8 +101,8 @@ export default function SocialPage() {
       setShowPostDialog(false);
       setPostForm({ content_preview: "", platform: "xiaohongshu", scheduled_at: "" });
       await refreshPosts();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("创建发布计划失败");
     }
     setSavingPost(false);
   };
@@ -123,8 +124,8 @@ export default function SocialPage() {
       setShowAccountDialog(false);
       setAccountForm({ platform: "xiaohongshu", handle: "", display_name: "" });
       await refreshAccounts();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("添加账号失败");
     }
     setSavingAccount(false);
   };

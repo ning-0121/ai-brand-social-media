@@ -50,6 +50,7 @@ import {
   CheckCircle2,
   Wand2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 
 function SEOProgressBar({ score }: { score: number }) {
@@ -183,8 +184,8 @@ export default function StorePage() {
         parsed.sort((a, b) => (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3));
         setSeoResults(parsed);
       }
-    } catch (err) {
-      console.error("SEO 分析失败:", err);
+    } catch {
+      toast.error("SEO 分析失败，请重试");
     }
     setAnalyzing(false);
   };
@@ -208,8 +209,8 @@ export default function StorePage() {
       setShowCreateDialog(false);
       setFormData({ name: "", sku: "", price: "", stock: "", category: "", platform: "shopify" });
       await refreshProducts();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("创建商品失败，请重试");
     }
     setSaving(false);
   };

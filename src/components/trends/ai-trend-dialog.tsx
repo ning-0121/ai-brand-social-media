@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Sparkles, TrendingUp, AlertTriangle, Lightbulb, Target } from "lucide-react";
+import { toast } from "sonner";
 
 interface TrendAnalysisResult {
   market_summary: string;
@@ -51,8 +52,8 @@ export function AITrendDialog({ open, onOpenChange, products, currentCategory }:
       const data = await res.json();
       const analysis = data.results?.[0] || data.results;
       if (analysis) setResult(analysis as TrendAnalysisResult);
-    } catch (err) {
-      console.error("趋势分析失败:", err);
+    } catch {
+      toast.error("趋势分析失败");
     }
     setAnalyzing(false);
   };

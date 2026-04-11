@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { Briefcase, Mail, Phone, MessageCircle, Search, Globe } from "lucide-react";
 import type { Buyer, RelationshipStage } from "@/lib/oem/types";
 
@@ -45,8 +46,8 @@ export default function BuyersPage() {
       const res = await fetch("/api/oem/buyers");
       const data = await res.json();
       setBuyers(data.buyers || []);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("加载买家数据失败");
     }
     setLoading(false);
   };

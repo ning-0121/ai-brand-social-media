@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Search, Sparkles, MessageCircle, Trash2, Loader2, Upload, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type InfluencerStatus = "active" | "pending" | "inactive" | "blacklist";
 
@@ -166,8 +167,8 @@ export default function InfluencersPage() {
       setShowCreateDialog(false);
       setFormData({ name: "", platform: "tiktok", followers: "", category: "", engagement_rate: "", price_min: "", price_max: "" });
       await refreshInfluencers();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("添加达人失败");
     }
     setSaving(false);
   };

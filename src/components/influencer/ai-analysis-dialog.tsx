@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Sparkles, CheckCircle2, AlertTriangle, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface InfluencerInfo {
   id: string;
@@ -77,8 +78,8 @@ export function AIAnalysisDialog({
         setResult(analysis as AnalysisResult);
         onScoreUpdate?.(influencer.id, analysis.match_score || 0, analysis);
       }
-    } catch (err) {
-      console.error("AI 分析失败:", err);
+    } catch {
+      toast.error("AI 分析失败");
     }
     setAnalyzing(false);
   };

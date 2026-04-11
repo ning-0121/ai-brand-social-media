@@ -21,6 +21,7 @@ import { HealthScoreRing } from "./health-score-ring";
 import { FindingCard } from "./finding-card";
 import type { DiagnosticReportWithFindings, DiagnosticSummary, FindingCategory } from "@/lib/diagnostic-types";
 import Link from "next/link";
+import { toast } from "sonner";
 
 const CATEGORY_CONFIG: Record<
   FindingCategory,
@@ -75,8 +76,8 @@ export function DailyBriefing() {
       const res = await fetch("/api/diagnostic?type=latest");
       const data = await res.json();
       setReport(data.report || null);
-    } catch (err) {
-      console.error("获取诊断报告失败:", err);
+    } catch {
+      toast.error("获取诊断报告失败");
     }
     setLoading(false);
   };
@@ -97,8 +98,8 @@ export function DailyBriefing() {
       if (data.report) {
         setReport(data.report);
       }
-    } catch (err) {
-      console.error("运行诊断失败:", err);
+    } catch {
+      toast.error("运行诊断失败，请重试");
     }
     setRunning(false);
   };

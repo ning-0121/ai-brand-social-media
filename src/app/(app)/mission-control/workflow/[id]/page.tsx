@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WorkflowInstance, WorkflowTask } from "@/lib/agent-types";
+import { toast } from "sonner";
 
 const TASK_STATUS_CONFIG: Record<string, { icon: typeof Circle; color: string; label: string }> = {
   pending: { icon: Circle, color: "text-muted-foreground/30", label: "等待" },
@@ -48,8 +49,8 @@ export default function WorkflowDetailPage({
       setWorkflow(data.workflow);
       setTasks(data.tasks || []);
       setProgress(data.progress || 0);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("加载工作流失败");
     }
   }, [params.id]);
 
@@ -61,7 +62,7 @@ export default function WorkflowDetailPage({
 
   const handleApprove = async (task: WorkflowTask) => {
     if (!task.approval_task_id) {
-      console.error("No approval_task_id on task", task.id);
+      toast.error("该任务无法审批");
       return;
     }
     setActionLoading(task.id);
@@ -73,8 +74,8 @@ export default function WorkflowDetailPage({
       });
       const data = await res.json();
       console.log("Approve result:", data);
-    } catch (err) {
-      console.error("Approve failed:", err);
+    } catch {
+      toast.error("审批操作失败，请重试");
     }
     setActionLoading(null);
     await loadData();
@@ -89,8 +90,8 @@ export default function WorkflowDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reject", id: task.approval_task_id }),
       });
-    } catch (err) {
-      console.error("Reject failed:", err);
+    } catch {
+      toast.error("拒绝操作失败，请重试");
     }
     setActionLoading(null);
     await loadData();

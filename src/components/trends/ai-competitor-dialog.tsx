@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Sparkles, Shield, Crosshair, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface CompetitorAnalysisResult {
   market_position: string;
@@ -51,8 +52,8 @@ export function AICompetitorDialog({ open, onOpenChange, competitors }: AICompet
       const data = await res.json();
       const analysis = data.results?.[0] || data.results;
       if (analysis) setResult(analysis as CompetitorAnalysisResult);
-    } catch (err) {
-      console.error("竞品分析失败:", err);
+    } catch {
+      toast.error("竞品分析失败");
     }
     setAnalyzing(false);
   };

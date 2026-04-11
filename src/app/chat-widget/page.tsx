@@ -83,8 +83,8 @@ export default function ChatWidgetPage() {
           },
         ]);
       }
-    } catch (err) {
-      console.error("Send failed:", err);
+    } catch {
+      // send failed silently
     }
     setSending(false);
   };

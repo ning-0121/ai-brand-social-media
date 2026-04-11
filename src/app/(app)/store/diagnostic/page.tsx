@@ -20,6 +20,7 @@ import type {
   FindingCategory,
 } from "@/lib/diagnostic-types";
 import Link from "next/link";
+import { toast } from "sonner";
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "all", label: "全部" },
@@ -41,8 +42,8 @@ export default function DiagnosticPage() {
       const res = await fetch("/api/diagnostic?type=latest");
       const data = await res.json();
       setReport(data.report || null);
-    } catch (err) {
-      console.error("获取报告失败:", err);
+    } catch {
+      toast.error("获取报告失败");
     }
     setLoading(false);
   };
@@ -61,8 +62,8 @@ export default function DiagnosticPage() {
       });
       const data = await res.json();
       if (data.report) setReport(data.report);
-    } catch (err) {
-      console.error("运行失败:", err);
+    } catch {
+      toast.error("运行诊断失败");
     }
     setRunning(false);
   };

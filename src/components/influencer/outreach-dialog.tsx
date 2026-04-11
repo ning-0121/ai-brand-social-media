@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Sparkles, Copy, Check, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
 
 interface OutreachDialogProps {
   open: boolean;
@@ -60,8 +61,8 @@ export function OutreachDialog({
       if (Array.isArray(results)) {
         setVersions(results as OutreachVersion[]);
       }
-    } catch (err) {
-      console.error("外联话术生成失败:", err);
+    } catch {
+      toast.error("外联话术生成失败");
     }
     setGenerating(false);
   };

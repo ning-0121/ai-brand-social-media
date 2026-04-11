@@ -4,6 +4,7 @@ import { useRef, useState, useCallback } from "react";
 import { toPng } from "html-to-image";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export interface TemplateData {
   headline: string;
@@ -51,8 +52,8 @@ export function ImageTemplateRenderer({ template, data }: ImageTemplateRendererP
       link.download = `${template.id}-${Date.now()}.png`;
       link.href = dataUrl;
       link.click();
-    } catch (err) {
-      console.error("导出失败:", err);
+    } catch {
+      toast.error("导出失败");
     }
     setExporting(false);
   }, [template]);

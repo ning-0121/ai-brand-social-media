@@ -25,6 +25,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { KPIData } from "@/lib/types";
+import { toast } from "sonner";
 
 /* ------------------------------------------------------------------ */
 /*  Mock Data                                                          */
@@ -260,8 +261,8 @@ export default function StrategyPage() {
       if (data.error) throw new Error(data.error);
       const result = data.results?.[0] ?? null;
       setAnalysisResult(result);
-    } catch (err) {
-      console.error("品牌分析失败:", err);
+    } catch {
+      toast.error("品牌分析失败");
     } finally {
       setAnalyzing(false);
     }
