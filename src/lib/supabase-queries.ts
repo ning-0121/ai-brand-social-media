@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 export async function getHotProducts() {
   const { data, error } = await supabase
     .from("hot_products")
-    .select("*")
+    .select("id, name, platform, category, sales_volume, trend, growth_rate, price_range, rating, insight")
     .order("sales_volume", { ascending: false });
   if (error) throw error;
   return data;
@@ -14,7 +14,7 @@ export async function getHotProducts() {
 export async function getCompetitors() {
   const { data, error } = await supabase
     .from("competitors")
-    .select("*")
+    .select("id, name, platform, top_category, followers, avg_engagement, trend, growth_rate, recent_campaigns, monthly_sales")
     .order("monthly_sales", { ascending: false });
   if (error) throw error;
   return data;
@@ -24,7 +24,7 @@ export async function getCompetitors() {
 export async function getContents() {
   const { data, error } = await supabase
     .from("contents")
-    .select("*")
+    .select("id, title, status, platform, content_type, views, likes, comments, shares, created_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data;
@@ -34,7 +34,7 @@ export async function getContents() {
 export async function getContentTemplates() {
   const { data, error } = await supabase
     .from("content_templates")
-    .select("*")
+    .select("id, title, description, category, platform, usage_count")
     .order("usage_count", { ascending: false });
   if (error) throw error;
   return data;
@@ -54,7 +54,7 @@ export async function getProducts() {
 export async function getSocialAccounts() {
   const { data, error } = await supabase
     .from("social_accounts")
-    .select("*")
+    .select("id, platform, handle, display_name, followers, connected")
     .order("followers", { ascending: false });
   if (error) throw error;
   return data;
@@ -64,7 +64,7 @@ export async function getSocialAccounts() {
 export async function getScheduledPosts() {
   const { data, error } = await supabase
     .from("scheduled_posts")
-    .select("*")
+    .select("id, title, content_preview, content, platform, scheduled_at, status")
     .order("scheduled_at", { ascending: true });
   if (error) throw error;
   return data;
@@ -84,10 +84,11 @@ export async function getSkillPacks() {
 export async function getInfluencers() {
   const { data, error } = await supabase
     .from("influencers")
-    .select("*")
+    .select("id, name, platform, followers, category, engagement_rate, price_min, price_max, ai_score, ai_analysis, status, collaboration_count, total_revenue, avg_roi, contacted_at")
     .order("ai_score", { ascending: false });
   if (error) throw error;
-  return data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data || []) as any[];
 }
 
 // ============ KPI Aggregations ============
@@ -100,9 +101,9 @@ export async function getContentKPIs() {
     { count: pending },
     { data: publishedItems },
   ] = await Promise.all([
-    supabase.from("contents").select("*", { count: "exact", head: true }),
-    supabase.from("contents").select("*", { count: "exact", head: true }).eq("status", "published"),
-    supabase.from("contents").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("contents").select("id", { count: "exact", head: true }),
+    supabase.from("contents").select("id", { count: "exact", head: true }).eq("status", "published"),
+    supabase.from("contents").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("contents").select("views, likes, comments, shares").eq("status", "published"),
   ]);
   const totalViews = publishedItems?.reduce((sum, i) => sum + (i.views || 0), 0) || 0;
@@ -138,10 +139,10 @@ export async function getSocialKPIs() {
     { count: queuedPosts },
     { count: publishedPosts },
   ] = await Promise.all([
-    supabase.from("social_accounts").select("*", { count: "exact", head: true }),
-    supabase.from("social_accounts").select("*", { count: "exact", head: true }).eq("connected", true),
-    supabase.from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "queued"),
-    supabase.from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "published"),
+    supabase.from("social_accounts").select("id", { count: "exact", head: true }),
+    supabase.from("social_accounts").select("id", { count: "exact", head: true }).eq("connected", true),
+    supabase.from("scheduled_posts").select("id", { count: "exact", head: true }).eq("status", "queued"),
+    supabase.from("scheduled_posts").select("id", { count: "exact", head: true }).eq("status", "published"),
   ]);
   return {
     totalAccounts: totalAccounts || 0,
@@ -154,7 +155,7 @@ export async function getSocialKPIs() {
 // Trends KPIs
 export async function getTrendsKPIs() {
   const { data: products } = await supabase.from("hot_products").select("category, trend, growth_rate");
-  const { count: competitorCount } = await supabase.from("competitors").select("*", { count: "exact", head: true });
+  const { count: competitorCount } = await supabase.from("competitors").select("id", { count: "exact", head: true });
   const categories = new Set(products?.map(p => p.category));
   const trending = products?.filter(p => p.trend === "up") || [];
   const avgGrowth = trending.length > 0

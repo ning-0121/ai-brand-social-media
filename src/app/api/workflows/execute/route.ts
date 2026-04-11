@@ -3,6 +3,7 @@ import { runProductPageWorkflow } from "@/agents/workflows/product-page-workflow
 import { runContentPublishWorkflow } from "@/agents/workflows/content-publish-workflow";
 import { runCampaignPackWorkflow } from "@/agents/workflows/campaign-pack-workflow";
 import { requireAuth } from "@/lib/api-auth";
+import { validateBody, workflowExecuteSchema } from "@/lib/api-validation";
 
 export const maxDuration = 60;
 
@@ -12,7 +13,10 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { workflow, product_id, campaign_name, campaign_type, product_ids } = body;
+    const validated = validateBody(body, workflowExecuteSchema);
+    if (validated.error) return validated.error;
+
+    const { workflow, product_id, campaign_name, campaign_type, product_ids } = validated.data;
 
     switch (workflow) {
       case "product_page": {

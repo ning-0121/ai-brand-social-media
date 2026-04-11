@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { getBrandProfile, upsertBrandProfile } from "@/lib/brand-profile";
+import { validateBody, brandProfileSchema } from "@/lib/api-validation";
 
 export async function GET() {
   const auth = await requireAuth();
@@ -23,13 +24,10 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { brand_name, ...rest } = body;
+    const validated = validateBody(body, brandProfileSchema);
+    if (validated.error) return validated.error;
 
-    if (!brand_name?.trim()) {
-      return NextResponse.json({ error: "品牌名称不能为空" }, { status: 400 });
-    }
-
-    const profile = await upsertBrandProfile({ brand_name, ...rest });
+    const profile = await upsertBrandProfile(validated.data);
     return NextResponse.json({ success: true, profile });
   } catch (error: unknown) {
     return NextResponse.json(

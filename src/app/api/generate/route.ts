@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { rateLimitClaude } from "@/lib/rate-limiter";
+import { validateBody, generateSchema } from "@/lib/api-validation";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -478,13 +479,12 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { scene = "content", topic, ...params } = body;
+    const validated = validateBody(body, generateSchema);
+    if (validated.error) return validated.error;
 
-    if (!topic) {
-      return NextResponse.json({ error: "请输入内容" }, { status: 400 });
-    }
+    const { scene = "content", topic, ...params } = validated.data;
 
-    const config = getSceneConfig(scene, params);
+    const config = getSceneConfig(scene, params as Record<string, string>);
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",

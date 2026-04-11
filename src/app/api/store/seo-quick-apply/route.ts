@@ -2,25 +2,18 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { updateProductSEO } from "@/lib/shopify-operations";
 import { logAudit } from "@/lib/audit-logger";
+import { validateBody, seoQuickApplySchema } from "@/lib/api-validation";
 
 export async function POST(request: Request) {
   const auth = await requireAuth();
   if (auth.error) return auth.error;
 
   try {
-    const {
-      integration_id,
-      shopify_product_id,
-      product_id,
-      new_values,
-    } = await request.json();
+    const body = await request.json();
+    const validated = validateBody(body, seoQuickApplySchema);
+    if (validated.error) return validated.error;
 
-    if (!integration_id || !shopify_product_id || !product_id || !new_values) {
-      return NextResponse.json(
-        { error: "缺少必要参数" },
-        { status: 400 }
-      );
-    }
+    const { integration_id, shopify_product_id, product_id, new_values } = validated.data;
 
     const result = await updateProductSEO(
       integration_id,

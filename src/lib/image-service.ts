@@ -72,18 +72,22 @@ export async function generateImages(
     label?: string;
   }>
 ): Promise<Array<{ label: string; url: string }>> {
-  const results: Array<{ label: string; url: string }> = [];
+  // Generate all images in parallel for better performance
+  const settled = await Promise.allSettled(
+    prompts.map(async (p) => {
+      const url = await generateImage(p.prompt, {
+        style: p.style,
+        size: p.size,
+        filename: `${p.label || "img"}-${Date.now()}.png`,
+      });
+      return url ? { label: p.label || "image", url } : null;
+    })
+  );
 
-  for (const p of prompts) {
-    const url = await generateImage(p.prompt, {
-      style: p.style,
-      size: p.size,
-      filename: `${p.label || "img"}-${Date.now()}.png`,
-    });
-    if (url) {
-      results.push({ label: p.label || "image", url });
-    }
-  }
-
-  return results;
+  return settled
+    .filter(
+      (r): r is PromiseFulfilledResult<{ label: string; url: string } | null> =>
+        r.status === "fulfilled" && r.value !== null
+    )
+    .map((r) => r.value!);
 }
