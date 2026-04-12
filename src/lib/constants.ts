@@ -21,6 +21,7 @@ import {
   Gauge,
   ImagePlus,
   Palette,
+  Rocket,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,6 +42,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "创意中心", href: "/creative", icon: Palette, primary: true },
   { label: "审批中心", href: "/approvals", icon: ClipboardCheck, primary: true },
   { label: "素材库", href: "/media-library", icon: ImagePlus, primary: true },
+  { label: "Pilot Center", href: "/pilot", icon: Rocket, primary: true },
   { label: "系统设置", href: "/settings", icon: Settings, primary: true },
 
   // ── Secondary (collapsible groups) ──
