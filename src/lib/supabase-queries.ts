@@ -1,4 +1,12 @@
-import { supabase } from "./supabase";
+import { createClient } from "@supabase/supabase-js";
+
+// Use anon key — this file runs in browser where service role key is unavailable.
+// RLS requires auth.uid() IS NOT NULL, which the browser session provides via cookies.
+// Note: createClient with anon key works when Supabase JS detects existing session cookies.
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 // Hot Products
 export async function getHotProducts() {
