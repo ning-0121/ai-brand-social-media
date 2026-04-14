@@ -79,15 +79,19 @@ function AutoOpsStatusCard() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch("/api/cron/daily")
-      .catch(() => {}); // trigger on page load is too heavy, just load logs
-    fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/auto_ops_logs?select=id,run_type,created_at,results_summary&order=created_at.desc&limit=3`, {
-      headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "" },
-    })
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setLogs(d); })
-      .catch(() => {})
-      .finally(() => setLoaded(true));
+    // Load auto-ops logs via browser supabase client (has user session)
+    (async () => {
+      try {
+        const { createClient } = await import("@/lib/supabase-browser");
+        const sb = createClient();
+        const { data } = await sb.from("auto_ops_logs")
+          .select("id, run_type, created_at, results_summary")
+          .order("created_at", { ascending: false })
+          .limit(3);
+        if (data) setLogs(data as typeof logs);
+      } catch { /* silent */ }
+      setLoaded(true);
+    })();
   }, []);
 
   if (!loaded || logs.length === 0) return null;

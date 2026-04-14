@@ -1,4 +1,8 @@
-import { supabase } from "./supabase";
+import { createClient } from "./supabase-browser";
+
+// Use browser client — this file is imported by client-side pages (settings).
+// Browser client carries user session cookies so auth.uid() works with RLS.
+const supabase = createClient();
 
 export interface Integration {
   id: string;

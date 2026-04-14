@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase-browser";
+const supabase = createClient();
 import { createIntegration } from "@/lib/supabase-integrations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
