@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { generateWeeklyPlan, executeDailyTasks, recordPerformanceSnapshot, weeklyReview } from "@/lib/ops-director";
+import { generateWeeklyPlan, executeDailyTasks, recordPerformanceSnapshot, weeklyReview, proposeGoals, adoptGoals } from "@/lib/ops-director";
+import type { ProposedGoal } from "@/lib/ops-director";
 import { requireAuth } from "@/lib/api-auth";
 
 export const maxDuration = 60;
@@ -86,6 +87,18 @@ export async function POST(request: Request) {
       case "weekly_review": {
         await weeklyReview(body.module || "store");
         return NextResponse.json({ success: true });
+      }
+
+      case "propose_goals": {
+        const proposal = await proposeGoals();
+        return NextResponse.json({ success: true, proposal });
+      }
+
+      case "adopt_goals": {
+        const goals = body.goals as ProposedGoal[];
+        if (!goals || !Array.isArray(goals)) return NextResponse.json({ error: "缺少 goals" }, { status: 400 });
+        const ids = await adoptGoals(goals);
+        return NextResponse.json({ success: true, goal_ids: ids });
       }
 
       default:

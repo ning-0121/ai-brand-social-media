@@ -84,6 +84,26 @@ async function executeSeoFinding(f: DiagnosticFinding, integrationId: string | n
     throw new Error("未找到有效的 Shopify 商品");
   }
 
+  // Dedup: skip if this product already has a recent SEO task (within 24h)
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: existingTask } = await supabase
+    .from("approval_tasks")
+    .select("id, status")
+    .eq("type", "seo_update")
+    .eq("entity_id", entity.entity_id)
+    .gte("created_at", oneDayAgo)
+    .in("status", ["pending", "approved", "executed"])
+    .limit(1)
+    .single();
+
+  if (existingTask) {
+    return {
+      type: "approval_task",
+      id: existingTask.id,
+      generated_content: { skipped: true, reason: "该商品 24h 内已有 SEO 优化任务" },
+    };
+  }
+
   const missingFields: string[] = [];
   if (!productInfo.meta_title) missingFields.push("meta_title");
   if (!productInfo.meta_description) missingFields.push("meta_description");
@@ -150,36 +170,130 @@ async function executeSeoFinding(f: DiagnosticFinding, integrationId: string | n
   };
 }
 
-// 内容修复
+// 内容推广 — 生成社媒内容 + 产品描述充实，审批后进入发布队列
 async function executeContentFinding(f: DiagnosticFinding, integrationId: string | null): Promise<ExecutionResult> {
-  const entityNames = f.affected_entities.map((e) => e.name).join(", ");
+  // Pick the first product to generate content for (avoid timeout)
+  const entity = f.affected_entities[0];
+  if (!entity) {
+    throw new Error("此 finding 没有关联的商品");
+  }
 
+  const productInfo = await getProductInfo(entity.entity_id);
+  const productName = productInfo?.name || entity.name;
+  const productImage = productInfo ? (productInfo as Record<string, unknown>).image_url as string | null : null;
+
+  // 1. Generate social media content (Instagram-focused, works with existing publisher)
   let generated: Record<string, unknown> = {};
   try {
     generated = await executeAgent("content_producer", "content_package", {
-      topic: `为以下商品创建营销内容: ${entityNames || "店铺商品"}`,
-      platform: "shopify",
+      topic: `为热销商品「${productName}」创建 Instagram 推广内容。要求：吸引人的文案、产品卖点突出、包含行动号召和话题标签。`,
+      platform: "instagram",
     }, {});
   } catch (err) {
     console.error("Agent 内容生成失败:", err);
   }
 
+  // 2. Build content items in the format expected by publishContentToQueue
+  const contentItems: Array<{
+    content_type: string;
+    platform: string;
+    title: string;
+    body: string;
+    hashtags?: string[];
+    skill_used: string;
+    image_url?: string;
+  }> = [];
+
+  // Instagram post
+  const igTitle = (generated.title as string) || `${productName} 新品推荐`;
+  const igBody = (generated.body as string) || "";
+  const igHashtags = (generated.hashtags as string[]) || [];
+
+  if (igBody) {
+    contentItems.push({
+      content_type: "instagram_caption",
+      platform: "instagram",
+      title: igTitle,
+      body: igBody,
+      hashtags: igHashtags,
+      skill_used: "content_package",
+      image_url: productImage || undefined,
+    });
+  }
+
+  // Facebook post (reuse IG content, works with existing publisher)
+  if (igBody) {
+    contentItems.push({
+      content_type: "facebook_post",
+      platform: "facebook",
+      title: igTitle,
+      body: igBody,
+      hashtags: igHashtags,
+      skill_used: "content_package",
+      image_url: productImage || undefined,
+    });
+  }
+
+  // 3. Also generate product page enrichment if body_html is thin
+  let seoEnrichment: Record<string, unknown> | null = null;
+  if (integrationId && productInfo?.shopify_product_id && (!productInfo.body_html || productInfo.body_html.length < 200)) {
+    try {
+      seoEnrichment = await executeAgent("store_optimizer", "seo_apply", {
+        product_name: productName,
+        body_html: productInfo.body_html || "",
+        missing_fields: "body_html",
+        finding_context: `热销商品描述过短，需要充实内容以提升转化率`,
+      }, {});
+    } catch (err) {
+      console.error("SEO 充实内容生成失败:", err);
+    }
+  }
+
+  const description = [
+    `AI 为「${productName}」生成了 ${contentItems.length} 条社媒推广内容`,
+    contentItems.map(i => `- ${i.platform}: ${i.title}`).join("\n"),
+    seoEnrichment ? "\n同时生成了产品页描述优化方案" : "",
+    `\n\n审批后：社媒内容将进入发布队列${seoEnrichment ? "，产品描述将更新到 Shopify" : ""}`,
+    `\n\n(共 ${f.affected_entities.length} 个商品需推广，本次处理「${productName}」)`,
+  ].filter(Boolean).join("\n");
+
   const approval = await createApprovalTask({
     type: "content_publish",
-    entity_id: f.affected_entities[0]?.entity_id,
+    entity_id: entity.entity_id,
     entity_type: "products",
-    title: `[诊断] ${f.title}`,
-    description: formatGeneratedContent("内容方案", generated, f),
+    title: `[诊断] ${f.title} — ${productName}`,
+    description,
     payload: {
       diagnostic_finding_id: f.id,
+      // This flag tells the approval handler to route to publishContentToQueue
+      workflow: "content_publish_workflow",
+      product_id: entity.entity_id,
+      product_name: productName,
       integration_id: integrationId,
-      content: generated,
+      content_items: contentItems,
+      seo_enrichment: seoEnrichment ? {
+        shopify_product_id: productInfo?.shopify_product_id,
+        new_values: {
+          body_html: seoEnrichment.body_html,
+          meta_title: seoEnrichment.meta_title,
+          meta_description: seoEnrichment.meta_description,
+          tags: seoEnrichment.tags,
+        },
+      } : null,
       affected_entities: f.affected_entities,
+      remaining_products: f.affected_entities.length - 1,
     },
   });
 
-  await updateFindingStatus(f.id, approval.id, generated);
-  return { type: "approval_task", id: approval.id, generated_content: generated };
+  const summaryPayload = {
+    product: productName,
+    content_items_count: contentItems.length,
+    platforms: contentItems.map(i => i.platform),
+    has_seo_enrichment: !!seoEnrichment,
+  } as Record<string, unknown>;
+
+  await updateFindingStatus(f.id, approval.id, summaryPayload);
+  return { type: "approval_task", id: approval.id, generated_content: summaryPayload };
 }
 
 // 通用行动方案

@@ -216,6 +216,22 @@ export async function POST(request: Request) {
                 .update({ status: "executed", updated_at: new Date().toISOString() })
                 .eq("approval_id", id);
             } catch (e) { console.error("Content queue error:", e); }
+
+            // Also apply SEO enrichment if diagnostic included product page improvement
+            if (task.payload.seo_enrichment && task.payload.integration_id) {
+              try {
+                const enrichment = task.payload.seo_enrichment as { shopify_product_id?: number; new_values?: Record<string, string> };
+                if (enrichment.shopify_product_id && enrichment.new_values) {
+                  const { updateProductSEO } = await import("@/lib/shopify-operations");
+                  await updateProductSEO(
+                    task.payload.integration_id as string,
+                    enrichment.shopify_product_id,
+                    task.payload.product_id as string,
+                    enrichment.new_values
+                  );
+                }
+              } catch (e) { console.error("SEO enrichment deploy error:", e); }
+            }
           }
 
           if (task.payload?.workflow === "campaign_pack_workflow" && task.payload?.project_id) {

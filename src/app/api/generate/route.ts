@@ -13,6 +13,7 @@ const anthropic = new Anthropic({
 interface SceneConfig {
   system: string;
   formatHint: string;
+  maxTokens?: number;
 }
 
 function getSceneConfig(scene: string, params: Record<string, string>): SceneConfig {
@@ -142,18 +143,130 @@ function getSceneConfig(scene: string, params: Record<string, string>): SceneCon
       };
     }
 
+    // 店铺优化 - SEO 关键词分析（Step 1：快速分析，不生成内容）
+    case "seo_analyze": {
+      return {
+        system: `你是全球顶级电商 SEO 策略师，精通 Google、Bing、百度等搜索引擎算法。
+
+你的任务：根据商品信息，分析出最佳 SEO 关键词策略。不要生成优化内容，只做分析。
+
+分析框架：
+1. **语言检测**：判断商品内容是英文还是中文，决定目标搜索引擎（Google vs 百度）
+2. **搜索意图**：这个产品的买家在搜什么？是交易型（直接购买）、商业调研型（对比选品）还是信息型（了解产品）？
+3. **主关键词**：买家最可能搜索的核心词（1个）
+4. **次关键词**：相关的高搜索量变体词（2-3个）
+5. **长尾关键词**：具体的购买意图长尾搜索词（2-3个）
+6. **市场策略**：基于目标市场的 SEO 策略要点
+7. **优化优先级**：当前最需要改进的 SEO 方面`,
+        formatHint: `返回 JSON 对象：
+{
+  "detected_language": "en 或 cn",
+  "primary_keyword": "主关键词",
+  "secondary_keywords": ["次关键词1", "次关键词2"],
+  "long_tail_keywords": ["长尾词1", "长尾词2"],
+  "search_intent": "transactional 或 commercial 或 informational",
+  "market_strategy": "目标市场 SEO 策略概述（1-2句）",
+  "optimization_priorities": ["优先改进项1", "优先改进项2", "优先改进项3"]
+}
+只返回 JSON，不要有任何解释。`,
+        maxTokens: 1000,
+      };
+    }
+
     // 店铺优化 - SEO 实际应用（生成可直接使用的新字段值）
     case "seo_apply": {
       return {
-        system: `你是一个资深的电商 SEO 专家。根据用户提供的产品当前信息，生成优化后的、可以直接应用到 Shopify 商品页面的新文案。
-要求：
-- title：优化后的商品标题，包含核心关键词，60 字符以内
-- body_html：优化后的商品描述 HTML，结构清晰，包含关键词但自然流畅
-- meta_title：SEO 元标题，包含品牌和核心关键词，60 字符以内
-- meta_description：SEO 元描述，包含 CTA 和关键词，155 字符以内
-- tags：逗号分隔的标签，包含产品关键词、类别、使用场景`,
-        formatHint: `直接返回 JSON 对象（不是数组），包含优化后的字段值。只返回 JSON，不要有任何解释文字。
-格式：{"title":"优化后标题","body_html":"<p>优化后描述</p>","meta_title":"SEO标题","meta_description":"SEO描述","tags":"标签1,标签2,标签3"}`,
+        system: `你是全球顶级电商 SEO 专家，精通 Google E-E-A-T 算法、搜索意图匹配和转化率优化。
+你的任务是生成可直接应用到 Shopify 商品页的 SEO 优化文案。
+
+══════ 核心方法论 ══════
+
+【搜索意图匹配】
+- 分析买家的搜索意图（交易型/商业调研/信息型），让内容精准匹配
+- 交易型：强调价格优势、立即购买理由、库存紧张感
+- 商业调研型：突出差异化卖点、vs 竞品优势、用户评价
+- 信息型：教育性内容、使用场景、专业知识展示
+
+【关键词策略】
+- 自然融入关键词，密度 1-2%，绝不堆砌
+- 主关键词出现在：标题前半部分、meta_title 开头、body_html 首段、H2 标题
+- 次关键词分散在 body_html 各段和 tags 中
+- 长尾关键词自然出现在描述段落中
+- 如果用户提供了确认的关键词列表，严格使用这些关键词
+
+【E-E-A-T 信号】
+- Experience（经验）：加入使用场景、真实体验描述
+- Expertise（专业）：使用行业术语、精确的产品参数
+- Authoritativeness（权威）：品牌故事、认证信息、材质来源
+- Trustworthiness（可信）：保修/售后信息、退换政策暗示
+
+【双语市场适配】
+- 英文内容 → 优化 Google SEO：Title Case 格式、Power Words、CTA 动词开头
+- 中文内容 → 适配百度/搜索引擎：口语化关键词、场景化描述、信任背书
+
+══════ 字段要求 ══════
+
+1. title（商品标题）
+   - 公式：[主关键词] [产品类型] - [品牌名] | [核心卖点/修饰词]
+   - 50-60 字符最优，绝不超过 70
+   - 主关键词尽量靠前
+   - 保留品牌名
+
+2. body_html（商品描述 HTML）
+   - 开头立即嵌入 JSON-LD 结构化数据：<script type="application/ld+json">Product schema</script>
+   - 首段 150 字内，包含主关键词，解决"为什么买"
+   - 使用 H2/H3 小标题分段（每段一个卖点）
+   - 包含至少 1 个 <ul> 列表（产品特点/参数）
+   - 总字数 300-500 字（中文 200-400 字）
+   - 末段包含 CTA 和关键词自然复现
+   - JSON-LD 必须包含：@type Product, name, description, brand, offers(@type Offer, price, priceCurrency, availability)
+
+3. meta_title（SEO 元标题）
+   - 格式：[主关键词] [产品] | [品牌名] - [卖点]
+   - 50-60 字符
+   - 与 title 有差异，不能完全相同
+
+4. meta_description（SEO 元描述）
+   - 140-160 字符
+   - 必须包含：主关键词 + USP（独特卖点）+ CTA（行动号召）
+   - 以完整句子结尾，不能被截断
+   - 英文用 Power Words 开头：Discover, Shop, Get, Save...
+   - 中文用吸引词开头：精选、限时、热卖、必备...
+
+5. tags（标签）
+   - 逗号分隔，5-10 个
+   - 覆盖：主关键词、产品类别、材质/成分、使用场景、目标人群、长尾词
+   - 包含 2-3 个多词组合标签
+
+6. handle_suggestion（URL Handle 建议）
+   - 全小写，用连字符分隔
+   - 包含主关键词
+   - 3-6 个单词，简洁明了
+
+7. seo_analysis（分析报告）
+   - 记录你使用的关键词策略和搜索意图判断
+   - 便于用户理解优化逻辑
+
+绝对不允许任何字段返回空值。每个字段都必须有实际内容。`,
+        formatHint: `直接返回 JSON 对象，必须包含全部字段。只返回 JSON，不要有任何解释文字。
+格式：
+{
+  "title": "优化后商品标题",
+  "body_html": "<script type=\\"application/ld+json\\">{...Product schema...}</script><h2>...</h2><p>...</p>",
+  "meta_title": "SEO 元标题",
+  "meta_description": "SEO 元描述",
+  "tags": "标签1,标签2,标签3,标签4,标签5",
+  "handle_suggestion": "seo-friendly-product-handle",
+  "seo_analysis": {
+    "detected_language": "en 或 cn",
+    "primary_keyword": "使用的主关键词",
+    "secondary_keywords": ["次关键词1", "次关键词2"],
+    "long_tail_keywords": ["长尾词1", "长尾词2"],
+    "search_intent": "transactional/commercial/informational",
+    "optimization_reasoning": "一段话说明优化逻辑和策略"
+  }
+}`,
+        maxTokens: 4000,
       };
     }
 
@@ -488,7 +601,7 @@ export async function POST(request: Request) {
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 3000,
+      max_tokens: config.maxTokens || 3000,
       system: `${config.system}\n\n输出格式要求：\n${config.formatHint}`,
       messages: [
         { role: "user", content: topic },

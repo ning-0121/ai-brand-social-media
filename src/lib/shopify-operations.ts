@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { calculateSEOScore } from "./seo-scoring";
 
 interface ShopifyCredentials {
   domain: string;
@@ -83,13 +84,23 @@ export async function syncProducts(integrationId: string) {
       // Don't fail the whole sync if one product's metafields fail
     }
 
+    const seoInput = {
+      name: sp.title,
+      body_html: sp.body_html || null,
+      meta_title: metaTitle,
+      meta_description: metaDescription,
+      tags: sp.tags || null,
+      image_url: sp.image?.src || null,
+      handle: sp.handle || null,
+    };
+
     const productData = {
       name: sp.title,
       sku: variant?.sku || `SHOPIFY-${sp.id}`,
       price: parseFloat(variant?.price || "0"),
       stock: variant?.inventory_quantity || 0,
       status: sp.status === "active" ? "active" : "inactive",
-      seo_score: 50,
+      seo_score: calculateSEOScore(seoInput).overall,
       category: sp.product_type || "未分类",
       platform: "shopify" as const,
       image_url: sp.image?.src || null,
@@ -99,6 +110,7 @@ export async function syncProducts(integrationId: string) {
       tags: sp.tags || null,
       meta_title: metaTitle,
       meta_description: metaDescription,
+      handle: sp.handle || null,
     };
 
     const { data: existing } = await supabase
@@ -460,16 +472,18 @@ export async function updateProductSEO(
     meta_title?: string;
     meta_description?: string;
     tags?: string;
+    handle?: string;
   }
 ) {
   const creds = await getCredentials(integrationId);
   const headers = shopifyHeaders(creds.accessToken);
 
-  // Step 1: update standard product fields (title, body_html, tags)
+  // Step 1: update standard product fields (title, body_html, tags, handle)
   const standardUpdate: Record<string, unknown> = {};
   if (updates.title) standardUpdate.title = updates.title;
   if (updates.body_html) standardUpdate.body_html = updates.body_html;
   if (updates.tags) standardUpdate.tags = updates.tags;
+  if (updates.handle) standardUpdate.handle = updates.handle;
 
   if (Object.keys(standardUpdate).length > 0) {
     const res = await fetch(
@@ -516,17 +530,29 @@ export async function updateProductSEO(
     }
   }
 
-  // Step 3: update local DB
+  // Step 3: update local DB + compute real SEO score
   const localUpdate: Record<string, unknown> = {};
   if (updates.title) localUpdate.name = updates.title;
   if (updates.body_html) localUpdate.body_html = updates.body_html;
   if (updates.tags) localUpdate.tags = updates.tags;
   if (updates.meta_title) localUpdate.meta_title = updates.meta_title;
   if (updates.meta_description) localUpdate.meta_description = updates.meta_description;
+  if (updates.handle) localUpdate.handle = updates.handle;
+
+  // Compute SEO score from the updated fields
+  const seoScore = calculateSEOScore({
+    name: updates.title || "",
+    body_html: updates.body_html,
+    meta_title: updates.meta_title,
+    meta_description: updates.meta_description,
+    tags: updates.tags,
+    handle: updates.handle,
+  });
+  localUpdate.seo_score = seoScore.overall;
 
   await supabase.from("products").update(localUpdate).eq("id", localProductId);
 
-  return { success: true };
+  return { success: true, seo_score: seoScore.overall };
 }
 
 // ============ Update Product Basic Info ============

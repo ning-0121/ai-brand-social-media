@@ -318,7 +318,7 @@ export default function ContentPage() {
         {/* Left: Skills Library + Radar + Inbox */}
         <div className="w-full space-y-4 xl:w-[360px] xl:shrink-0">
           {/* Skills Library */}
-          <Card>
+          <Card className="overflow-visible">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-amber-500" />
@@ -327,8 +327,8 @@ export default function ContentPage() {
               </div>
             </CardHeader>
             <CardContent className="p-3">
-              <Tabs defaultValue="image">
-                <TabsList className="w-full flex h-9 overflow-x-auto">
+              <Tabs defaultValue="image" className="flex flex-col">
+                <TabsList className="w-full flex h-9 overflow-x-auto shrink-0">
                   <TabsTrigger value="image" className="text-[11px] flex-1 min-w-0 gap-1">
                     📸 图片 ({imageSkills.length})
                   </TabsTrigger>
@@ -352,7 +352,7 @@ export default function ContentPage() {
                   { key: "video", items: videoSkills },
                   { key: "oem", items: oemSkills },
                 ].map((tab) => (
-                  <TabsContent key={tab.key} value={tab.key} className="mt-3">
+                  <TabsContent key={tab.key} value={tab.key} className="mt-3 max-h-[360px] overflow-y-auto">
                     {loadingSkills ? (
                       <div className="grid grid-cols-2 gap-2">
                         {Array.from({ length: 4 }).map((_, i) => (

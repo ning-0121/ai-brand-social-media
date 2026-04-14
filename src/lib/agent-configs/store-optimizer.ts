@@ -25,23 +25,32 @@ export const storeOptimizerConfig: AgentConfigMap = {
       const currentBody = input.body_html || "";
       const missingFields = input.missing_fields || "all SEO fields";
       const findingContext = input.finding_context || "";
+      const keywords = input.keywords || "";
 
       return `Product: ${productName}
 Current body_html (truncated): ${String(currentBody).slice(0, 600)}
 Missing/needs improvement: ${missingFields}
-${findingContext ? `Why this needs fixing: ${findingContext}` : ""}
+${findingContext ? `Diagnosis: ${findingContext}` : ""}
 ${positioning ? `Brand positioning: ${positioning}` : ""}
+${keywords ? `Target keywords (confirmed by user): ${keywords}` : ""}
 
-Generate optimized SEO copy that can be applied directly to Shopify.
+Generate expert-level SEO copy for Shopify. Follow these rules:
 
-Rules:
-- title: keep concise but search-friendly (50-70 chars)
-- body_html: 2-4 short paragraphs in HTML, keep brand voice, include key features
-- meta_title: 50-60 chars, include main keyword, brand name if it fits
-- meta_description: 140-160 chars, must include CTA
-- tags: comma-separated, 5-10 relevant tags
+KEYWORD STRATEGY:
+- Identify primary keyword from product name/context (or use provided keywords)
+- Natural keyword density 1-2%, never stuff
+- Primary keyword in: title front, meta_title start, body first paragraph, one H2
 
-Only include the fields listed in 'Missing/needs improvement' if you'd be improving on the current state. Do not invent fictional product attributes.`;
+E-E-A-T & CONTENT:
+- title: 50-60 chars, formula: [Primary Keyword] [Product] - [Brand] | [Benefit]
+- body_html: Start with <script type="application/ld+json">Product schema</script>, then 3-4 paragraphs with H2/H3 headings, include <ul> list, 300+ words
+- meta_title: 50-60 chars, different from title, with separator structure
+- meta_description: 140-160 chars, USP + CTA, complete sentence ending
+- tags: 5-10 comma-separated, covering keyword + category + material + use case + long-tail
+- handle_suggestion: lowercase-hyphenated, contains primary keyword
+
+Include seo_analysis object with detected_language, primary_keyword, search_intent, optimization_reasoning.
+Do not invent fictional product attributes.`;
     },
   },
 

@@ -41,6 +41,7 @@ export const seoQuickApplySchema = z.object({
     meta_title: z.string().optional(),
     meta_description: z.string().optional(),
     tags: z.string().optional(),
+    handle: z.string().optional(),
   }),
 });
 

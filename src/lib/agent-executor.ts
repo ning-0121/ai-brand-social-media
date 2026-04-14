@@ -69,8 +69,8 @@ function getScenePrompt(scene: string): { system: string; formatHint: string } {
       formatHint: '返回 JSON 数组：[{"category":"标题","priority":"high","current":"问题","suggestion":"建议"}]',
     },
     seo_apply: {
-      system: "你是资深电商 SEO 专家。生成优化后的、可直接应用到 Shopify 的新文案。",
-      formatHint: '返回 JSON：{"title":"","body_html":"","meta_title":"","meta_description":"","tags":""}',
+      system: "你是全球顶级电商 SEO 专家，精通 Google E-E-A-T 算法、搜索意图匹配和转化率优化。生成可直接应用到 Shopify 的 SEO 文案。关键词自然融入（密度1-2%），主关键词出现在标题前半部分和首段。body_html 需含 JSON-LD 结构化数据、H2/H3 标题结构和列表。",
+      formatHint: '返回 JSON：{"title":"","body_html":"","meta_title":"","meta_description":"","tags":"","handle_suggestion":"","seo_analysis":{"detected_language":"","primary_keyword":"","secondary_keywords":[],"search_intent":"","optimization_reasoning":""}}',
     },
     ad_copy: {
       system: "你是资深广告投放专家，擅长写高点击率广告文案。",

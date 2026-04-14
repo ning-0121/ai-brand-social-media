@@ -7,6 +7,137 @@ import { createApprovalTask } from "./supabase-approval";
 import { reviewContent } from "./content-qa";
 import { productContentPipeline, socialContentPipeline, campaignPipeline } from "./content-pipeline";
 
+// ============ 0. AI 自主诊断 & 提出目标 ============
+
+export interface ProposedGoal {
+  module: string;
+  metric: string;
+  current_value: number;
+  target_value: number;
+  unit: string;
+  deadline: string;
+  rationale: string;
+  execution_plan: string;
+  estimated_effort: string;
+}
+
+export interface GoalProposal {
+  diagnosis: string;
+  proposed_goals: ProposedGoal[];
+}
+
+export async function proposeGoals(): Promise<GoalProposal> {
+  // 收集全量数据 — 不截断
+  const dashKPIs = await getDashboardKPIs();
+  const storeKPIs = await getStoreKPIs();
+
+  // 产品 SEO 分布
+  const { data: products } = await supabase
+    .from("products").select("id, name, seo_score, meta_title, meta_description, body_html, tags, price, stock, category")
+    .eq("platform", "shopify").not("shopify_product_id", "is", null);
+
+  const allProducts = products || [];
+  const avgSeo = allProducts.length > 0 ? Math.round(allProducts.reduce((s, p) => s + (p.seo_score || 0), 0) / allProducts.length) : 0;
+  const missingMeta = allProducts.filter(p => !p.meta_title || !p.meta_description).length;
+  const missingBody = allProducts.filter(p => !p.body_html || p.body_html.length < 100).length;
+  const outOfStock = allProducts.filter(p => (p.stock || 0) === 0).length;
+
+  // 社媒数据
+  const { count: publishedPosts } = await supabase
+    .from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "published");
+  const { count: connectedAccounts } = await supabase
+    .from("social_accounts").select("*", { count: "exact", head: true }).eq("connected", true);
+
+  // 已有目标
+  const { data: existingGoals } = await supabase
+    .from("ops_goals").select("*").eq("status", "active");
+
+  // 最近 30 天趋势
+  const { data: snapshots } = await supabase
+    .from("ops_performance_snapshots").select("*")
+    .order("snapshot_date", { ascending: false }).limit(30);
+
+  const today = new Date();
+  const thirtyDaysLater = new Date(today.getTime() + 30 * 86400000).toISOString().split("T")[0];
+
+  const result = await callLLM(
+    `你是月销百万的 Shopify DTC 品牌操盘手。你现在要看数据、找问题、定目标。
+
+你不是咨询顾问，不要写报告。你是真正管店的人，你自己要执行这些目标。
+
+规则：
+1. 先诊断当前最大的问题（一句话，直击要害）
+2. 最多提 3 个目标，聚焦比发散重要
+3. 每个目标必须有具体数字 — 不能 "提升 SEO"，要 "30 天内平均 SEO 分从 ${avgSeo} 提到 65"
+4. metric 只能用系统能追踪的：revenue, orders, aov, seo_score, customers, published_posts
+5. target_value 基于数据趋势合理推算，不要拍脑袋
+6. 每个目标附带你会怎么执行（用什么 skill、做什么动作）
+7. deadline 统一用 ${thirtyDaysLater} 附近
+8. 如果已有目标正在执行且合理，不要重复提
+
+返回 JSON，不要有任何解释。`,
+    `当前店铺数据：
+- 营收（30天）: ${dashKPIs?.totalRevenue || 0} ${dashKPIs?.currency || 'USD'}
+- 订单数: ${dashKPIs?.totalOrders || 0}
+- 客单价: ${dashKPIs?.aov || 0}
+- 客户数: ${dashKPIs?.totalCustomers || 0}
+- 营收趋势: ${dashKPIs?.revenueTrend || 0}%
+- 订单趋势: ${dashKPIs?.ordersTrend || 0}%
+
+产品数据（${allProducts.length} 个 Shopify 商品）:
+- 平均 SEO 分: ${avgSeo}/100
+- 缺少 meta 标签: ${missingMeta} 个
+- 描述过短/缺失: ${missingBody} 个
+- 缺货商品: ${outOfStock} 个
+- SEO 分分布: ${JSON.stringify(allProducts.map(p => ({ name: p.name, seo: p.seo_score, price: p.price, hasMeta: !!p.meta_title })))}
+
+社媒数据:
+- 已发布帖子: ${publishedPosts || 0}
+- 已连接账号: ${connectedAccounts || 0}
+
+已有目标: ${JSON.stringify(existingGoals || [])}
+最近趋势: ${JSON.stringify((snapshots || []).slice(0, 7))}
+
+返回格式：
+{
+  "diagnosis": "当前最大的问题是...（一句话）",
+  "proposed_goals": [
+    {
+      "module": "store 或 social",
+      "metric": "可追踪的指标名",
+      "current_value": 当前值,
+      "target_value": 目标值,
+      "unit": "单位",
+      "deadline": "YYYY-MM-DD",
+      "rationale": "为什么定这个目标（用数据说话）",
+      "execution_plan": "具体怎么做（用什么 skill，多少步）",
+      "estimated_effort": "预计耗时"
+    }
+  ]
+}`,
+    3000
+  );
+
+  return result as unknown as GoalProposal;
+}
+
+export async function adoptGoals(goals: ProposedGoal[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (const goal of goals) {
+    const { data } = await supabase.from("ops_goals").insert({
+      module: goal.module,
+      metric: goal.metric,
+      target_value: goal.target_value,
+      baseline_value: goal.current_value,
+      current_value: goal.current_value,
+      unit: goal.unit || "",
+      deadline: goal.deadline,
+    }).select("id").single();
+    if (data) ids.push(data.id);
+  }
+  return ids;
+}
+
 // ============ 1. Generate Weekly Plan ============
 export async function generateWeeklyPlan(module: "social" | "store"): Promise<string> {
   // Get current goals
@@ -18,15 +149,15 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
     .from("ops_performance_snapshots").select("*").eq("module", module)
     .order("snapshot_date", { ascending: false }).limit(14);
 
-  // Get last week's plan and review
+  // Get last week's plan and review — 不截断
   const { data: lastPlans } = await supabase
     .from("ops_weekly_plans").select("*").eq("module", module)
     .order("week_start", { ascending: false }).limit(1);
 
-  // Get products for context
+  // Get ALL products — 不截断，完整传入
   const { data: products } = await supabase
-    .from("products").select("id, name, category, seo_score, meta_title, meta_description, shopify_product_id")
-    .eq("platform", "shopify").not("shopify_product_id", "is", null).limit(20);
+    .from("products").select("id, name, category, seo_score, price, stock, meta_title, meta_description, body_html, tags, shopify_product_id")
+    .eq("platform", "shopify").not("shopify_product_id", "is", null);
 
   // Get radar signals
   const { data: signals } = await supabase
@@ -38,61 +169,88 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
   const weekStartStr = weekStart.toISOString().split("T")[0];
 
   const taskTypes = module === "social"
-    ? "post (发社媒帖子), engage (回复评论/互动), hashtag_strategy, content_calendar, short_video_script"
+    ? "post (发社媒帖子), engage (生成互动回复), hashtag_strategy (生成标签策略), content_calendar (排期规划), short_video_script (短视频脚本)"
     : "seo_fix (修复商品 SEO), detail_page (优化详情页), homepage_update (更新首页), landing_page (创建落地页), new_product_content (新品内容制作)";
 
-  const autoTypes = module === "social"
-    ? "post, engage, hashtag_strategy 可自动执行"
-    : "seo_fix, detail_page 可自动执行";
+  // 构建产品摘要 — 完整但结构化
+  const productSummary = (products || []).map(p => {
+    const issues: string[] = [];
+    if (!p.meta_title) issues.push("无meta_title");
+    if (!p.meta_description) issues.push("无meta_desc");
+    if (!p.body_html || p.body_html.length < 100) issues.push("描述过短");
+    if (!p.tags) issues.push("无标签");
+    if ((p.stock || 0) === 0) issues.push("缺货");
+    return `[${p.id}] ${p.name} | 价格:${p.price} | SEO:${p.seo_score} | ${issues.length > 0 ? issues.join(",") : "✓"}`;
+  }).join("\n");
 
-  const approvalTypes = "ad_campaign, price_adjust, discount_event, bulk_operation 需要审批";
+  // 上周复盘摘要
+  const lastPlan = lastPlans?.[0];
+  const lastReview = lastPlan?.review as Record<string, unknown> | null;
+  const lastStrategy = lastPlan?.strategy as Record<string, unknown> | null;
 
   const result = await callLLM(
-    `You are a senior ${module === "social" ? "social media" : "e-commerce store"} operations director.
-Generate a concrete weekly plan with specific daily tasks.
+    `你是月销百万的 Shopify DTC 品牌操盘手。你在排本周的执行计划，不是写报告。
 
-CRITICAL: Each task must have:
-- task_type: one of [${taskTypes}]
-- auto_executable: true for tasks AI can do alone, false for tasks needing approval
-- If task involves a specific product, include target_product_id (UUID from the product list)
-- If task involves a specific platform, include target_platform
+可用任务类型：[${taskTypes}]
+自动执行：seo_fix, detail_page, post, engage, hashtag_strategy, short_video_script
+需要审批：landing_page, homepage_update, new_product_content
 
-${autoTypes}
-${approvalTypes}
+规则：
+1. 每个任务必须解决一个具体问题，指向具体的商品或内容
+2. 好任务示例：
+   ✅ "为 JOJOFEIFEI Blush Flare Leggings 添加 meta_title（当前缺失，SEO 分 23，价格 $68）"
+   ✅ "为 Instagram 发布 Coast Power Contour Top 种草帖（该商品本月 0 条内容）"
+   ❌ "优化低 SEO 分商品" — 太笼统
+   ❌ "提升品牌知名度" — 空话
+3. 优先级：高价商品 > 低价，有问题的 > 没问题的，缺货的跳过
+4. 每天最多 2-3 个任务，少而精
+5. 周一-周三：重执行（修 SEO、发内容）；周四-五：看效果；周末：轻任务
+6. target_product_id 必须用上面产品列表中的真实 UUID
+7. 所有 auto_executable 任务必须设为 true
 
-Be SPECIFIC — not "optimize SEO" but "fix meta_title for JOJOFEIFEI Blush Active Bra"
-Reference actual product names and IDs from the list provided.
+返回 JSON，不要有解释。`,
+    `模块: ${module}
+本周: ${weekStartStr} 开始
+今天: ${today.toISOString().split("T")[0]}
 
-Return JSON.`,
-    `Module: ${module}
-Week starting: ${weekStartStr}
-Today: ${today.toISOString().split("T")[0]}
+当前目标:
+${(goals || []).map(g => `- ${g.metric}: 当前 ${g.current_value}/${g.target_value} ${g.unit}（截止 ${g.deadline}）`).join("\n") || "暂无目标"}
 
-Active goals: ${JSON.stringify(goals || []).slice(0, 500)}
-Last 14 days performance: ${JSON.stringify(snapshots || []).slice(0, 800)}
-Last week plan & review: ${JSON.stringify(lastPlans?.[0] || {}).slice(0, 500)}
-Products (${(products || []).length}): ${(products || []).map(p => `[${p.id}] ${p.name} (SEO:${p.seo_score}, meta:${p.meta_title ? "yes" : "NO"})`).join("; ")}
-Market signals: ${JSON.stringify(signals || []).slice(0, 300)}
+${lastReview ? `上周复盘:
+- 得分: ${(lastReview as Record<string, unknown>).overall_score}/100
+- 总结: ${(lastReview as Record<string, unknown>).summary}
+- 成功: ${JSON.stringify((lastReview as Record<string, unknown>).wins)}
+- 失败: ${JSON.stringify((lastReview as Record<string, unknown>).losses)}
+- 下周建议: ${JSON.stringify((lastReview as Record<string, unknown>).next_week_recommendations)}` : "暂无上周复盘"}
 
-Generate JSON:
+${lastStrategy ? `上周策略: ${(lastStrategy as Record<string, unknown>).strategy}` : ""}
+
+产品列表（${(products || []).length} 个）:
+${productSummary}
+
+市场信号: ${JSON.stringify((signals || []).map(s => s.title))}
+
+近 7 天趋势: ${JSON.stringify((snapshots || []).slice(0, 7).map(s => ({ date: (s as Record<string, unknown>).snapshot_date, metrics: (s as Record<string, unknown>).metrics })))}
+
+返回格式:
 {
-  "strategy": "本周核心策略（1-2 句）",
-  "rationale": "为什么选这个策略",
+  "strategy": "本周核心策略（1句话，直接说做什么）",
+  "rationale": "为什么（用数据说话）",
   "tasks": [
     {
       "day": "Mon/Tue/Wed/Thu/Fri/Sat/Sun",
-      "task_type": "类型",
-      "title": "具体任务标题",
-      "description": "详细说明",
-      "auto_executable": true/false,
-      "target_product_id": "UUID or null",
-      "target_product_name": "商品名 or null",
-      "target_platform": "instagram/tiktok/xiaohongshu/shopify or null",
-      "skill_id": "要调用的 skill ID or null"
+      "task_type": "任务类型",
+      "title": "具体任务标题（包含商品名或平台名）",
+      "description": "做什么、为什么、预期效果",
+      "auto_executable": true,
+      "target_product_id": "UUID 或 null",
+      "target_product_name": "商品名 或 null",
+      "target_platform": "平台名 或 null",
+      "skill_id": "skill ID 或 null"
     }
   ],
   "key_focus": ["本周 3 个重点"],
-  "risk_factors": ["可能的风险"]
+  "risk_factors": ["风险"]
 }`,
     4000
   );
@@ -120,7 +278,7 @@ Generate JSON:
   const dayMap: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
 
   for (const task of tasks) {
-    const dayOffset = (dayMap[task.day] || 1) - 1; // relative to Monday
+    const dayOffset = (dayMap[task.day] || 1) - 1;
     const taskDate = new Date(weekStart);
     taskDate.setDate(weekStart.getDate() + dayOffset);
 
@@ -144,13 +302,9 @@ Generate JSON:
 }
 
 // ============ 2. Execute Daily Tasks ============
-// Executes ONE pending task per call to stay within Vercel timeout.
-// Cron calls this hourly, so all daily tasks get processed over the day.
-// Also picks up past-due tasks from previous days that weren't completed.
 export async function executeDailyTasks(): Promise<{ executed: number; skipped: number; approval: number; failed: number }> {
   const today = new Date().toISOString().split("T")[0];
 
-  // Get the NEXT single pending task (today or overdue)
   const { data: tasks } = await supabase
     .from("ops_daily_tasks")
     .select("*")
@@ -163,7 +317,6 @@ export async function executeDailyTasks(): Promise<{ executed: number; skipped: 
 
   const task = tasks[0];
 
-  // Get Shopify integration
   const { data: integration } = await supabase
     .from("integrations").select("id").eq("platform", "shopify").eq("status", "active").maybeSingle();
   const integrationId = integration?.id;
@@ -185,7 +338,6 @@ export async function executeDailyTasks(): Promise<{ executed: number; skipped: 
 
       executed++;
     } else {
-      // Create approval task
       const approvalResult = await createApprovalTask({
         type: "products",
         title: `[AI 运营] ${task.title}`,
@@ -194,6 +346,8 @@ export async function executeDailyTasks(): Promise<{ executed: number; skipped: 
           ops_task_id: task.id,
           task_type: task.task_type,
           module: task.module,
+          target_product_id: task.target_product_id,
+          target_product_name: task.target_product_name,
         },
       });
 
@@ -218,7 +372,7 @@ export async function executeDailyTasks(): Promise<{ executed: number; skipped: 
   return { executed, skipped, approval, failed };
 }
 
-// Execute a single task by calling the appropriate Skill + Shopify API
+// Execute a single task by calling the appropriate Skill + API
 async function executeTask(
   task: { task_type: string; target_product_id?: string; target_product_name?: string; target_platform?: string; skill_id?: string; description?: string },
   integrationId: string | null
@@ -231,7 +385,6 @@ async function executeTask(
         .from("products").select("*").eq("id", task.target_product_id).single();
       if (!product?.shopify_product_id) return { skipped: true, reason: "no shopify product" };
 
-      // Generate + QA review (retry up to 2x if quality < 70)
       let seoData: Record<string, unknown> = {};
       let qaScore = 0;
       let attempts = 0;
@@ -273,7 +426,6 @@ async function executeTask(
         .from("products").select("*").eq("id", task.target_product_id).single();
       if (!product?.shopify_product_id) return { skipped: true };
 
-      // Generate + QA
       let pageData: Record<string, unknown> = {};
       let dpQaScore = 0;
       let dpFeedback = "";
@@ -308,6 +460,40 @@ async function executeTask(
       return postResult as unknown as Record<string, unknown>;
     }
 
+    case "engage": {
+      const { result } = await executeSkill("ugc_response", {
+        product: task.target_product_id ? { id: task.target_product_id, name: task.target_product_name || "" } : undefined,
+        platform: task.target_platform || "instagram",
+        context: task.description || "为热门帖子生成互动回复",
+      }, { sourceModule: "ops_director" });
+      return { action: "engage_content_generated", platform: task.target_platform, output: result.output };
+    }
+
+    case "hashtag_strategy": {
+      const { result } = await executeSkill("hashtag_strategy", {
+        product: task.target_product_id ? { id: task.target_product_id, name: task.target_product_name || "" } : undefined,
+        platform: task.target_platform || "instagram",
+      }, { sourceModule: "ops_director" });
+      return { action: "hashtag_strategy_generated", output: result.output };
+    }
+
+    case "content_calendar": {
+      const { result } = await executeSkill("content_calendar", {
+        platform: task.target_platform || "instagram",
+        days: 7,
+      }, { sourceModule: "ops_director" });
+      return { action: "content_calendar_generated", output: result.output };
+    }
+
+    case "short_video_script": {
+      const { result } = await executeSkill("short_video_script", {
+        product: task.target_product_id ? { id: task.target_product_id, name: task.target_product_name || "" } : undefined,
+        platform: task.target_platform || "tiktok",
+        style: "种草",
+      }, { sourceModule: "ops_director" });
+      return { action: "video_script_generated", output: result.output };
+    }
+
     case "landing_page": {
       if (!integrationId) return { skipped: true, reason: "no integration" };
       const lpResult = await campaignPipeline(task.description || "Campaign", [], integrationId);
@@ -319,8 +505,7 @@ async function executeTask(
         brand_name: "JOJOFEIFEI",
         season: "general",
       }, { sourceModule: "ops_director" });
-
-      return { action: "homepage_hero_generated", output_preview: JSON.stringify(result.output).slice(0, 200) };
+      return { action: "homepage_hero_generated", output: result.output };
     }
 
     case "new_product_content": {
@@ -338,7 +523,6 @@ async function executeTask(
 export async function recordPerformanceSnapshot(): Promise<void> {
   const today = new Date().toISOString().split("T")[0];
 
-  // Store metrics
   const storeKPIs = await getStoreKPIs();
   const dashKPIs = await getDashboardKPIs();
 
@@ -357,7 +541,6 @@ export async function recordPerformanceSnapshot(): Promise<void> {
     },
   }, { onConflict: "snapshot_date,module" });
 
-  // Social metrics
   const { count: totalPosts } = await supabase
     .from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "published");
   const { count: totalAccounts } = await supabase
@@ -373,15 +556,17 @@ export async function recordPerformanceSnapshot(): Promise<void> {
   }, { onConflict: "snapshot_date,module" });
 
   // Update goal progress
-  const { data: goals } = await supabase
+  const { data: activeGoals } = await supabase
     .from("ops_goals").select("*").eq("status", "active");
 
-  for (const goal of goals || []) {
+  for (const goal of activeGoals || []) {
     let currentValue = 0;
     if (goal.metric === "revenue") currentValue = dashKPIs?.totalRevenue || 0;
     else if (goal.metric === "orders") currentValue = dashKPIs?.totalOrders || 0;
     else if (goal.metric === "seo_score") currentValue = storeKPIs.avgSEO;
     else if (goal.metric === "customers") currentValue = dashKPIs?.totalCustomers || 0;
+    else if (goal.metric === "aov") currentValue = dashKPIs?.aov || 0;
+    else if (goal.metric === "published_posts") currentValue = totalPosts || 0;
 
     const newStatus = currentValue >= goal.target_value ? "achieved"
       : (goal.deadline && new Date(goal.deadline) < new Date()) ? "missed"
@@ -399,25 +584,22 @@ export async function recordPerformanceSnapshot(): Promise<void> {
 export async function weeklyReview(module: "social" | "store"): Promise<void> {
   const today = new Date();
   const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay() + 1 - 7); // Last Monday
+  weekStart.setDate(today.getDate() - today.getDay() + 1 - 7);
   const weekStartStr = weekStart.toISOString().split("T")[0];
 
-  // Get this week's plan
   const { data: plan } = await supabase
     .from("ops_weekly_plans").select("*").eq("module", module)
     .gte("week_start", weekStartStr).order("week_start", { ascending: false }).limit(1).single();
 
   if (!plan) return;
 
-  // Get all tasks for this week
   const { data: tasks } = await supabase
     .from("ops_daily_tasks").select("*").eq("plan_id", plan.id);
 
   const totalTasks = tasks?.length || 0;
   const completed = tasks?.filter(t => t.execution_status === "auto_executed" || t.execution_status === "completed").length || 0;
-  const failed = tasks?.filter(t => t.execution_status === "failed").length || 0;
+  const failedCount = tasks?.filter(t => t.execution_status === "failed").length || 0;
 
-  // Get performance snapshots for the week
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
   const { data: snapshots } = await supabase
@@ -427,24 +609,35 @@ export async function weeklyReview(module: "social" | "store"): Promise<void> {
     .order("snapshot_date", { ascending: true });
 
   const review = await callLLM(
-    `You are a senior operations manager reviewing the week's performance. Be honest, data-driven, and actionable.
-Return JSON.`,
-    `Module: ${module}
-Week: ${weekStartStr}
-Strategy: ${JSON.stringify(plan.strategy).slice(0, 500)}
-Tasks: ${totalTasks} total, ${completed} completed, ${failed} failed
-Task details: ${JSON.stringify(tasks || []).slice(0, 1000)}
-Performance data: ${JSON.stringify(snapshots || []).slice(0, 500)}
+    `你是品牌操盘手，在做周复盘。不要写 "总体表现良好" 这种废话。
 
-Generate review JSON:
+规则：
+1. 只说做了什么、效果如何、下周改什么
+2. 用数据说话：SEO 分从 X 涨到 Y，发了 N 条帖子
+3. 如果某个策略没效果，直接说 "停掉"，不要说 "可以考虑调整"
+4. 下周建议必须是具体的任务（指向商品名或平台），不是方向
+5. wins 和 losses 必须引用具体的任务和结果
+
+返回 JSON，不要解释。`,
+    `模块: ${module}
+本周: ${weekStartStr}
+策略: ${JSON.stringify((plan.strategy as Record<string, unknown>)?.strategy || plan.strategy)}
+任务执行: ${totalTasks} 个总计，${completed} 个完成，${failedCount} 个失败
+任务详情:
+${(tasks || []).map(t => `- ${t.title} → ${t.execution_status}${t.execution_result ? ` (${JSON.stringify(t.execution_result).slice(0, 100)})` : ""}`).join("\n")}
+
+本周数据趋势:
+${(snapshots || []).map(s => `${(s as Record<string, unknown>).snapshot_date}: ${JSON.stringify((s as Record<string, unknown>).metrics)}`).join("\n")}
+
+返回格式:
 {
   "overall_score": 0-100,
-  "summary": "一句话总结本周",
-  "wins": ["有效的动作 1", "有效的动作 2"],
-  "losses": ["无效/失败的动作"],
-  "key_learnings": ["关键发现"],
-  "next_week_recommendations": ["下周建议 1", "下周建议 2"],
-  "goal_progress_assessment": "目标进度评估"
+  "summary": "一句话：这周做了 X，效果 Y",
+  "wins": ["成功1: 具体说明做了什么、效果如何"],
+  "losses": ["失败1: 具体说明哪里出了问题"],
+  "key_learnings": ["发现1"],
+  "next_week_recommendations": ["具体任务建议1（指向商品或平台）"],
+  "goal_progress_assessment": "目标进度一句话"
 }`,
     2500
   );
