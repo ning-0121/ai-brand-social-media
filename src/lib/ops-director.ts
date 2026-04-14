@@ -83,6 +83,8 @@ export async function proposeGoals(): Promise<GoalProposal> {
 - 客户数: ${dashKPIs?.totalCustomers || 0}
 - 营收趋势: ${dashKPIs?.revenueTrend || 0}%
 - 订单趋势: ${dashKPIs?.ordersTrend || 0}%
+- 店铺健康分: ${storeKPIs.healthScore}/100
+- 系统平均 SEO 分: ${storeKPIs.avgSEO}
 
 产品数据（${allProducts.length} 个 Shopify 商品）:
 - 平均 SEO 分: ${avgSeo}/100
