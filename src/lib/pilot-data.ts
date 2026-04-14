@@ -132,15 +132,21 @@ export async function createPilotRun(
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + 6);
 
+  // Note: owner_id FK to auth.users may fail with anon key, so we omit it if needed
+  const insertData: Record<string, unknown> = {
+    run_name: name,
+    start_date: startDate.toISOString().split("T")[0],
+    end_date: endDate.toISOString().split("T")[0],
+    status: "active",
+  };
+  // Only set owner_id if it looks like a valid UUID
+  if (ownerId && ownerId.length > 10) {
+    insertData.owner_id = ownerId;
+  }
+
   const { data: run, error } = await supabase
     .from("pilot_runs")
-    .insert({
-      run_name: name,
-      owner_id: ownerId,
-      start_date: startDate.toISOString().split("T")[0],
-      end_date: endDate.toISOString().split("T")[0],
-      status: "active",
-    })
+    .insert(insertData)
     .select()
     .single();
 

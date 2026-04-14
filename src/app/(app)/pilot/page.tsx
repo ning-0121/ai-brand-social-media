@@ -41,12 +41,17 @@ export default function PilotCenterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "start_run", name: "7 天内部试跑" }),
       });
-      if (res.ok) {
+      const data = await res.json();
+      if (res.ok && data.success) {
         toast.success("试跑已开始，7 天任务已生成");
         fetchData();
+      } else {
+        toast.error(data.error || "启动失败，请检查控制台");
+        console.error("Start run failed:", data);
       }
-    } catch {
-      toast.error("启动失败");
+    } catch (err) {
+      toast.error("网络错误，启动失败");
+      console.error("Start run error:", err);
     }
     setStarting(false);
   };
