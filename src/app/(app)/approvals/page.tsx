@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { KPICard, KPICardGrid } from "@/components/shared/kpi-card";
 import { TaskCard } from "@/components/approval/task-card";
@@ -45,7 +46,13 @@ export default function ApprovalsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "approve", id }),
     });
-    if (res.ok) await refreshTasks();
+    const data = await res.json();
+    if (res.ok) {
+      toast.success("已批准执行");
+      await refreshTasks();
+    } else {
+      toast.error(data.error || "批准失败");
+    }
   };
 
   const handleReject = async (id: string) => {
