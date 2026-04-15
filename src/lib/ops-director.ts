@@ -512,8 +512,6 @@ ${productSummary}
 
 // ============ 2. Execute Daily Tasks ============
 export async function executeDailyTasks(): Promise<{ executed: number; skipped: number; approval: number; failed: number }> {
-  const today = new Date().toISOString().split("T")[0];
-
   // Reset any tasks stuck in "running" for over 5 minutes (crashed execution)
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   await supabase
@@ -522,12 +520,13 @@ export async function executeDailyTasks(): Promise<{ executed: number; skipped: 
     .eq("execution_status", "running")
     .lt("updated_at", fiveMinAgo);
 
+  // 取下一个 pending 任务（不限日期，按日期排序优先执行早的）
   const { data: tasks } = await supabase
     .from("ops_daily_tasks")
     .select("*")
     .eq("execution_status", "pending")
-    .lte("task_date", today)
     .order("task_date", { ascending: true })
+    .order("created_at", { ascending: true })
     .limit(1);
 
   if (!tasks || tasks.length === 0) return { executed: 0, skipped: 0, approval: 0, failed: 0 };

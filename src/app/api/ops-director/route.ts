@@ -28,11 +28,25 @@ export async function GET(request: Request) {
     }
 
     if (type === "daily_tasks") {
-      const date = url.searchParams.get("date") || new Date().toISOString().split("T")[0];
-      const { data } = await supabase
-        .from("ops_daily_tasks").select("*").eq("task_date", date)
+      const date = url.searchParams.get("date");
+      if (date) {
+        const { data } = await supabase
+          .from("ops_daily_tasks").select("*").eq("task_date", date)
+          .order("created_at", { ascending: true });
+        return NextResponse.json({ tasks: data || [] });
+      }
+      // 默认：显示所有 pending/running 任务 + 今天已执行的
+      const today = new Date().toISOString().split("T")[0];
+      const { data: pendingTasks } = await supabase
+        .from("ops_daily_tasks").select("*")
+        .in("execution_status", ["pending", "running"])
+        .order("task_date", { ascending: true });
+      const { data: todayDone } = await supabase
+        .from("ops_daily_tasks").select("*")
+        .eq("task_date", today)
+        .in("execution_status", ["auto_executed", "completed", "failed"])
         .order("created_at", { ascending: true });
-      return NextResponse.json({ tasks: data || [] });
+      return NextResponse.json({ tasks: [...(todayDone || []), ...(pendingTasks || [])] });
     }
 
     if (type === "performance") {
