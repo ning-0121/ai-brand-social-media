@@ -1,22 +1,9 @@
 import {
-  Radar,
   FileText,
   Store,
   Share2,
-  GraduationCap,
-  Target,
-  Video,
-  Users,
-  Megaphone,
-  GitBranch,
   Settings,
   ClipboardCheck,
-  Inbox,
-  MessageCircle,
-  Briefcase,
-  FileSpreadsheet,
-  CalendarDays,
-  Headphones,
   Gauge,
   ImagePlus,
   type LucideIcon,
@@ -31,35 +18,18 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  // ── 运营中心（默认展开）──
+  // ── 运营中心（默认展开，全部真实功能）──
   { label: "运营驾驶舱", href: "/ops-cockpit", icon: Gauge, group: "运营中心" },
   { label: "店铺优化", href: "/store", icon: Store, group: "运营中心" },
   { label: "社媒规划", href: "/social", icon: Share2, group: "运营中心" },
-  { label: "趋势雷达", href: "/trends", icon: Radar, group: "运营中心" },
   { label: "审批中心", href: "/approvals", icon: ClipboardCheck, group: "运营中心" },
-  { label: "活动策划", href: "/campaigns", icon: CalendarDays, group: "运营中心" },
 
-  // ── 增长工具 ──
-  { label: "品牌策略", href: "/strategy", icon: Target, group: "增长工具" },
-  { label: "达人中心", href: "/influencers", icon: Users, group: "增长工具" },
-  { label: "广告投放", href: "/ads", icon: Megaphone, group: "增长工具" },
-  { label: "直播中心", href: "/live", icon: Video, group: "增长工具" },
-  { label: "渠道拓展", href: "/channels", icon: GitBranch, group: "增长工具" },
-  { label: "AI 客服", href: "/customer-service", icon: Headphones, group: "增长工具" },
-
-  // ── OEM 业务 ──
-  { label: "询盘看板", href: "/oem/inquiries", icon: Inbox, group: "OEM 业务" },
-  { label: "WhatsApp", href: "/oem/whatsapp", icon: MessageCircle, group: "OEM 业务" },
-  { label: "买家 CRM", href: "/oem/buyers", icon: Briefcase, group: "OEM 业务" },
-  { label: "报价单", href: "/oem/quotations", icon: FileSpreadsheet, group: "OEM 业务" },
-
-  // ── 内容 & 资产 ──
+  // ── 内容 ──
   { label: "内容工厂", href: "/content", icon: FileText, group: "内容" },
   { label: "素材库", href: "/media-library", icon: ImagePlus, group: "内容" },
 
   // ── 系统 ──
   { label: "系统设置", href: "/settings", icon: Settings, group: "系统" },
-  { label: "技能包", href: "/skills", icon: GraduationCap, group: "学习" },
 ];
 
 export const PLATFORM_LABELS: Record<string, string> = {
