@@ -5,21 +5,27 @@ export const contentMatrixSkill: ContentSkill = {
   id: "content_matrix",
   name: "矩阵内容一键生成",
   category: "social",
-  description: "一个主题 → 5 个平台差异化内容（小红书/抖音/IG/TikTok/微信）",
+  description: "一个主题 → 5 个平台差异化内容（US: IG/TikTok/Pinterest/YouTube/Email | CN: 小红书/抖音/微信）",
   icon: "Hash",
   color: "purple",
   estimated_cost: { text: 0.03, image: 0 },
   estimated_time_seconds: 20,
   agents: ["content_producer"],
   inputs: [
-    { key: "topic", label: "内容主题", type: "text", required: true, placeholder: "如：夏季运动穿搭、瑜伽初学者必备" },
+    { key: "topic", label: "内容主题", type: "text", required: true, placeholder: "如：Summer workout outfits、New arrival tennis skort" },
     { key: "product", label: "关联商品（可选）", type: "product" },
+    { key: "market", label: "目标市场", type: "select", default: "us", options: [
+      { value: "us", label: "美国市场 (IG/TikTok/Pinterest/YouTube/Email)" },
+      { value: "cn", label: "中国市场 (小红书/抖音/微信/B站/快手)" },
+      { value: "global", label: "全球 (IG/TikTok/Pinterest/小红书/YouTube)" },
+    ]},
   ],
   async execute(input: SkillInputData): Promise<SkillResult> {
     const result = await generateContentMatrix({
       topic: input.topic as string,
       product_name: input.product?.name,
       product_price: input.product?.price,
+      market: (input.market as "us" | "cn" | "global") || "us",
     });
     return { skill_id: "content_matrix", output: result, generated_at: new Date().toISOString(), estimated_cost: { text: 0.03, image: 0 } };
   },
