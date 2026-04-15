@@ -31,7 +31,9 @@ import {
   X,
   DollarSign,
   Clock,
+  Archive,
 } from "lucide-react";
+import { AIProductionWarehouse } from "@/components/content/ai-production-warehouse";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -263,8 +265,27 @@ export default function ContentPage() {
     <div className="space-y-6">
       <PageHeader
         title="内容工厂"
-        description="AI Skills 驱动的全栈内容生产中心 — 12 个专业技能 + 雷达情报 + 跨模块联动"
+        description="AI Skills 驱动的全栈内容生产中心 — 59 个专业技能 + AI 产出仓库"
       />
+
+      {/* Main tabs: Skill 工坊 + AI 产出仓库 */}
+      <Tabs defaultValue="workshop">
+        <TabsList>
+          <TabsTrigger value="workshop">
+            <Sparkles className="h-3 w-3 mr-1" />
+            Skill 工坊
+          </TabsTrigger>
+          <TabsTrigger value="warehouse">
+            <Archive className="h-3 w-3 mr-1" />
+            AI 产出仓库
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="warehouse" className="mt-4">
+          <AIProductionWarehouse />
+        </TabsContent>
+
+        <TabsContent value="workshop" className="mt-4 space-y-6">
 
       {/* Top: Product Selector Bar */}
       <Card>
@@ -529,6 +550,9 @@ export default function ContentPage() {
           )}
         </div>
       </div>
+
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
