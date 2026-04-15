@@ -514,6 +514,14 @@ ${productSummary}
 export async function executeDailyTasks(): Promise<{ executed: number; skipped: number; approval: number; failed: number }> {
   const today = new Date().toISOString().split("T")[0];
 
+  // Reset any tasks stuck in "running" for over 5 minutes (crashed execution)
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  await supabase
+    .from("ops_daily_tasks")
+    .update({ execution_status: "pending", updated_at: new Date().toISOString() })
+    .eq("execution_status", "running")
+    .lt("updated_at", fiveMinAgo);
+
   const { data: tasks } = await supabase
     .from("ops_daily_tasks")
     .select("*")
