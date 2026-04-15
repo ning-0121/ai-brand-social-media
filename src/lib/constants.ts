@@ -38,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "店铺优化", href: "/store", icon: Store, group: "运营中心" },
   { label: "社媒规划", href: "/social", icon: Share2, group: "运营中心" },
   { label: "趋势雷达", href: "/trends", icon: Radar, group: "运营中心" },
+  { label: "审批中心", href: "/approvals", icon: ClipboardCheck, group: "运营中心" },
   { label: "活动策划", href: "/campaigns", icon: CalendarDays, group: "运营中心" },
 
   // ── 增长工具 ──
@@ -56,7 +57,6 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ── 内容 & 资产 ──
   { label: "内容工厂", href: "/content", icon: FileText, group: "内容" },
-  { label: "审批中心", href: "/approvals", icon: ClipboardCheck, group: "内容" },
   { label: "素材库", href: "/media-library", icon: ImagePlus, group: "内容" },
 
   // ── 系统 ──
