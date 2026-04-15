@@ -412,10 +412,11 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
    ❌ "优化低 SEO 分商品" — 太笼统
    ❌ "提升品牌知名度" — 空话
 3. 优先级：高价商品 > 低价，有问题的 > 没问题的，缺货的跳过
-4. 每天最多 2-3 个任务，少而精
-5. 周一-周三：重执行（修 SEO、发内容）；周四-五：看效果；周末：轻任务
-6. target_product_id 必须用上面产品列表中的真实 UUID
-7. 所有 auto_executable 任务必须设为 true
+4. 节奏要紧凑：自动执行的任务全部安排在前 1-2 天（Mon/Tue），不要分散到一周
+5. 每个有问题的产品都要安排修复任务 — 不要只挑几个，全部列出来
+6. 需要审批的任务可以安排在后面几天
+7. target_product_id 必须用上面产品列表中的真实 UUID
+8. 所有 auto_executable 任务必须设为 true
 
 返回 JSON，不要有解释。`,
     `模块: ${module}
@@ -486,15 +487,23 @@ ${productSummary}
 
   const dayMap: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
   for (const task of tasks) {
-    const dayOffset = (dayMap[task.day] || 1) - 1;
-    const taskDate = new Date(weekStart);
-    taskDate.setDate(weekStart.getDate() + dayOffset);
+    // 自动执行的任务 → 今天立刻执行；需审批的 → 按计划日期
+    const isAuto = task.auto_executable !== false;
+    let taskDateStr = todayStr;
+    if (!isAuto) {
+      const dayOffset = (dayMap[task.day] || 1) - 1;
+      const taskDate = new Date(weekStart);
+      taskDate.setDate(weekStart.getDate() + dayOffset);
+      taskDateStr = taskDate.toISOString().split("T")[0];
+    }
 
     await supabase.from("ops_daily_tasks").insert({
       plan_id: plan.id,
       module,
-      task_date: taskDate.toISOString().split("T")[0],
+      task_date: taskDateStr,
       task_type: task.task_type,
       title: task.title,
       description: task.description,
