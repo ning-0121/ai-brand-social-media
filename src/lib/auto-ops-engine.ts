@@ -4,6 +4,7 @@ import { runDiagnostic } from "./diagnostic-engine";
 import { autoPublishDuePosts } from "./social-publisher";
 import { executeDailyTasks, recordPerformanceSnapshot, generateWeeklyPlan, weeklyReview } from "./ops-director";
 import { runSkillScout } from "./skill-scout";
+import { generateDailyReport } from "./daily-report";
 
 interface TaskResult {
   task: string;
@@ -364,7 +365,19 @@ export async function runDailyTasks(): Promise<TaskResult[]> {
     }
   }
 
-  // 12. Wednesday + Saturday: Skill Scout — 自动学习，扫描 GitHub 发现新工具
+  // 12. Daily Report — 每天生成运营日报
+  try {
+    const dailyReport = await generateDailyReport();
+    results.push({
+      task: "daily_report",
+      status: "success",
+      message: `日报已生成：${dailyReport.tasks_executed} 任务执行，SEO 变化 ${dailyReport.changes.seo_score_change > 0 ? "+" : ""}${dailyReport.changes.seo_score_change}`,
+    });
+  } catch (err) {
+    results.push({ task: "daily_report", status: "failed", message: err instanceof Error ? err.message : "日报生成失败" });
+  }
+
+  // 13. Wednesday + Saturday: Skill Scout — 自动学习，扫描 GitHub 发现新工具
   if (dayOfWeek === 3 || dayOfWeek === 6) {
     try {
       const scoutReport = await runSkillScout();

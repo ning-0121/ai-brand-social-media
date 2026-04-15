@@ -4,6 +4,7 @@ import { generateWeeklyPlan, executeDailyTasks, recordPerformanceSnapshot, weekl
 import type { ProposedGoal } from "@/lib/ops-director";
 import { requireAuth } from "@/lib/api-auth";
 import { runSkillScout } from "@/lib/skill-scout";
+import { generateDailyReport } from "@/lib/daily-report";
 
 export const maxDuration = 60;
 
@@ -60,6 +61,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ snapshots: data || [] });
     }
 
+    if (type === "reports") {
+      const limit = parseInt(url.searchParams.get("limit") || "7");
+      const { data } = await supabase
+        .from("auto_ops_logs").select("*")
+        .eq("run_type", "daily_report")
+        .order("created_at", { ascending: false }).limit(limit);
+      return NextResponse.json({ reports: data || [] });
+    }
+
     return NextResponse.json({ error: "未知类型" }, { status: 400 });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "查询失败" }, { status: 500 });
@@ -102,6 +112,11 @@ export async function POST(request: Request) {
       case "weekly_review": {
         await weeklyReview(body.module || "store");
         return NextResponse.json({ success: true });
+      }
+
+      case "daily_report": {
+        const dailyReport = await generateDailyReport();
+        return NextResponse.json({ success: true, report: dailyReport });
       }
 
       case "skill_scout": {
