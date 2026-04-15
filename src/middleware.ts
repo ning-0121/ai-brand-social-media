@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Protected routes: redirect to login if not authenticated
-  const protectedPaths = ["/dashboard", "/trends", "/content", "/store", "/social", "/skills", "/strategy", "/live", "/influencers", "/ads", "/channels", "/settings", "/approvals", "/onboarding", "/mission-control", "/internal"];
+  const protectedPaths = ["/dashboard", "/trends", "/content", "/store", "/social", "/skills", "/strategy", "/live", "/influencers", "/ads", "/channels", "/settings", "/approvals", "/onboarding", "/mission-control", "/internal", "/ops-cockpit"];
   const isProtected = protectedPaths.some((path) => pathname.startsWith(path));
 
   if (isProtected && !user) {
@@ -45,7 +45,7 @@ export async function middleware(request: NextRequest) {
   // Already logged in? Redirect away from auth pages
   if (user && (pathname === "/login" || pathname === "/register")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/ops-cockpit";
     return NextResponse.redirect(url);
   }
 
@@ -79,7 +79,7 @@ export async function middleware(request: NextRequest) {
     const onboardingComplete = user.user_metadata?.onboarding_complete === true;
     if (onboardingComplete) {
       const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
+      url.pathname = "/ops-cockpit";
       return NextResponse.redirect(url);
     }
   }

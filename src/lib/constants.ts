@@ -1,5 +1,4 @@
 import {
-  LayoutDashboard,
   Radar,
   FileText,
   Store,
@@ -34,7 +33,6 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   // ── 运营中心（默认展开）──
   { label: "运营驾驶舱", href: "/ops-cockpit", icon: Gauge, group: "运营中心" },
-  { label: "运营总览", href: "/dashboard", icon: LayoutDashboard, group: "运营中心" },
   { label: "店铺优化", href: "/store", icon: Store, group: "运营中心" },
   { label: "社媒规划", href: "/social", icon: Share2, group: "运营中心" },
   { label: "趋势雷达", href: "/trends", icon: Radar, group: "运营中心" },
