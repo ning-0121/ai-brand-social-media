@@ -103,6 +103,36 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
         : "没有 pending 任务",
       data: opsResult as unknown as Record<string, unknown>,
     });
+
+    // 6. 如果所有任务都完成了 → 自动生成新的店铺周计划（补充任务）
+    if (totalProcessed === 0) {
+      // 检查是否还有 pending 任务
+      const { count: pendingCount } = await supabase
+        .from("ops_daily_tasks").select("*", { count: "exact", head: true })
+        .eq("execution_status", "pending");
+
+      // 检查是否有活跃目标
+      const { count: goalCount } = await supabase
+        .from("ops_goals").select("*", { count: "exact", head: true })
+        .eq("status", "active");
+
+      if ((pendingCount || 0) === 0 && (goalCount || 0) > 0) {
+        try {
+          await generateWeeklyPlan("store");
+          results.push({
+            task: "auto_replan",
+            status: "success",
+            message: "所有任务已完成，自动生成新一轮店铺计划",
+          });
+        } catch (err) {
+          results.push({
+            task: "auto_replan",
+            status: "failed",
+            message: err instanceof Error ? err.message : "自动补计划失败",
+          });
+        }
+      }
+    }
   } catch (err) {
     results.push({
       task: "ops_auto_execute",

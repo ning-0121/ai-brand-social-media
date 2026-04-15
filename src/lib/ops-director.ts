@@ -548,9 +548,19 @@ export async function executeDailyTasks(): Promise<{ executed: number; skipped: 
 
   let executed = 0, approval = 0, failed = 0, skipped = 0;
 
+  // 每种任务预估耗时（秒）
+  const TASK_DURATION: Record<string, number> = {
+    seo_fix: 15, detail_page: 25, post: 30,
+    engage: 10, hashtag_strategy: 10, content_calendar: 12,
+    short_video_script: 12, landing_page: 30, homepage_update: 20,
+    new_product_content: 35,
+  };
+
   for (const task of allTasks) {
-    // 超时保护：剩余时间不够就停
-    if (Date.now() - startTime > MAX_DURATION_MS) {
+    // 智能超时：预估剩余时间是否够执行下一个任务
+    const elapsed = Date.now() - startTime;
+    const estimatedMs = (TASK_DURATION[task.task_type] || 20) * 1000;
+    if (elapsed + estimatedMs > MAX_DURATION_MS) {
       skipped += allTasks.length - executed - approval - failed;
       break;
     }
