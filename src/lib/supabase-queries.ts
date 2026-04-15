@@ -72,7 +72,7 @@ export async function getSocialAccounts() {
 export async function getScheduledPosts() {
   const { data, error } = await supabase
     .from("scheduled_posts")
-    .select("id, title, content_preview, content, platform, scheduled_at, status")
+    .select("id, title, content_preview, body, platform, scheduled_at, status, image_url, hashtags, published_at, error_message")
     .order("scheduled_at", { ascending: true });
   if (error) throw error;
   return data;
