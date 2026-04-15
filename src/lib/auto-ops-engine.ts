@@ -91,6 +91,26 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
     });
   }
 
+  // 5. 自动执行运营任务（每小时跑一批 pending 任务）
+  try {
+    const opsResult = await executeDailyTasks();
+    const totalProcessed = opsResult.executed + opsResult.approval + opsResult.failed;
+    results.push({
+      task: "ops_auto_execute",
+      status: totalProcessed > 0 ? "success" : "skipped",
+      message: totalProcessed > 0
+        ? `自动执行 ${opsResult.executed}, 等审批 ${opsResult.approval}, 失败 ${opsResult.failed}, 跳过 ${opsResult.skipped}`
+        : "没有 pending 任务",
+      data: opsResult as unknown as Record<string, unknown>,
+    });
+  } catch (err) {
+    results.push({
+      task: "ops_auto_execute",
+      status: "failed",
+      message: err instanceof Error ? err.message : "自动执行失败",
+    });
+  }
+
   // Log result
   await logRun("hourly", "cron", results, Date.now() - startTime);
   return results;
