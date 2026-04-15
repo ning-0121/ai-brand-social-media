@@ -23,6 +23,7 @@ import { technicalSeoAuditSkill } from "./website/technical-seo-audit";
 import { seoRankingTrackerSkill } from "./website/seo-ranking-tracker";
 import { googleAdsManagerSkill } from "./copy/google-ads-manager";
 import { storeGrowthPlannerSkill } from "./copy/store-growth-planner";
+import { competitorPricingSkill, profitAnalysisSkill, marketingCalendarSkill, restockPlannerSkill, influencerStrategySkill } from "./copy/market-research";
 
 // Image skills
 import { aiProductPhotoSkill } from "./image/ai-product-photo";
@@ -112,6 +113,11 @@ const allSkills: ContentSkill[] = [
   seoRankingTrackerSkill,
   googleAdsManagerSkill,
   storeGrowthPlannerSkill,
+  competitorPricingSkill,
+  profitAnalysisSkill,
+  marketingCalendarSkill,
+  restockPlannerSkill,
+  influencerStrategySkill,
   // OEM
   oemInquiryReplySkill,
   oemQuotationGenSkill,
