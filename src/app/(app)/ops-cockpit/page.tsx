@@ -110,7 +110,7 @@ export default function OpsCockpitPage() {
   const [storePlan, setStorePlan] = useState<WeeklyPlan | null>(null);
   const [socialPlan, setSocialPlan] = useState<WeeklyPlan | null>(null);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
+  const [generatingModule, setGeneratingModule] = useState<string | null>(null);
   const [executing, setExecuting] = useState(false);
 
   // Goal creation
@@ -196,17 +196,24 @@ export default function OpsCockpitPage() {
   };
 
   const handleGeneratePlan = async (module: string) => {
-    setGenerating(true);
+    setGeneratingModule(module);
     try {
-      await fetch("/api/ops-director", {
+      const res = await fetch("/api/ops-director", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "generate_plan", module }),
       });
-      toast.success(`${module === "store" ? "店铺" : "社媒"}周计划已生成`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`${module === "store" ? "店铺" : "社媒"}周计划已生成`);
+      } else {
+        toast.error(`生成失败: ${data.error || "未知错误"}`);
+      }
       fetchAll();
-    } catch { toast.error("生成失败"); }
-    setGenerating(false);
+    } catch (err) {
+      toast.error(`生成失败: ${err instanceof Error ? err.message : "网络错误"}`);
+    }
+    setGeneratingModule(null);
   };
 
   const handleExecuteToday = async () => {
@@ -233,13 +240,13 @@ export default function OpsCockpitPage() {
         description="AI 操盘手：诊断店铺 → 定目标 → 排计划 → 自动执行 → 追踪效果"
         actions={
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => handleGeneratePlan("store")} disabled={generating}>
-              {generating ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
-              生成店铺周计划
+            <Button size="sm" variant="outline" onClick={() => handleGeneratePlan("store")} disabled={!!generatingModule}>
+              {generatingModule === "store" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+              {generatingModule === "store" ? "生成中..." : "生成店铺周计划"}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => handleGeneratePlan("social")} disabled={generating}>
-              {generating ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
-              生成社媒周计划
+            <Button size="sm" variant="outline" onClick={() => handleGeneratePlan("social")} disabled={!!generatingModule}>
+              {generatingModule === "social" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+              {generatingModule === "social" ? "生成中..." : "生成社媒周计划"}
             </Button>
             <Button size="sm" onClick={handleExecuteToday} disabled={executing}>
               {executing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
@@ -438,11 +445,11 @@ export default function OpsCockpitPage() {
         </TabsContent>
 
         <TabsContent value="store_plan" className="mt-4">
-          <PlanCard plan={storePlan} onGenerate={() => handleGeneratePlan("store")} generating={generating} />
+          <PlanCard plan={storePlan} onGenerate={() => handleGeneratePlan("store")} generating={generatingModule === "store"} />
         </TabsContent>
 
         <TabsContent value="social_plan" className="mt-4">
-          <PlanCard plan={socialPlan} onGenerate={() => handleGeneratePlan("social")} generating={generating} />
+          <PlanCard plan={socialPlan} onGenerate={() => handleGeneratePlan("social")} generating={generatingModule === "social"} />
         </TabsContent>
 
         <TabsContent value="ai_impact" className="mt-4">
