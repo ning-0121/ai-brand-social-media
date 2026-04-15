@@ -137,6 +137,7 @@ export default function OpsCockpitPage() {
   const [loading, setLoading] = useState(true);
   const [generatingModule, setGeneratingModule] = useState<string | null>(null);
   const [executing, setExecuting] = useState(false);
+  const [activeTab, setActiveTab] = useState("today");
 
   // Goal creation
   const [showGoalForm, setShowGoalForm] = useState(false);
@@ -145,6 +146,9 @@ export default function OpsCockpitPage() {
   // AI goal proposal
   const [proposing, setProposing] = useState(false);
   const [proposal, setProposal] = useState<GoalProposal | null>(null);
+
+  // 引导流程：tracks what just happened so we can show next-step prompts
+  const [guidanceStep, setGuidanceStep] = useState<"idle" | "goals_adopted" | "plan_generated" | "tasks_executed">("idle");
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -216,6 +220,7 @@ export default function OpsCockpitPage() {
       });
       toast.success(`已采纳 ${goalsToAdopt.length} 个目标`);
       setProposal(null);
+      setGuidanceStep("goals_adopted");
       fetchAll();
     } catch { toast.error("采纳失败"); }
   };
@@ -231,6 +236,8 @@ export default function OpsCockpitPage() {
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success(`${module === "store" ? "店铺" : "社媒"}周计划已生成`);
+        setGuidanceStep("plan_generated");
+        setActiveTab("today"); // 自动跳到今日任务
       } else {
         toast.error(`生成失败: ${data.error || "未知错误"}`);
       }
@@ -251,6 +258,7 @@ export default function OpsCockpitPage() {
       });
       const data = await res.json();
       toast.success(`执行完成: ${data.executed || 0} 自动执行, ${data.approval || 0} 等审批, ${data.failed || 0} 失败`);
+      setGuidanceStep("tasks_executed");
       fetchAll();
     } catch { toast.error("执行失败"); }
     setExecuting(false);
@@ -448,10 +456,16 @@ export default function OpsCockpitPage() {
 
           {/* Existing Goals */}
           {goals.length === 0 && !proposal ? (
-            <div className="text-center py-6 space-y-2">
-              <Target className="h-8 w-8 mx-auto text-muted-foreground/30" />
-              <p className="text-xs text-muted-foreground">暂无目标</p>
-              <p className="text-[10px] text-muted-foreground">点击「AI 诊断建议目标」让 AI 分析店铺数据后自动提出目标</p>
+            <div className="text-center py-8 space-y-3">
+              <div className="flex items-center justify-center h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900 mx-auto">
+                <span className="text-xl font-bold text-purple-600">1</span>
+              </div>
+              <p className="text-sm font-medium">第一步：让 AI 诊断你的店铺</p>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto">AI 会全面审计产品数据、SEO、定价、社媒等维度，找出最紧迫的问题，并建议运营目标</p>
+              <Button onClick={handleProposeGoals} disabled={proposing}>
+                {proposing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Brain className="mr-1.5 h-4 w-4" />}
+                {proposing ? "AI 诊断中..." : "开始 AI 店铺诊断"}
+              </Button>
             </div>
           ) : (
             goals.map((goal) => {
@@ -482,8 +496,68 @@ export default function OpsCockpitPage() {
         </CardContent>
       </Card>
 
+      {/* ═══ Guidance Banner — 引导下一步 ═══ */}
+      {guidanceStep === "goals_adopted" && (
+        <Card className="border-2 border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900 shrink-0">
+              <span className="text-lg font-bold text-emerald-600">2</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium">目标已设定，下一步：生成执行计划</p>
+              <p className="text-xs text-muted-foreground">AI 会围绕你的目标，为本周每天安排具体的执行任务</p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" onClick={() => handleGeneratePlan("store")} disabled={!!generatingModule}>
+                {generatingModule === "store" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                生成店铺周计划
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => handleGeneratePlan("social")} disabled={!!generatingModule}>
+                {generatingModule === "social" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                生成社媒周计划
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {guidanceStep === "plan_generated" && tasks.length > 0 && (
+        <Card className="border-2 border-blue-200 bg-blue-50/50 dark:bg-blue-950/20">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 shrink-0">
+              <span className="text-lg font-bold text-blue-600">3</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium">计划已生成，今日有 {tasks.length} 个任务待执行</p>
+              <p className="text-xs text-muted-foreground">点击执行，AI 将自动完成任务（修复 SEO、生成内容等），结果会推送到 Shopify</p>
+            </div>
+            <Button size="sm" onClick={handleExecuteToday} disabled={executing}>
+              {executing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
+              执行今日任务
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {guidanceStep === "tasks_executed" && (
+        <Card className="border-2 border-green-200 bg-green-50/50 dark:bg-green-950/20">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 shrink-0">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium">任务已执行完成</p>
+              <p className="text-xs text-muted-foreground">查看下方执行结果，明天系统会自动继续执行剩余任务。每天的进度会自动更新到目标进度条。</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setGuidanceStep("idle")}>
+              知道了
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Weekly Plans + Today's Tasks */}
-      <Tabs defaultValue="today">
+      <Tabs value={activeTab} onValueChange={(v) => v && setActiveTab(v)}>
         <TabsList>
           <TabsTrigger value="today">今日任务 ({tasks.length})</TabsTrigger>
           <TabsTrigger value="store_plan">店铺周计划</TabsTrigger>
