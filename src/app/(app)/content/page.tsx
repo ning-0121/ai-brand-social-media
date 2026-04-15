@@ -327,7 +327,7 @@ export default function ContentPage() {
               </div>
             </CardHeader>
             <CardContent className="p-3">
-              <Tabs defaultValue="image" className="flex flex-col">
+              <Tabs defaultValue="image">
                 <TabsList className="w-full flex h-9 overflow-x-auto shrink-0">
                   <TabsTrigger value="image" className="text-[11px] flex-1 min-w-0 gap-1">
                     📸 图片 ({imageSkills.length})

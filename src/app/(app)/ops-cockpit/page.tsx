@@ -290,8 +290,8 @@ export default function OpsCockpitPage() {
       />
 
       {/* ═══ Main Tabs — 页面核心导航 ═══ */}
-      <Tabs value={activeTab} onValueChange={(v) => v && setActiveTab(v)} className="flex flex-col">
-        <TabsList className="shrink-0">
+      <Tabs value={activeTab} onValueChange={(v) => v && setActiveTab(v)}>
+        <TabsList>
           <TabsTrigger value="today">今日任务 ({tasks.length})</TabsTrigger>
           <TabsTrigger value="goals">运营目标</TabsTrigger>
           <TabsTrigger value="store_plan">店铺周计划</TabsTrigger>
