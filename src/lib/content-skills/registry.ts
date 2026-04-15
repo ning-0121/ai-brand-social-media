@@ -17,6 +17,7 @@ import { influencerBriefSkill } from "./social/influencer-brief";
 import { ugcResponseSkill } from "./social/ugc-response";
 import { liveStreamScriptSkill } from "./social/live-stream-script";
 import { instagramAnalyticsSkill } from "./social/instagram-analytics";
+import { contentMatrixSkill, liveStreamPlanSkill, productSelectionSkill } from "./social/matrix-operations";
 
 // Advanced SEO & Analytics
 import { technicalSeoAuditSkill } from "./website/technical-seo-audit";
@@ -106,6 +107,9 @@ const allSkills: ContentSkill[] = [
   influencerBriefSkill,
   ugcResponseSkill,
   instagramAnalyticsSkill,
+  contentMatrixSkill,
+  liveStreamPlanSkill,
+  productSelectionSkill,
   // Video
   liveStreamScriptSkill,
   // Advanced SEO & Analytics
