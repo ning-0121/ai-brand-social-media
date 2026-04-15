@@ -3,6 +3,7 @@ import { runRadarScan } from "./radar-engine";
 import { runDiagnostic } from "./diagnostic-engine";
 import { autoPublishDuePosts } from "./social-publisher";
 import { executeDailyTasks, recordPerformanceSnapshot, generateWeeklyPlan, weeklyReview } from "./ops-director";
+import { runSkillScout } from "./skill-scout";
 
 interface TaskResult {
   task: string;
@@ -360,6 +361,21 @@ export async function runDailyTasks(): Promise<TaskResult[]> {
       results.push({ task: "weekly_review", status: "success", message: "已完成本周复盘" });
     } catch (err) {
       results.push({ task: "weekly_review", status: "failed", message: err instanceof Error ? err.message : "复盘失败" });
+    }
+  }
+
+  // 12. Wednesday + Saturday: Skill Scout — 自动学习，扫描 GitHub 发现新工具
+  if (dayOfWeek === 3 || dayOfWeek === 6) {
+    try {
+      const scoutReport = await runSkillScout();
+      results.push({
+        task: "skill_scout",
+        status: scoutReport.findings.length > 0 ? "success" : "skipped",
+        message: `扫描 ${scoutReport.sources_checked} 个项目，发现 ${scoutReport.findings.length} 个有价值工具`,
+        data: { top_recommendations: scoutReport.top_recommendations } as Record<string, unknown>,
+      });
+    } catch (err) {
+      results.push({ task: "skill_scout", status: "failed", message: err instanceof Error ? err.message : "Skill 扫描失败" });
     }
   }
 

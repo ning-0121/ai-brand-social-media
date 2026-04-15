@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { generateWeeklyPlan, executeDailyTasks, recordPerformanceSnapshot, weeklyReview, proposeGoals, adoptGoals, auditStore } from "@/lib/ops-director";
 import type { ProposedGoal } from "@/lib/ops-director";
 import { requireAuth } from "@/lib/api-auth";
+import { runSkillScout } from "@/lib/skill-scout";
 
 export const maxDuration = 60;
 
@@ -101,6 +102,11 @@ export async function POST(request: Request) {
       case "weekly_review": {
         await weeklyReview(body.module || "store");
         return NextResponse.json({ success: true });
+      }
+
+      case "skill_scout": {
+        const scoutReport = await runSkillScout();
+        return NextResponse.json({ success: true, report: scoutReport });
       }
 
       case "audit_store": {
