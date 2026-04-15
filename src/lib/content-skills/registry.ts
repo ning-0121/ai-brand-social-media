@@ -16,6 +16,10 @@ import { hashtagStrategySkill } from "./social/hashtag-strategy";
 import { influencerBriefSkill } from "./social/influencer-brief";
 import { ugcResponseSkill } from "./social/ugc-response";
 import { liveStreamScriptSkill } from "./social/live-stream-script";
+import { instagramAnalyticsSkill } from "./social/instagram-analytics";
+
+// Advanced SEO
+import { technicalSeoAuditSkill } from "./website/technical-seo-audit";
 
 // Image skills
 import { aiProductPhotoSkill } from "./image/ai-product-photo";
@@ -97,8 +101,11 @@ const allSkills: ContentSkill[] = [
   hashtagStrategySkill,
   influencerBriefSkill,
   ugcResponseSkill,
+  instagramAnalyticsSkill,
   // Video
   liveStreamScriptSkill,
+  // Advanced SEO
+  technicalSeoAuditSkill,
   // OEM
   oemInquiryReplySkill,
   oemQuotationGenSkill,
