@@ -512,7 +512,10 @@ ${productSummary}
 
 // ============ 2. Execute Daily Tasks ============
 export async function executeDailyTasks(): Promise<{ executed: number; skipped: number; approval: number; failed: number }> {
-  // Reset any tasks stuck in "running" for over 5 minutes (crashed execution)
+  const startTime = Date.now();
+  const MAX_DURATION_MS = 50_000; // 50 秒硬限，留 10 秒给 response
+
+  // Reset stuck "running" tasks (crashed execution)
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   await supabase
     .from("ops_daily_tasks")
@@ -520,69 +523,73 @@ export async function executeDailyTasks(): Promise<{ executed: number; skipped: 
     .eq("execution_status", "running")
     .lt("updated_at", fiveMinAgo);
 
-  // 取下一个 pending 任务（不限日期，按日期排序优先执行早的）
-  const { data: tasks } = await supabase
+  // 取所有 pending 任务
+  const { data: allTasks } = await supabase
     .from("ops_daily_tasks")
     .select("*")
     .eq("execution_status", "pending")
     .order("task_date", { ascending: true })
-    .order("created_at", { ascending: true })
-    .limit(1);
+    .order("created_at", { ascending: true });
 
-  if (!tasks || tasks.length === 0) return { executed: 0, skipped: 0, approval: 0, failed: 0 };
-
-  const task = tasks[0];
+  if (!allTasks || allTasks.length === 0) return { executed: 0, skipped: 0, approval: 0, failed: 0 };
 
   const { data: integration } = await supabase
     .from("integrations").select("id").eq("platform", "shopify").eq("status", "active").maybeSingle();
   const integrationId = integration?.id;
 
-  let executed = 0, approval = 0, failed = 0;
-  const skipped = 0;
+  let executed = 0, approval = 0, failed = 0, skipped = 0;
 
-  try {
-    if (task.auto_executable) {
-      await supabase.from("ops_daily_tasks").update({ execution_status: "running" }).eq("id", task.id);
-
-      const result = await executeTask(task, integrationId);
-
-      await supabase.from("ops_daily_tasks").update({
-        execution_status: "auto_executed",
-        execution_result: result,
-        updated_at: new Date().toISOString(),
-      }).eq("id", task.id);
-
-      executed++;
-    } else {
-      const approvalResult = await createApprovalTask({
-        type: "products",
-        title: `[AI 运营] ${task.title}`,
-        description: task.description || "",
-        payload: {
-          ops_task_id: task.id,
-          task_type: task.task_type,
-          module: task.module,
-          target_product_id: task.target_product_id,
-          target_product_name: task.target_product_name,
-        },
-      });
-
-      await supabase.from("ops_daily_tasks").update({
-        execution_status: "awaiting_approval",
-        approval_task_id: approvalResult.id,
-        updated_at: new Date().toISOString(),
-      }).eq("id", task.id);
-
-      approval++;
+  for (const task of allTasks) {
+    // 超时保护：剩余时间不够就停
+    if (Date.now() - startTime > MAX_DURATION_MS) {
+      skipped += allTasks.length - executed - approval - failed;
+      break;
     }
-  } catch (err) {
-    console.error(`Task ${task.id} failed:`, err);
-    await supabase.from("ops_daily_tasks").update({
-      execution_status: "failed",
-      execution_result: { error: err instanceof Error ? err.message : "执行失败" },
-      updated_at: new Date().toISOString(),
-    }).eq("id", task.id);
-    failed++;
+
+    try {
+      if (task.auto_executable) {
+        await supabase.from("ops_daily_tasks").update({ execution_status: "running" }).eq("id", task.id);
+
+        const result = await executeTask(task, integrationId);
+
+        await supabase.from("ops_daily_tasks").update({
+          execution_status: "auto_executed",
+          execution_result: result,
+          updated_at: new Date().toISOString(),
+        }).eq("id", task.id);
+
+        executed++;
+      } else {
+        const approvalResult = await createApprovalTask({
+          type: "products",
+          title: `[AI 运营] ${task.title}`,
+          description: task.description || "",
+          payload: {
+            ops_task_id: task.id,
+            task_type: task.task_type,
+            module: task.module,
+            target_product_id: task.target_product_id,
+            target_product_name: task.target_product_name,
+          },
+        });
+
+        await supabase.from("ops_daily_tasks").update({
+          execution_status: "awaiting_approval",
+          approval_task_id: approvalResult.id,
+          updated_at: new Date().toISOString(),
+        }).eq("id", task.id);
+
+        approval++;
+      }
+    } catch (err) {
+      console.error(`Task ${task.id} failed:`, err);
+      await supabase.from("ops_daily_tasks").update({
+        execution_status: "failed",
+        execution_result: { error: err instanceof Error ? err.message : "执行失败" },
+        updated_at: new Date().toISOString(),
+      }).eq("id", task.id);
+      failed++;
+    }
   }
 
   return { executed, skipped, approval, failed };
