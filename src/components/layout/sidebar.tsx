@@ -16,7 +16,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
   const [pendingCount, setPendingCount] = useState(0);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ "运营中心": true });
 
   useEffect(() => {
     getPendingCount().then(setPendingCount).catch(() => {});
