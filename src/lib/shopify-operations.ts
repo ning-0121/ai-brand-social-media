@@ -111,6 +111,7 @@ export async function syncProducts(integrationId: string) {
       meta_title: metaTitle,
       meta_description: metaDescription,
       handle: sp.handle || null,
+      compare_at_price: parseFloat(variant?.compare_at_price || "0") || null,
     };
 
     const { data: existing } = await supabase

@@ -68,6 +68,28 @@ interface WeeklyPlan {
   status: string;
 }
 
+interface AuditIssue {
+  severity: "critical" | "warning" | "info";
+  message: string;
+  affected_count?: number;
+}
+
+interface AuditDimension {
+  name: string;
+  score: number;
+  maxScore: number;
+  issues: AuditIssue[];
+}
+
+interface StoreAudit {
+  overall_score: number;
+  grade: string;
+  dimensions: AuditDimension[];
+  ai_diagnosis: string;
+  recommended_phase: string;
+  phase_rationale: string;
+}
+
 interface ProposedGoal {
   module: string;
   metric: string;
@@ -78,10 +100,13 @@ interface ProposedGoal {
   rationale: string;
   execution_plan: string;
   estimated_effort: string;
+  phase: string;
 }
 
 interface GoalProposal {
-  diagnosis: string;
+  audit: StoreAudit;
+  current_phase: string;
+  phase_description: string;
   proposed_goals: ProposedGoal[];
 }
 
@@ -276,41 +301,109 @@ export default function OpsCockpitPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* AI Goal Proposal */}
+          {/* AI Audit + Goal Proposal */}
           {proposal && (
-            <div className="rounded-lg border-2 border-purple-200 bg-purple-50/50 dark:bg-purple-950/20 p-4 space-y-3">
-              <div className="flex items-start gap-2">
-                <Brain className="h-4 w-4 text-purple-600 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-purple-900 dark:text-purple-100">AI 诊断结果</p>
-                  <p className="text-xs text-purple-700 dark:text-purple-300 mt-0.5">{proposal.diagnosis}</p>
-                </div>
-                <Button size="sm" variant="ghost" className="ml-auto h-6 w-6 p-0 shrink-0" onClick={() => setProposal(null)}>
+            <div className="rounded-lg border-2 border-purple-200 bg-purple-50/50 dark:bg-purple-950/20 p-4 space-y-4">
+              {/* Close button */}
+              <div className="flex justify-end">
+                <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setProposal(null)}>
                   <X className="h-3 w-3" />
                 </Button>
               </div>
 
-              {proposal.proposed_goals.map((g, i) => (
-                <div key={i} className="rounded-lg bg-white dark:bg-background border p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-[10px]">{g.module}</Badge>
-                      <span className="text-sm font-medium">
-                        {METRIC_OPTIONS.find(o => o.value === g.metric)?.label || g.metric}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {g.current_value} → <span className="font-bold text-foreground">{g.target_value}</span> {g.unit}
+              {/* Audit Score + Phase */}
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col items-center">
+                  <div className={cn(
+                    "text-2xl font-bold",
+                    proposal.audit.overall_score >= 70 ? "text-emerald-600" : proposal.audit.overall_score >= 40 ? "text-amber-600" : "text-red-600"
+                  )}>
+                    {proposal.audit.overall_score}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">总分/100</span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge className={cn("text-xs",
+                      proposal.audit.recommended_phase === "foundation" ? "bg-red-100 text-red-700 border-red-200"
+                      : proposal.audit.recommended_phase === "traffic" ? "bg-blue-100 text-blue-700 border-blue-200"
+                      : "bg-green-100 text-green-700 border-green-200"
+                    )}>
+                      {proposal.current_phase === "foundation" ? "阶段一：修地基"
+                       : proposal.current_phase === "traffic" ? "阶段二：引流量"
+                       : "阶段三：做转化"}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px]">{proposal.audit.grade} 级</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{proposal.phase_description}</p>
+                </div>
+              </div>
+
+              {/* AI Diagnosis */}
+              <div className="rounded-lg bg-white dark:bg-background border p-3">
+                <div className="flex items-start gap-2">
+                  <Brain className="h-4 w-4 text-purple-600 mt-0.5 shrink-0" />
+                  <p className="text-xs">{proposal.audit.ai_diagnosis}</p>
+                </div>
+              </div>
+
+              {/* Dimension Scores */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">审计维度</p>
+                {proposal.audit.dimensions.map((dim) => (
+                  <div key={dim.name} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span>{dim.name}</span>
+                      <span className={cn("font-mono font-bold",
+                        dim.score / dim.maxScore >= 0.7 ? "text-emerald-600" : dim.score / dim.maxScore >= 0.4 ? "text-amber-600" : "text-red-600"
+                      )}>
+                        {dim.score}/{dim.maxScore}
                       </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">截止 {g.deadline}</span>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={cn("h-full rounded-full",
+                          dim.score / dim.maxScore >= 0.7 ? "bg-emerald-500" : dim.score / dim.maxScore >= 0.4 ? "bg-amber-500" : "bg-red-500"
+                        )}
+                        style={{ width: `${(dim.score / dim.maxScore) * 100}%` }}
+                      />
+                    </div>
+                    {dim.issues.filter(i => i.severity !== "info").slice(0, 2).map((issue, j) => (
+                      <p key={j} className={cn("text-[10px] pl-2",
+                        issue.severity === "critical" ? "text-red-600" : "text-amber-600"
+                      )}>
+                        {issue.severity === "critical" ? "!!" : "!"} {issue.message}
+                      </p>
+                    ))}
                   </div>
-                  <p className="text-xs text-muted-foreground">{g.rationale}</p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400">{g.execution_plan}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">{g.estimated_effort}</span>
-                  </div>
+                ))}
+              </div>
+
+              {/* Proposed Goals */}
+              {proposal.proposed_goals.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">建议目标</p>
+                  {proposal.proposed_goals.map((g, i) => (
+                    <div key={i} className="rounded-lg bg-white dark:bg-background border p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px]">{g.module}</Badge>
+                          <span className="text-sm font-medium">
+                            {METRIC_OPTIONS.find(o => o.value === g.metric)?.label || g.metric}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {g.current_value} → <span className="font-bold text-foreground">{g.target_value}</span> {g.unit}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">截止 {g.deadline}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{g.rationale}</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400">{g.execution_plan}</p>
+                      <span className="text-[10px] text-muted-foreground">{g.estimated_effort}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
 
               <div className="flex gap-2 justify-end">
                 <Button size="sm" variant="outline" onClick={() => setProposal(null)}>

@@ -7,7 +7,29 @@ import { createApprovalTask } from "./supabase-approval";
 import { reviewContent } from "./content-qa";
 import { productContentPipeline, socialContentPipeline, campaignPipeline } from "./content-pipeline";
 
-// ============ 0. AI 自主诊断 & 提出目标 ============
+// ============ Types ============
+
+export interface AuditIssue {
+  severity: "critical" | "warning" | "info";
+  message: string;
+  affected_count?: number;
+}
+
+export interface AuditDimension {
+  name: string;
+  score: number;
+  maxScore: number;
+  issues: AuditIssue[];
+}
+
+export interface StoreAudit {
+  overall_score: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+  dimensions: AuditDimension[];
+  ai_diagnosis: string;
+  recommended_phase: "foundation" | "traffic" | "conversion";
+  phase_rationale: string;
+}
 
 export interface ProposedGoal {
   module: string;
@@ -19,108 +41,293 @@ export interface ProposedGoal {
   rationale: string;
   execution_plan: string;
   estimated_effort: string;
+  phase: string;
 }
 
 export interface GoalProposal {
-  diagnosis: string;
+  audit: StoreAudit;
+  current_phase: string;
+  phase_description: string;
   proposed_goals: ProposedGoal[];
 }
 
-export async function proposeGoals(): Promise<GoalProposal> {
-  // 收集全量数据 — 不截断
-  const dashKPIs = await getDashboardKPIs();
-  const storeKPIs = await getStoreKPIs();
+// ============ 0. 全面店铺审计 ============
 
-  // 产品 SEO 分布
+export async function auditStore(): Promise<StoreAudit> {
+  // ─── 收集全量数据 ───
   const { data: products } = await supabase
-    .from("products").select("id, name, seo_score, meta_title, meta_description, body_html, tags, price, stock, category")
+    .from("products")
+    .select("id, name, sku, price, stock, status, seo_score, category, image_url, meta_title, meta_description, body_html, tags, handle, compare_at_price, shopify_product_id")
     .eq("platform", "shopify").not("shopify_product_id", "is", null);
 
-  const allProducts = products || [];
-  const avgSeo = allProducts.length > 0 ? Math.round(allProducts.reduce((s, p) => s + (p.seo_score || 0), 0) / allProducts.length) : 0;
-  const missingMeta = allProducts.filter(p => !p.meta_title || !p.meta_description).length;
-  const missingBody = allProducts.filter(p => !p.body_html || p.body_html.length < 100).length;
-  const outOfStock = allProducts.filter(p => (p.stock || 0) === 0).length;
+  const all = products || [];
+  const total = all.length;
 
-  // 社媒数据
-  const { count: publishedPosts } = await supabase
-    .from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "published");
+  const dashKPIs = await getDashboardKPIs();
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+  const { count: recentPosts } = await supabase
+    .from("scheduled_posts").select("*", { count: "exact", head: true })
+    .eq("status", "published").gte("created_at", thirtyDaysAgo);
+
   const { count: connectedAccounts } = await supabase
     .from("social_accounts").select("*", { count: "exact", head: true }).eq("connected", true);
 
-  // 已有目标
+  // ─── A. 产品基础设施（30 分）───
+  const noCategory = all.filter(p => !p.category || p.category === "未分类").length;
+  const noTags = all.filter(p => !p.tags || p.tags.trim() === "").length;
+  const noBody = all.filter(p => !p.body_html || p.body_html.length < 100).length;
+  const noImage = all.filter(p => !p.image_url).length;
+  const badHandle = all.filter(p => p.handle && (/copy/.test(p.handle) || /^\d+$/.test(p.handle))).length;
+
+  const infraIssues: AuditIssue[] = [];
+  let infraScore = 30;
+
+  if (total > 0) {
+    const catPct = noCategory / total;
+    if (catPct > 0.5) { infraScore -= 8; infraIssues.push({ severity: "critical", message: `${noCategory}/${total} 商品没有分类（product_type 为空）`, affected_count: noCategory }); }
+    else if (catPct > 0) { infraScore -= 3; infraIssues.push({ severity: "warning", message: `${noCategory} 个商品缺少分类`, affected_count: noCategory }); }
+
+    const tagPct = noTags / total;
+    if (tagPct > 0.5) { infraScore -= 7; infraIssues.push({ severity: "critical", message: `${noTags}/${total} 商品没有标签，搜索和推荐无法工作`, affected_count: noTags }); }
+    else if (tagPct > 0) { infraScore -= 3; infraIssues.push({ severity: "warning", message: `${noTags} 个商品缺少标签`, affected_count: noTags }); }
+
+    const bodyPct = noBody / total;
+    if (bodyPct > 0.5) { infraScore -= 8; infraIssues.push({ severity: "critical", message: `${noBody}/${total} 商品描述过短或缺失（<100字），严重影响转化`, affected_count: noBody }); }
+    else if (bodyPct > 0) { infraScore -= 4; infraIssues.push({ severity: "warning", message: `${noBody} 个商品描述过短`, affected_count: noBody }); }
+
+    if (noImage > 0) { infraScore -= 4; infraIssues.push({ severity: "critical", message: `${noImage} 个商品缺少图片`, affected_count: noImage }); }
+    if (badHandle > 0) { infraScore -= 3; infraIssues.push({ severity: "warning", message: `${badHandle} 个商品 URL handle 不规范（含 copy 或纯数字）`, affected_count: badHandle }); }
+  } else {
+    infraScore = 0;
+    infraIssues.push({ severity: "critical", message: "没有同步任何 Shopify 商品" });
+  }
+  infraScore = Math.max(0, infraScore);
+
+  // ─── B. SEO 健康度（25 分）───
+  const avgSeo = total > 0 ? Math.round(all.reduce((s, p) => s + (p.seo_score || 0), 0) / total) : 0;
+  const noMetaTitle = all.filter(p => !p.meta_title).length;
+  const noMetaDesc = all.filter(p => !p.meta_description).length;
+  const dupTitle = all.filter(p => p.meta_title && p.meta_title.trim().toLowerCase() === p.name.trim().toLowerCase()).length;
+
+  const seoIssues: AuditIssue[] = [];
+  let seoScore = 25;
+
+  if (total > 0) {
+    if (avgSeo < 40) { seoScore -= 10; seoIssues.push({ severity: "critical", message: `平均 SEO 分仅 ${avgSeo}/100，远低于及格线` }); }
+    else if (avgSeo < 60) { seoScore -= 5; seoIssues.push({ severity: "warning", message: `平均 SEO 分 ${avgSeo}/100，有提升空间` }); }
+
+    if (noMetaTitle / total > 0.3) { seoScore -= 6; seoIssues.push({ severity: "critical", message: `${noMetaTitle}/${total} 商品缺少 meta_title，Google 搜索结果没有优化标题`, affected_count: noMetaTitle }); }
+    else if (noMetaTitle > 0) { seoScore -= 2; seoIssues.push({ severity: "warning", message: `${noMetaTitle} 个商品缺少 meta_title`, affected_count: noMetaTitle }); }
+
+    if (noMetaDesc / total > 0.3) { seoScore -= 5; seoIssues.push({ severity: "critical", message: `${noMetaDesc}/${total} 商品缺少 meta_description`, affected_count: noMetaDesc }); }
+    else if (noMetaDesc > 0) { seoScore -= 2; seoIssues.push({ severity: "warning", message: `${noMetaDesc} 个商品缺少 meta_description`, affected_count: noMetaDesc }); }
+
+    if (dupTitle > 0) { seoScore -= 4; seoIssues.push({ severity: "warning", message: `${dupTitle} 个商品 meta_title 与商品名完全相同，没有 SEO 优化`, affected_count: dupTitle }); }
+  }
+  seoScore = Math.max(0, seoScore);
+
+  // ─── C. 定价策略（15 分）───
+  const noComparePrice = all.filter(p => !p.compare_at_price || p.compare_at_price === 0).length;
+  const prices = all.map(p => p.price).filter(Boolean).sort((a, b) => a - b);
+  const uniquePrices = new Set(prices.map(p => Math.round(p)));
+
+  const pricingIssues: AuditIssue[] = [];
+  let pricingScore = 15;
+
+  if (total > 0) {
+    const noComparePct = noComparePrice / total;
+    if (noComparePct > 0.8) { pricingScore -= 8; pricingIssues.push({ severity: "critical", message: `${noComparePrice}/${total} 商品没有划线价（compare_at_price），促销折扣无感知`, affected_count: noComparePrice }); }
+    else if (noComparePct > 0.3) { pricingScore -= 4; pricingIssues.push({ severity: "warning", message: `${noComparePrice} 个商品没有划线价`, affected_count: noComparePrice }); }
+
+    if (uniquePrices.size <= 2 && total > 5) { pricingScore -= 4; pricingIssues.push({ severity: "warning", message: `只有 ${uniquePrices.size} 个价格档位（${Array.from(uniquePrices).join(", ")}），价格带过于集中` }); }
+
+    if (prices.length > 0) {
+      const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+      pricingIssues.push({ severity: "info", message: `价格范围 $${prices[0]}-$${prices[prices.length - 1]}，均价 $${Math.round(avgPrice)}` });
+    }
+  }
+  pricingScore = Math.max(0, pricingScore);
+
+  // ─── D. 社媒内容（15 分）───
+  const socialIssues: AuditIssue[] = [];
+  let socialScore = 15;
+
+  const postCount = recentPosts || 0;
+  const accountCount = connectedAccounts || 0;
+
+  if (postCount === 0) { socialScore -= 10; socialIssues.push({ severity: "critical", message: "过去 30 天零社媒发布，没有内容曝光" }); }
+  else if (postCount < 10) { socialScore -= 5; socialIssues.push({ severity: "warning", message: `过去 30 天仅发布 ${postCount} 条，远低于每日 1 条的基准`, affected_count: postCount }); }
+
+  if (accountCount === 0) { socialScore -= 5; socialIssues.push({ severity: "critical", message: "没有连接任何社媒账号" }); }
+  else if (accountCount < 2) { socialScore -= 2; socialIssues.push({ severity: "warning", message: `仅连接 ${accountCount} 个社媒账号，建议至少 2 个平台` }); }
+  else { socialIssues.push({ severity: "info", message: `已连接 ${accountCount} 个社媒账号` }); }
+
+  socialScore = Math.max(0, socialScore);
+
+  // ─── E. 销售表现（15 分）───
+  const salesIssues: AuditIssue[] = [];
+  let salesScore = 15;
+
+  const revenue = dashKPIs?.totalRevenue || 0;
+  const orders = dashKPIs?.totalOrders || 0;
+  const revTrend = dashKPIs?.revenueTrend || 0;
+  const outOfStock = all.filter(p => (p.stock || 0) === 0).length;
+
+  if (revenue === 0) { salesScore -= 8; salesIssues.push({ severity: "critical", message: "过去 30 天零营收" }); }
+  else if (revTrend < -20) { salesScore -= 5; salesIssues.push({ severity: "critical", message: `营收下降 ${Math.abs(revTrend).toFixed(1)}%，需要紧急干预` }); }
+  else if (revTrend < 0) { salesScore -= 2; salesIssues.push({ severity: "warning", message: `营收下降 ${Math.abs(revTrend).toFixed(1)}%` }); }
+  else { salesIssues.push({ severity: "info", message: `30 天营收 $${revenue.toFixed(0)}，增长 ${revTrend.toFixed(1)}%` }); }
+
+  if (orders > 0) { salesIssues.push({ severity: "info", message: `${orders} 笔订单，客单价 $${(dashKPIs?.aov || 0).toFixed(0)}` }); }
+
+  const oosPercent = total > 0 ? outOfStock / total : 0;
+  if (oosPercent > 0.3) { salesScore -= 5; salesIssues.push({ severity: "critical", message: `${outOfStock}/${total} 商品缺货（${(oosPercent * 100).toFixed(0)}%）`, affected_count: outOfStock }); }
+  else if (outOfStock > 0) { salesScore -= 2; salesIssues.push({ severity: "warning", message: `${outOfStock} 个商品缺货`, affected_count: outOfStock }); }
+
+  salesScore = Math.max(0, salesScore);
+
+  // ─── 汇总 ───
+  const dimensions: AuditDimension[] = [
+    { name: "产品基础设施", score: infraScore, maxScore: 30, issues: infraIssues },
+    { name: "SEO 健康度", score: seoScore, maxScore: 25, issues: seoIssues },
+    { name: "定价策略", score: pricingScore, maxScore: 15, issues: pricingIssues },
+    { name: "社媒内容", score: socialScore, maxScore: 15, issues: socialIssues },
+    { name: "销售表现", score: salesScore, maxScore: 15, issues: salesIssues },
+  ];
+
+  const overall = dimensions.reduce((s, d) => s + d.score, 0);
+  const grade = overall >= 85 ? "A" : overall >= 70 ? "B" : overall >= 55 ? "C" : overall >= 40 ? "D" : "F" as const;
+
+  // 判断当前阶段
+  const recommended_phase = (overall < 60 || infraScore < 20) ? "foundation"
+    : overall < 80 ? "traffic"
+    : "conversion" as const;
+
+  const phaseNames = { foundation: "修地基", traffic: "引流量", conversion: "做转化" };
+  const phaseDescs = {
+    foundation: "店铺基础设施不完善，需要先补全产品信息、SEO 元数据、定价策略，打好地基再引流",
+    traffic: "基础设施基本到位，现在重点是通过 SEO、社媒内容和广告把流量做起来",
+    conversion: "流量已有基础，重点优化转化率、邮件营销、用户评价和复购",
+  };
+
+  // 一次 AI 调用生成人话诊断
+  const criticalIssues = dimensions.flatMap(d => d.issues.filter(i => i.severity === "critical").map(i => i.message));
+
+  const aiResult = await callLLM(
+    `你是月销百万的 Shopify DTC 操盘手。用一段话（3-4 句）诊断这个店铺当前最紧迫的问题。不要说废话，直接指出问题和后果。`,
+    `店铺审计结果：总分 ${overall}/100（${grade} 级）
+当前阶段：${phaseNames[recommended_phase]}
+关键问题：
+${criticalIssues.map(i => `- ${i}`).join("\n") || "无严重问题"}
+商品数：${total}，均价 $${prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : 0}
+30 天营收：$${revenue.toFixed(0)}，订单 ${orders} 笔
+社媒发布：${postCount} 条/月
+
+用一段话诊断，直接说问题。不要返回 JSON。`,
+    500
+  );
+
+  const ai_diagnosis = typeof aiResult === "string" ? aiResult
+    : (aiResult as Record<string, unknown>).raw_text as string
+    || criticalIssues.join("；") || "店铺状况良好";
+
+  return {
+    overall_score: overall,
+    grade,
+    dimensions,
+    ai_diagnosis,
+    recommended_phase,
+    phase_rationale: phaseDescs[recommended_phase],
+  };
+}
+
+export async function proposeGoals(): Promise<GoalProposal> {
+  // 1. 先做全面审计
+  const audit = await auditStore();
+
+  // 2. 获取已有目标（避免重复）
   const { data: existingGoals } = await supabase
     .from("ops_goals").select("*").eq("status", "active");
-
-  // 最近 30 天趋势
-  const { data: snapshots } = await supabase
-    .from("ops_performance_snapshots").select("*")
-    .order("snapshot_date", { ascending: false }).limit(30);
 
   const today = new Date();
   const thirtyDaysLater = new Date(today.getTime() + 30 * 86400000).toISOString().split("T")[0];
 
-  const result = await callLLM(
-    `你是月销百万的 Shopify DTC 品牌操盘手。你现在要看数据、找问题、定目标。
+  const phaseNames: Record<string, string> = { foundation: "修地基", traffic: "引流量", conversion: "做转化" };
+  const phaseGoalGuide: Record<string, string> = {
+    foundation: `当前在【修地基】阶段。目标必须聚焦在：
+- 补全产品 meta_title/meta_description（提升 seo_score）
+- 充实产品描述 body_html
+- 设置 compare_at_price 划线价
+- 补全 tags 和 product_type
+不要提流量和转化相关的目标，地基没修好引流是浪费钱。`,
+    traffic: `当前在【引流量】阶段。基础设施已达标，目标聚焦在：
+- 社媒内容发布量（published_posts）
+- SEO 分数继续提升（seo_score）
+- 广告投放准备
+不要提转化优化的目标，先有流量再谈转化。`,
+    conversion: `当前在【做转化】阶段。流量有基础，目标聚焦在：
+- 提升营收（revenue）和订单（orders）
+- 提高客单价（aov）
+- 邮件营销和复购`,
+  };
 
-你不是咨询顾问，不要写报告。你是真正管店的人，你自己要执行这些目标。
+  // 3. 基于审计结果让 AI 提目标
+  const allIssues = audit.dimensions.flatMap(d => d.issues.filter(i => i.severity !== "info").map(i => `[${d.name}] ${i.message}`));
+
+  const result = await callLLM(
+    `你是月销百万的 Shopify DTC 操盘手。基于店铺审计结果，提出 2-3 个目标。
+
+${phaseGoalGuide[audit.recommended_phase]}
 
 规则：
-1. 先诊断当前最大的问题（一句话，直击要害）
-2. 最多提 3 个目标，聚焦比发散重要
-3. 每个目标必须有具体数字 — 不能 "提升 SEO"，要 "30 天内平均 SEO 分从 ${avgSeo} 提到 65"
-4. metric 只能用系统能追踪的：revenue, orders, aov, seo_score, customers, published_posts
-5. target_value 基于数据趋势合理推算，不要拍脑袋
-6. 每个目标附带你会怎么执行（用什么 skill、做什么动作）
-7. deadline 统一用 ${thirtyDaysLater} 附近
-8. 如果已有目标正在执行且合理，不要重复提
+1. 每个目标必须有具体数字，基于审计数据合理推算
+2. metric 只能用：revenue, orders, aov, seo_score, customers, published_posts
+3. 每个目标附带执行方案（用什么 skill、做什么动作、多少步）
+4. deadline 统一 ${thirtyDaysLater}
+5. phase 必须填 "${audit.recommended_phase}"
+6. 已有目标不要重复：${JSON.stringify((existingGoals || []).map(g => g.metric))}
 
-返回 JSON，不要有任何解释。`,
-    `当前店铺数据：
-- 营收（30天）: ${dashKPIs?.totalRevenue || 0} ${dashKPIs?.currency || 'USD'}
-- 订单数: ${dashKPIs?.totalOrders || 0}
-- 客单价: ${dashKPIs?.aov || 0}
-- 客户数: ${dashKPIs?.totalCustomers || 0}
-- 营收趋势: ${dashKPIs?.revenueTrend || 0}%
-- 订单趋势: ${dashKPIs?.ordersTrend || 0}%
-- 店铺健康分: ${storeKPIs.healthScore}/100
-- 系统平均 SEO 分: ${storeKPIs.avgSEO}
+返回 JSON，不要解释。`,
+    `店铺审计报告：
+总分：${audit.overall_score}/100（${audit.grade} 级）
+当前阶段：${phaseNames[audit.recommended_phase]}
+AI 诊断：${audit.ai_diagnosis}
 
-产品数据（${allProducts.length} 个 Shopify 商品）:
-- 平均 SEO 分: ${avgSeo}/100
-- 缺少 meta 标签: ${missingMeta} 个
-- 描述过短/缺失: ${missingBody} 个
-- 缺货商品: ${outOfStock} 个
-- SEO 分分布: ${JSON.stringify(allProducts.map(p => ({ name: p.name, seo: p.seo_score, price: p.price, hasMeta: !!p.meta_title })))}
+各维度得分：
+${audit.dimensions.map(d => `${d.name}: ${d.score}/${d.maxScore}`).join("\n")}
 
-社媒数据:
-- 已发布帖子: ${publishedPosts || 0}
-- 已连接账号: ${connectedAccounts || 0}
-
-已有目标: ${JSON.stringify(existingGoals || [])}
-最近趋势: ${JSON.stringify((snapshots || []).slice(0, 7))}
+关键问题：
+${allIssues.join("\n")}
 
 返回格式：
 {
-  "diagnosis": "当前最大的问题是...（一句话）",
   "proposed_goals": [
     {
       "module": "store 或 social",
-      "metric": "可追踪的指标名",
+      "metric": "指标名",
       "current_value": 当前值,
       "target_value": 目标值,
       "unit": "单位",
-      "deadline": "YYYY-MM-DD",
-      "rationale": "为什么定这个目标（用数据说话）",
-      "execution_plan": "具体怎么做（用什么 skill，多少步）",
-      "estimated_effort": "预计耗时"
+      "deadline": "${thirtyDaysLater}",
+      "rationale": "用审计数据说话",
+      "execution_plan": "具体步骤",
+      "estimated_effort": "预计耗时",
+      "phase": "${audit.recommended_phase}"
     }
   ]
 }`,
-    3000
+    2000
   );
 
-  return result as unknown as GoalProposal;
+  const goals = ((result as Record<string, unknown>).proposed_goals as ProposedGoal[]) || [];
+
+  return {
+    audit,
+    current_phase: audit.recommended_phase,
+    phase_description: audit.phase_rationale,
+    proposed_goals: goals.map(g => ({ ...g, phase: g.phase || audit.recommended_phase })),
+  };
 }
 
 export async function adoptGoals(goals: ProposedGoal[]): Promise<string[]> {

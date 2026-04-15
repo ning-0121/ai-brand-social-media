@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { generateWeeklyPlan, executeDailyTasks, recordPerformanceSnapshot, weeklyReview, proposeGoals, adoptGoals } from "@/lib/ops-director";
+import { generateWeeklyPlan, executeDailyTasks, recordPerformanceSnapshot, weeklyReview, proposeGoals, adoptGoals, auditStore } from "@/lib/ops-director";
 import type { ProposedGoal } from "@/lib/ops-director";
 import { requireAuth } from "@/lib/api-auth";
 
@@ -87,6 +87,11 @@ export async function POST(request: Request) {
       case "weekly_review": {
         await weeklyReview(body.module || "store");
         return NextResponse.json({ success: true });
+      }
+
+      case "audit_store": {
+        const audit = await auditStore();
+        return NextResponse.json({ success: true, audit });
       }
 
       case "propose_goals": {
