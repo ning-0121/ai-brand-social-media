@@ -22,6 +22,7 @@ import { instagramAnalyticsSkill } from "./social/instagram-analytics";
 import { technicalSeoAuditSkill } from "./website/technical-seo-audit";
 import { seoRankingTrackerSkill } from "./website/seo-ranking-tracker";
 import { googleAdsManagerSkill } from "./copy/google-ads-manager";
+import { storeGrowthPlannerSkill } from "./copy/store-growth-planner";
 
 // Image skills
 import { aiProductPhotoSkill } from "./image/ai-product-photo";
@@ -110,6 +111,7 @@ const allSkills: ContentSkill[] = [
   technicalSeoAuditSkill,
   seoRankingTrackerSkill,
   googleAdsManagerSkill,
+  storeGrowthPlannerSkill,
   // OEM
   oemInquiryReplySkill,
   oemQuotationGenSkill,
