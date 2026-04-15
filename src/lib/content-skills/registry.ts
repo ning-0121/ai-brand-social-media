@@ -18,8 +18,10 @@ import { ugcResponseSkill } from "./social/ugc-response";
 import { liveStreamScriptSkill } from "./social/live-stream-script";
 import { instagramAnalyticsSkill } from "./social/instagram-analytics";
 
-// Advanced SEO
+// Advanced SEO & Analytics
 import { technicalSeoAuditSkill } from "./website/technical-seo-audit";
+import { seoRankingTrackerSkill } from "./website/seo-ranking-tracker";
+import { googleAdsManagerSkill } from "./copy/google-ads-manager";
 
 // Image skills
 import { aiProductPhotoSkill } from "./image/ai-product-photo";
@@ -104,8 +106,10 @@ const allSkills: ContentSkill[] = [
   instagramAnalyticsSkill,
   // Video
   liveStreamScriptSkill,
-  // Advanced SEO
+  // Advanced SEO & Analytics
   technicalSeoAuditSkill,
+  seoRankingTrackerSkill,
+  googleAdsManagerSkill,
   // OEM
   oemInquiryReplySkill,
   oemQuotationGenSkill,
