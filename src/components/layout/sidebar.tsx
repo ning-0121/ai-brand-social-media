@@ -10,7 +10,7 @@ import { getPendingCount } from "@/lib/supabase-approval";
 import { Brain, ChevronLeft, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Separator } from "@/components/ui/separator";
+// Separator removed — all items grouped now
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -26,29 +26,27 @@ export function Sidebar() {
     return () => clearInterval(interval);
   }, []);
 
-  // Split primary vs secondary
-  const primaryItems = NAV_ITEMS.filter((item) => item.primary);
-  const secondaryItems = NAV_ITEMS.filter((item) => !item.primary && item.group);
-
-  // Group secondary items
-  const secondaryGroups = secondaryItems.reduce((acc, item) => {
-    const group = item.group!;
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(item);
-    return acc;
-  }, {} as Record<string, typeof NAV_ITEMS>);
+  // Group all items by group name (preserve insertion order)
+  const allGroups: Record<string, typeof NAV_ITEMS> = {};
+  for (const item of NAV_ITEMS) {
+    const group = item.group || "_ungrouped";
+    if (!allGroups[group]) allGroups[group] = [];
+    allGroups[group].push(item);
+  }
 
   const toggleGroup = (group: string) => {
     setOpenGroups((prev) => ({ ...prev, [group]: !prev[group] }));
   };
 
-  // Auto-open group if current page is inside it
+  // Auto-open: 运营中心 always open by default, plus any group containing active page
   useEffect(() => {
-    for (const [group, items] of Object.entries(secondaryGroups)) {
+    const newState: Record<string, boolean> = { "运营中心": true };
+    for (const [group, items] of Object.entries(allGroups)) {
       if (items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))) {
-        setOpenGroups((prev) => ({ ...prev, [group]: true }));
+        newState[group] = true;
       }
     }
+    setOpenGroups((prev) => ({ ...prev, ...newState }));
   }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderNavLink = (item: (typeof NAV_ITEMS)[number]) => {
@@ -108,64 +106,51 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-2">
-        {/* Primary items (always visible, no group header) */}
-        <div className="space-y-0.5">
-          {primaryItems.map(renderNavLink)}
-        </div>
+      <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+        {Object.entries(allGroups).map(([groupName, items]) => {
+          if (groupName === "_ungrouped") {
+            return <div key={groupName} className="space-y-0.5">{items.map(renderNavLink)}</div>;
+          }
 
-        {/* Secondary groups (collapsible) */}
-        {Object.keys(secondaryGroups).length > 0 && (
-          <>
-            <Separator className="my-2" />
-            {!collapsed && (
-              <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/30">
-                更多
-              </div>
-            )}
-            {Object.entries(secondaryGroups).map(([groupName, items]) => {
-              const isOpen = openGroups[groupName] || false;
-              const hasActive = items.some(
-                (item) => pathname === item.href || pathname.startsWith(item.href + "/")
-              );
+          const isOpen = openGroups[groupName] || false;
+          const hasActive = items.some(
+            (item) => pathname === item.href || pathname.startsWith(item.href + "/")
+          );
 
-              if (collapsed) {
-                // In collapsed mode, show first icon of each group with tooltip
-                return items.map(renderNavLink);
-              }
+          if (collapsed) {
+            return <div key={groupName} className="space-y-0.5">{items.map(renderNavLink)}</div>;
+          }
 
-              return (
-                <div key={groupName} className="mt-1">
-                  <button
-                    onClick={() => toggleGroup(groupName)}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                      hasActive
-                        ? "text-sidebar-foreground"
-                        : "text-sidebar-foreground/50 hover:text-sidebar-foreground/70"
-                    )}
-                  >
-                    <ChevronDown
-                      className={cn(
-                        "h-3 w-3 transition-transform",
-                        !isOpen && "-rotate-90"
-                      )}
-                    />
-                    <span>{groupName}</span>
-                    <span className="ml-auto text-[10px] text-sidebar-foreground/30">
-                      {items.length}
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <div className="space-y-0.5 ml-1">
-                      {items.map(renderNavLink)}
-                    </div>
+          return (
+            <div key={groupName}>
+              <button
+                onClick={() => toggleGroup(groupName)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  hasActive
+                    ? "text-sidebar-foreground"
+                    : "text-sidebar-foreground/50 hover:text-sidebar-foreground/70"
+                )}
+              >
+                <ChevronDown
+                  className={cn(
+                    "h-3 w-3 transition-transform",
+                    !isOpen && "-rotate-90"
                   )}
+                />
+                <span>{groupName}</span>
+                <span className="ml-auto text-[10px] text-sidebar-foreground/30">
+                  {items.length}
+                </span>
+              </button>
+              {isOpen && (
+                <div className="space-y-0.5 ml-1">
+                  {items.map(renderNavLink)}
                 </div>
-              );
-            })}
-          </>
-        )}
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Collapse toggle */}
