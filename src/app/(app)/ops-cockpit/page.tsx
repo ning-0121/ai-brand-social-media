@@ -289,7 +289,101 @@ export default function OpsCockpitPage() {
         }
       />
 
-      {/* Goals */}
+      {/* ═══ Main Tabs — 页面核心导航 ═══ */}
+      <Tabs value={activeTab} onValueChange={(v) => v && setActiveTab(v)}>
+        <TabsList>
+          <TabsTrigger value="today">今日任务 ({tasks.length})</TabsTrigger>
+          <TabsTrigger value="goals">运营目标</TabsTrigger>
+          <TabsTrigger value="store_plan">店铺周计划</TabsTrigger>
+          <TabsTrigger value="social_plan">社媒周计划</TabsTrigger>
+          <TabsTrigger value="ai_impact">AI 效果</TabsTrigger>
+          <TabsTrigger value="weekly_report">周报</TabsTrigger>
+          <TabsTrigger value="audit_logs">操作日志</TabsTrigger>
+        </TabsList>
+
+        {/* ═══ Tab: 今日任务 ═══ */}
+        <TabsContent value="today" className="space-y-3 mt-4">
+          {/* Guidance Banners */}
+          {guidanceStep === "plan_generated" && tasks.length > 0 && (
+            <Card className="border-2 border-blue-200 bg-blue-50/50 dark:bg-blue-950/20">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 shrink-0">
+                  <span className="text-lg font-bold text-blue-600">3</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">计划已生成，今日有 {tasks.length} 个任务待执行</p>
+                  <p className="text-xs text-muted-foreground">点击执行，AI 将自动完成任务（修复 SEO、生成内容等），结果会推送到 Shopify</p>
+                </div>
+                <Button size="sm" onClick={handleExecuteToday} disabled={executing}>
+                  {executing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
+                  执行今日任务
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {guidanceStep === "tasks_executed" && (
+            <Card className="border-2 border-green-200 bg-green-50/50 dark:bg-green-950/20">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 shrink-0">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">任务已执行完成</p>
+                  <p className="text-xs text-muted-foreground">查看下方执行结果，明天系统会自动继续执行剩余任务。</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setGuidanceStep("idle")}>
+                  知道了
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {tasks.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                <Sparkles className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
+                今日没有计划任务<br />
+                <span className="text-xs">先设定目标，再生成周计划</span>
+              </CardContent>
+            </Card>
+          ) : (
+            tasks.map((task) => {
+              const cfg = STATUS_CONFIG[task.execution_status] || STATUS_CONFIG.pending;
+              const StatusIcon = cfg.icon;
+              return (
+                <Card key={task.id}>
+                  <CardContent className="p-3 flex items-start gap-3">
+                    <StatusIcon className={cn("h-4 w-4 mt-0.5 shrink-0", cfg.color, task.execution_status === "running" && "animate-spin")} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-medium">{task.title}</span>
+                        <Badge variant="outline" className="text-[9px]">{task.module}</Badge>
+                        <Badge variant="outline" className="text-[9px]">{task.task_type}</Badge>
+                        {task.auto_executable ? (
+                          <Badge className="text-[9px] bg-green-100 text-green-700 border-green-200">自动</Badge>
+                        ) : (
+                          <Badge className="text-[9px] bg-amber-100 text-amber-700 border-amber-200">需审批</Badge>
+                        )}
+                      </div>
+                      {task.description && <p className="text-xs text-muted-foreground">{task.description}</p>}
+                      {task.target_product_name && <p className="text-[10px] text-muted-foreground">商品: {task.target_product_name}</p>}
+                      {task.execution_result && (
+                        <div className="mt-1 rounded bg-muted/50 px-2 py-1 text-[10px]">
+                          {JSON.stringify(task.execution_result).slice(0, 150)}
+                        </div>
+                      )}
+                    </div>
+                    <Badge variant="outline" className={cn("text-[10px] shrink-0", cfg.color)}>{cfg.label}</Badge>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </TabsContent>
+
+        {/* ═══ Tab: 运营目标 ═══ */}
+        <TabsContent value="goals" className="mt-4">
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -496,137 +590,53 @@ export default function OpsCockpitPage() {
         </CardContent>
       </Card>
 
-      {/* ═══ Guidance Banner — 引导下一步 ═══ */}
-      {guidanceStep === "goals_adopted" && (
-        <Card className="border-2 border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900 shrink-0">
-              <span className="text-lg font-bold text-emerald-600">2</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium">目标已设定，下一步：生成执行计划</p>
-              <p className="text-xs text-muted-foreground">AI 会围绕你的目标，为本周每天安排具体的执行任务</p>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <Button size="sm" onClick={() => handleGeneratePlan("store")} disabled={!!generatingModule}>
-                {generatingModule === "store" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
-                生成店铺周计划
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleGeneratePlan("social")} disabled={!!generatingModule}>
-                {generatingModule === "social" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
-                生成社媒周计划
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {guidanceStep === "plan_generated" && tasks.length > 0 && (
-        <Card className="border-2 border-blue-200 bg-blue-50/50 dark:bg-blue-950/20">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 shrink-0">
-              <span className="text-lg font-bold text-blue-600">3</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium">计划已生成，今日有 {tasks.length} 个任务待执行</p>
-              <p className="text-xs text-muted-foreground">点击执行，AI 将自动完成任务（修复 SEO、生成内容等），结果会推送到 Shopify</p>
-            </div>
-            <Button size="sm" onClick={handleExecuteToday} disabled={executing}>
-              {executing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
-              执行今日任务
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {guidanceStep === "tasks_executed" && (
-        <Card className="border-2 border-green-200 bg-green-50/50 dark:bg-green-950/20">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 shrink-0">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium">任务已执行完成</p>
-              <p className="text-xs text-muted-foreground">查看下方执行结果，明天系统会自动继续执行剩余任务。每天的进度会自动更新到目标进度条。</p>
-            </div>
-            <Button size="sm" variant="outline" onClick={() => setGuidanceStep("idle")}>
-              知道了
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Weekly Plans + Today's Tasks */}
-      <Tabs value={activeTab} onValueChange={(v) => v && setActiveTab(v)}>
-        <TabsList>
-          <TabsTrigger value="today">今日任务 ({tasks.length})</TabsTrigger>
-          <TabsTrigger value="store_plan">店铺周计划</TabsTrigger>
-          <TabsTrigger value="social_plan">社媒周计划</TabsTrigger>
-          <TabsTrigger value="ai_impact">AI 效果</TabsTrigger>
-          <TabsTrigger value="weekly_report">周报</TabsTrigger>
-          <TabsTrigger value="audit_logs">操作日志</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="today" className="space-y-2 mt-4">
-          {tasks.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                <Sparkles className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
-                今日没有计划任务<br />
-                <span className="text-xs">点击上方生成周计划让 AI 制定运营方案</span>
+          {/* Guidance after goals adopted */}
+          {guidanceStep === "goals_adopted" && (
+            <Card className="border-2 border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900 shrink-0">
+                  <span className="text-lg font-bold text-emerald-600">2</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">目标已设定，下一步：生成执行计划</p>
+                  <p className="text-xs text-muted-foreground">AI 会围绕你的目标，为本周每天安排具体的执行任务</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button size="sm" onClick={() => handleGeneratePlan("store")} disabled={!!generatingModule}>
+                    {generatingModule === "store" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                    生成店铺周计划
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleGeneratePlan("social")} disabled={!!generatingModule}>
+                    {generatingModule === "social" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                    生成社媒周计划
+                  </Button>
+                </div>
               </CardContent>
             </Card>
-          ) : (
-            tasks.map((task) => {
-              const cfg = STATUS_CONFIG[task.execution_status] || STATUS_CONFIG.pending;
-              const StatusIcon = cfg.icon;
-              return (
-                <Card key={task.id}>
-                  <CardContent className="p-3 flex items-start gap-3">
-                    <StatusIcon className={cn("h-4 w-4 mt-0.5 shrink-0", cfg.color, task.execution_status === "running" && "animate-spin")} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-sm font-medium">{task.title}</span>
-                        <Badge variant="outline" className="text-[9px]">{task.module}</Badge>
-                        <Badge variant="outline" className="text-[9px]">{task.task_type}</Badge>
-                        {task.auto_executable ? (
-                          <Badge className="text-[9px] bg-green-100 text-green-700 border-green-200">自动</Badge>
-                        ) : (
-                          <Badge className="text-[9px] bg-amber-100 text-amber-700 border-amber-200">需审批</Badge>
-                        )}
-                      </div>
-                      {task.description && <p className="text-xs text-muted-foreground">{task.description}</p>}
-                      {task.target_product_name && <p className="text-[10px] text-muted-foreground">商品: {task.target_product_name}</p>}
-                      {task.execution_result && (
-                        <div className="mt-1 rounded bg-muted/50 px-2 py-1 text-[10px]">
-                          {JSON.stringify(task.execution_result).slice(0, 150)}
-                        </div>
-                      )}
-                    </div>
-                    <Badge variant="outline" className={cn("text-[10px] shrink-0", cfg.color)}>{cfg.label}</Badge>
-                  </CardContent>
-                </Card>
-              );
-            })
           )}
         </TabsContent>
 
+        {/* ═══ Tab: 店铺周计划 ═══ */}
         <TabsContent value="store_plan" className="mt-4">
           <PlanCard plan={storePlan} onGenerate={() => handleGeneratePlan("store")} generating={generatingModule === "store"} />
         </TabsContent>
 
+        {/* ═══ Tab: 社媒周计划 ═══ */}
         <TabsContent value="social_plan" className="mt-4">
           <PlanCard plan={socialPlan} onGenerate={() => handleGeneratePlan("social")} generating={generatingModule === "social"} />
         </TabsContent>
 
+        {/* ═══ Tab: AI 效果 ═══ */}
         <TabsContent value="ai_impact" className="mt-4">
           <ActionImpactList />
         </TabsContent>
 
+        {/* ═══ Tab: 周报 ═══ */}
         <TabsContent value="weekly_report" className="mt-4">
           <WeeklyReportView />
         </TabsContent>
 
+        {/* ═══ Tab: 操作日志 ═══ */}
         <TabsContent value="audit_logs" className="mt-4">
           <AuditLogViewer />
         </TabsContent>
