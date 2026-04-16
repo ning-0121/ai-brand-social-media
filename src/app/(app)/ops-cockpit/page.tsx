@@ -289,6 +289,47 @@ export default function OpsCockpitPage() {
         }
       />
 
+      {/* ═══ Task Execution Progress ═══ */}
+      {tasks.length > 0 && (() => {
+        const done = tasks.filter(t => t.execution_status === "auto_executed" || t.execution_status === "completed").length;
+        const failed = tasks.filter(t => t.execution_status === "failed").length;
+        const running = tasks.filter(t => t.execution_status === "running").length;
+        const pending = tasks.filter(t => t.execution_status === "pending").length;
+        const approval = tasks.filter(t => t.execution_status === "awaiting_approval").length;
+        const total = tasks.length;
+        const progressPct = total > 0 ? Math.round(((done + failed) / total) * 100) : 0;
+
+        return (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">任务执行进度</span>
+                  <span className="text-xs text-muted-foreground">{done + failed}/{total} 已处理</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  {done > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />{done} 完成</span>}
+                  {running > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />{running} 执行中</span>}
+                  {pending > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-gray-300" />{pending} 待执行</span>}
+                  {approval > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" />{approval} 待审批</span>}
+                  {failed > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />{failed} 失败</span>}
+                </div>
+              </div>
+              <div className="h-3 rounded-full bg-muted overflow-hidden flex">
+                {done > 0 && <div className="h-full bg-green-500 transition-all" style={{ width: `${(done / total) * 100}%` }} />}
+                {running > 0 && <div className="h-full bg-blue-500 animate-pulse transition-all" style={{ width: `${(running / total) * 100}%` }} />}
+                {approval > 0 && <div className="h-full bg-amber-400 transition-all" style={{ width: `${(approval / total) * 100}%` }} />}
+                {failed > 0 && <div className="h-full bg-red-500 transition-all" style={{ width: `${(failed / total) * 100}%` }} />}
+              </div>
+              <div className="flex justify-between mt-1.5">
+                <span className="text-[10px] text-muted-foreground">{progressPct}% 完成</span>
+                {pending > 0 && <span className="text-[10px] text-muted-foreground">剩余 {pending} 个任务将自动执行</span>}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* ═══ Main Tabs — 页面核心导航 ═══ */}
       <Tabs value={activeTab} onValueChange={(v) => v && setActiveTab(v)}>
         <TabsList>
