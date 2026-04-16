@@ -6,6 +6,7 @@ import { getDashboardKPIs, getStoreKPIs } from "./supabase-queries";
 import { createApprovalTask } from "./supabase-approval";
 import { reviewContent } from "./content-qa";
 import { productContentPipeline, socialContentPipeline, campaignPipeline } from "./content-pipeline";
+import { executeAgentPool } from "./agent-pool";
 
 // ============ Types ============
 
@@ -540,12 +541,70 @@ ${productSummary}
   return plan.id;
 }
 
-// ============ 2. Execute Daily Tasks ============
-export async function executeDailyTasks(): Promise<{ executed: number; skipped: number; approval: number; failed: number }> {
-  const startTime = Date.now();
-  const MAX_DURATION_MS = 50_000; // 50 秒硬限，留 10 秒给 response
+// ============ 1.5 Day-Close Archive ============
+// 每天凌晨执行：归档昨天未完成的任务
+export async function archiveYesterdayTasks(): Promise<{ archived: number; failed_moved: number }> {
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
-  // Reset stuck "running" tasks (crashed execution)
+  // 未完成的昨天 pending 任务 → 标记 skipped_day_close
+  const { data: pendingYesterday } = await supabase
+    .from("ops_daily_tasks")
+    .select("id")
+    .eq("execution_status", "pending")
+    .eq("task_date", yesterday);
+
+  let archived = 0;
+  if (pendingYesterday && pendingYesterday.length > 0) {
+    await supabase.from("ops_daily_tasks")
+      .update({
+        execution_status: "skipped_day_close",
+        execution_result: { reason: "日结自动归档：未在当日完成" },
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", pendingYesterday.map(t => t.id));
+    archived = pendingYesterday.length;
+  }
+
+  // 统计昨天失败的（已经是 failed 状态，只做计数）
+  const { count: failedCount } = await supabase
+    .from("ops_daily_tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("execution_status", "failed")
+    .eq("task_date", yesterday);
+
+  return { archived, failed_moved: failedCount || 0 };
+}
+
+// ============ 2. Execute Daily Tasks (via Agent Pool) ============
+// 新版：通过并行 Agent Pool 执行，5x 吞吐量
+export async function executeDailyTasks(): Promise<{ executed: number; skipped: number; approval: number; failed: number }> {
+  // 用 Agent Pool 并行执行 auto tasks
+  const poolResult = await executeAgentPool(20);
+
+  // 查询本次执行后还有多少 pending/awaiting_approval
+  const { count: pendingCount } = await supabase
+    .from("ops_daily_tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("execution_status", "pending");
+
+  const { count: approvalCount } = await supabase
+    .from("ops_daily_tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("execution_status", "awaiting_approval");
+
+  return {
+    executed: poolResult.succeeded,
+    skipped: poolResult.skipped + (pendingCount || 0),
+    approval: approvalCount || 0,
+    failed: poolResult.failed,
+  };
+}
+
+// ============ Legacy Sequential Executor (保留作为 fallback) ============
+export async function executeDailyTasksSequential(): Promise<{ executed: number; skipped: number; approval: number; failed: number }> {
+  const startTime = Date.now();
+  const MAX_DURATION_MS = 50_000;
+
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   await supabase
     .from("ops_daily_tasks")
@@ -553,7 +612,6 @@ export async function executeDailyTasks(): Promise<{ executed: number; skipped: 
     .eq("execution_status", "running")
     .lt("updated_at", fiveMinAgo);
 
-  // 取所有 pending 任务
   const { data: allTasks } = await supabase
     .from("ops_daily_tasks")
     .select("*")

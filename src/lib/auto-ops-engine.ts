@@ -2,9 +2,10 @@ import { supabase } from "./supabase";
 import { runRadarScan } from "./radar-engine";
 import { runDiagnostic } from "./diagnostic-engine";
 import { autoPublishDuePosts } from "./social-publisher";
-import { executeDailyTasks, recordPerformanceSnapshot, generateWeeklyPlan, weeklyReview } from "./ops-director";
+import { executeDailyTasks, recordPerformanceSnapshot, generateWeeklyPlan, weeklyReview, archiveYesterdayTasks } from "./ops-director";
 import { runSkillScout } from "./skill-scout";
 import { generateDailyReport } from "./daily-report";
+import { autoRetryFailedTasks } from "./failure-diagnostic";
 
 interface TaskResult {
   task: string;
@@ -93,6 +94,20 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
     });
   }
 
+  // 4.5 自动重试失败任务（限流/超时类可重试）
+  try {
+    const retryResult = await autoRetryFailedTasks();
+    if (retryResult.retried > 0) {
+      results.push({
+        task: "auto_retry_failures",
+        status: "success",
+        message: `重新排队 ${retryResult.retried} 个失败任务`,
+      });
+    }
+  } catch (err) {
+    results.push({ task: "auto_retry_failures", status: "failed", message: err instanceof Error ? err.message : "重试失败" });
+  }
+
   // 5. 自动执行运营任务（每小时跑一批 pending 任务）
   try {
     const opsResult = await executeDailyTasks();
@@ -152,6 +167,18 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
 export async function runDailyTasks(): Promise<TaskResult[]> {
   const startTime = Date.now();
   const results: TaskResult[] = [];
+
+  // 0. 日结归档：昨天未完成的任务归档
+  try {
+    const archiveResult = await archiveYesterdayTasks();
+    results.push({
+      task: "archive_yesterday",
+      status: "success",
+      message: `归档 ${archiveResult.archived} 个未完成任务，${archiveResult.failed_moved} 个失败任务进入失败池`,
+    });
+  } catch (err) {
+    results.push({ task: "archive_yesterday", status: "failed", message: err instanceof Error ? err.message : "归档失败" });
+  }
 
   // 1. Full store diagnostic
   try {

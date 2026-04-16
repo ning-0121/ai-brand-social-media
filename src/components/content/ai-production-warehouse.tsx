@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { TaskResultRenderer } from "@/components/ops/task-result-renderer";
 
 interface ContentTask {
   id: string;
@@ -241,17 +242,14 @@ export function AIProductionWarehouse() {
                   {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 mt-1" /> : <ChevronRight className="h-4 w-4 shrink-0 mt-1" />}
                 </button>
 
-                {/* Expanded detail */}
+                {/* Expanded detail — 用可视化渲染器替代 JSON */}
                 {isExpanded && task.result && (
                   <div className="border-t px-3 py-3 bg-muted/20">
-                    {preview.imageUrl && (
-                      <div className="mb-3">
-                        <img src={preview.imageUrl} alt="" className="max-h-64 rounded-lg" />
-                      </div>
-                    )}
-                    <pre className="text-[11px] font-mono whitespace-pre-wrap overflow-x-auto max-h-80 overflow-y-auto bg-background rounded p-3 border">
-                      {JSON.stringify(task.result, null, 2)}
-                    </pre>
+                    <TaskResultRenderer
+                      taskType={task.skill_id}
+                      result={task.result}
+                      targetProductName={task.product_name}
+                    />
                   </div>
                 )}
               </CardContent>

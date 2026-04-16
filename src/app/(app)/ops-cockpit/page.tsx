@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { ActionImpactList } from "@/components/analytics/action-impact-list";
 import { WeeklyReportView } from "@/components/analytics/weekly-report-view";
 import { AuditLogViewer } from "@/components/analytics/audit-log-viewer";
+import { TaskResultRenderer } from "@/components/ops/task-result-renderer";
 import {
   Target,
   Sparkles,
@@ -410,8 +411,12 @@ export default function OpsCockpitPage() {
                       {task.description && <p className="text-xs text-muted-foreground">{task.description}</p>}
                       {task.target_product_name && <p className="text-[10px] text-muted-foreground">商品: {task.target_product_name}</p>}
                       {task.execution_result && (
-                        <div className="mt-1 rounded bg-muted/50 px-2 py-1 text-[10px]">
-                          {JSON.stringify(task.execution_result).slice(0, 150)}
+                        <div className="mt-2">
+                          <TaskResultRenderer
+                            taskType={task.task_type}
+                            result={task.execution_result}
+                            targetProductName={task.target_product_name}
+                          />
                         </div>
                       )}
                     </div>
