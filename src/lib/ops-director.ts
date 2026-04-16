@@ -500,20 +500,41 @@ ${productSummary}
       taskDateStr = taskDate.toISOString().split("T")[0];
     }
 
-    await supabase.from("ops_daily_tasks").insert({
+    const isAuto2 = task.auto_executable !== false;
+
+    const { data: insertedTask } = await supabase.from("ops_daily_tasks").insert({
       plan_id: plan.id,
       module,
       task_date: taskDateStr,
       task_type: task.task_type,
       title: task.title,
       description: task.description,
-      auto_executable: task.auto_executable !== false,
+      auto_executable: isAuto2,
       target_product_id: task.target_product_id || null,
       target_product_name: task.target_product_name || null,
       target_platform: task.target_platform || null,
       skill_id: task.skill_id || null,
-      execution_status: "pending",
-    });
+      execution_status: isAuto2 ? "pending" : "awaiting_approval",
+    }).select("id").single();
+
+    // 需审批的任务 → 立即创建审批记录，不用等执行轮到它
+    if (!isAuto2 && insertedTask) {
+      const approval = await createApprovalTask({
+        type: task.task_type === "landing_page" ? "products" : "products",
+        title: `[AI 运营] ${task.title}`,
+        description: task.description || "",
+        payload: {
+          ops_task_id: insertedTask.id,
+          task_type: task.task_type,
+          module,
+          target_product_id: task.target_product_id,
+          target_product_name: task.target_product_name,
+        },
+      });
+      await supabase.from("ops_daily_tasks").update({
+        approval_task_id: approval.id,
+      }).eq("id", insertedTask.id);
+    }
   }
 
   return plan.id;
