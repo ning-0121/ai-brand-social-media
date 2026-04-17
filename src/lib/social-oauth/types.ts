@@ -1,4 +1,4 @@
-export type OAuthProvider = "instagram" | "facebook" | "tiktok";
+export type OAuthProvider = "instagram" | "facebook" | "tiktok" | "google_analytics";
 
 export interface OAuthConfig {
   provider: OAuthProvider;

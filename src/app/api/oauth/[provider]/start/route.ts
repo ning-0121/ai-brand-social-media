@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { buildInstagramAuthUrl } from "@/lib/social-oauth/instagram";
 import { buildFacebookAuthUrl } from "@/lib/social-oauth/facebook";
 import { buildTiktokAuthUrl } from "@/lib/social-oauth/tiktok";
+import { buildGoogleAnalyticsAuthUrl } from "@/lib/social-oauth/google";
 
 export async function GET(
   request: Request,
@@ -24,6 +25,9 @@ export async function GET(
     case "tiktok":
       authUrl = buildTiktokAuthUrl(state);
       break;
+    case "google_analytics":
+      authUrl = buildGoogleAnalyticsAuthUrl(state);
+      break;
     default:
       return NextResponse.json({ error: `不支持的 provider: ${provider}` }, { status: 400 });
   }
@@ -33,6 +37,7 @@ export async function GET(
       instagram: "INSTAGRAM_CLIENT_ID + INSTAGRAM_CLIENT_SECRET (或 FACEBOOK_*)",
       facebook: "FACEBOOK_CLIENT_ID + FACEBOOK_CLIENT_SECRET",
       tiktok: "TIKTOK_CLIENT_KEY + TIKTOK_CLIENT_SECRET",
+      google_analytics: "GOOGLE_ANALYTICS_CLIENT_ID + GOOGLE_ANALYTICS_CLIENT_SECRET",
     };
     return NextResponse.json(
       {

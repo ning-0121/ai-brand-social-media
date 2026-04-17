@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { exchangeInstagramCode, getInstagramAccountInfo } from "@/lib/social-oauth/instagram";
 import { exchangeFacebookCode, getFacebookAccountInfo } from "@/lib/social-oauth/facebook";
 import { exchangeTiktokCode, getTiktokAccountInfo } from "@/lib/social-oauth/tiktok";
+import { exchangeGoogleAnalyticsCode, getGoogleAnalyticsAccountInfo } from "@/lib/social-oauth/google";
 import { supabase } from "@/lib/supabase";
 import { getAppUrl } from "@/lib/social-oauth/types";
 import type { OAuthTokens, SocialAccountInfo } from "@/lib/social-oauth/types";
@@ -50,6 +51,10 @@ export async function GET(
       case "tiktok":
         tokens = await exchangeTiktokCode(code);
         info = await getTiktokAccountInfo(tokens.access_token);
+        break;
+      case "google_analytics":
+        tokens = await exchangeGoogleAnalyticsCode(code);
+        info = await getGoogleAnalyticsAccountInfo(tokens.access_token);
         break;
       default:
         return redirectToSettings(`oauth_error=不支持的 provider`);

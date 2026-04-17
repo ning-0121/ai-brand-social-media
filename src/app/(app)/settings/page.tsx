@@ -47,8 +47,9 @@ import { toast } from "sonner";
 
 const PLATFORMS = [
   { id: "shopify", name: "Shopify", desc: "同步商品、订单和收入数据", color: "bg-green-600", fields: ["store_name", "store_url", "access_token"], oauth: false },
-  { id: "instagram", name: "Instagram", desc: "OAuth 授权连接 IG 商业账号，发布帖子和获取数据", color: "bg-pink-500", fields: ["store_name", "access_token"], oauth: true },
-  { id: "facebook", name: "Facebook", desc: "OAuth 授权连接 Facebook Page，发布动态", color: "bg-blue-600", fields: ["store_name", "access_token"], oauth: true },
+  { id: "google_analytics", name: "Google Analytics 4", desc: "OAuth 授权连接 GA4，获取网站流量、转化率、用户行为数据", color: "bg-yellow-500", fields: ["store_name", "access_token"], oauth: true, oauthNote: "连接后自动获取 GA4 Property" },
+  { id: "instagram", name: "Instagram", desc: "OAuth 授权连接 IG 商业账号，发布帖子和获取粉丝数据", color: "bg-pink-500", fields: ["store_name", "access_token"], oauth: true },
+  { id: "facebook", name: "Facebook", desc: "OAuth 授权连接 Facebook Page，发布动态和获取主页洞察", color: "bg-blue-600", fields: ["store_name", "access_token"], oauth: true },
   { id: "tiktok", name: "TikTok", desc: "OAuth 授权连接 TikTok 账号，发布短视频", color: "bg-black", fields: ["store_name", "access_token"], oauth: true },
   { id: "tiktok_shop", name: "TikTok Shop", desc: "同步销量、直播和短视频数据", color: "bg-black", fields: ["store_name", "api_key", "api_secret"], oauth: false },
   { id: "amazon", name: "Amazon", desc: "同步产品排名、销量和评价", color: "bg-orange-500", fields: ["store_name", "api_key", "api_secret"], oauth: false },
@@ -327,17 +328,33 @@ export default function SettingsPage() {
                         <div className="space-y-3">
                           <div className="space-y-1 text-sm">
                             <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">
-                                店铺名称
-                              </span>
-                              <span className="font-medium">
-                                {connected.store_name}
+                              <span className="text-muted-foreground">账号</span>
+                              <span className="font-medium truncate max-w-[160px] text-right">
+                                {(connected.metadata as Record<string, unknown>)?.account_handle as string ||
+                                  connected.store_name}
                               </span>
                             </div>
+                            {platform.id === "google_analytics" && (() => {
+                              const propName = (connected.metadata as Record<string, unknown>)?.selected_property_name;
+                              return propName ? (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground">Property</span>
+                                  <span className="text-xs font-medium text-green-600 truncate max-w-[140px] text-right">
+                                    {String(propName)}
+                                  </span>
+                                </div>
+                              ) : null;
+                            })()}
+                            {(connected.metadata as Record<string, unknown>)?.followers ? (
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">粉丝</span>
+                                <span className="font-medium">
+                                  {((connected.metadata as Record<string, unknown>).followers as number).toLocaleString()}
+                                </span>
+                              </div>
+                            ) : null}
                             <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">
-                                最后同步
-                              </span>
+                              <span className="text-muted-foreground">最后同步</span>
                               <span className="text-xs tabular-nums">
                                 {formatSyncTime(connected.last_synced_at)}
                               </span>
@@ -388,6 +405,11 @@ export default function SettingsPage() {
                             <Plug className="mr-1.5 h-3.5 w-3.5" />
                             OAuth 授权连接
                           </Button>
+                          {(platform as { oauthNote?: string }).oauthNote && (
+                            <p className="text-[11px] text-muted-foreground text-center">
+                              {(platform as { oauthNote?: string }).oauthNote}
+                            </p>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
