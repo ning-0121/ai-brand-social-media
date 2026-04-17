@@ -46,6 +46,7 @@ import {
   Coffee,
 } from "lucide-react";
 import Link from "next/link";
+import { GA4Widget } from "@/components/analytics/ga4-widget";
 
 const QUOTES = [
   "每一次用心经营，都是品牌成长的养分。",
@@ -318,6 +319,9 @@ export default function DashboardPage() {
 
       {/* Auto-Ops Engine Status */}
       <AutoOpsStatusCard />
+
+      {/* GA4 Analytics */}
+      <GA4Widget />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
         {/* Revenue chart */}
