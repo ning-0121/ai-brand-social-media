@@ -86,9 +86,11 @@ export async function GET(
       .maybeSingle();
 
     if (existing) {
-      await supabase.from("integrations").update(integrationData).eq("id", existing.id);
+      const { error: updateErr } = await supabase.from("integrations").update(integrationData).eq("id", existing.id);
+      if (updateErr) throw new Error(`保存集成失败: ${updateErr.message}`);
     } else {
-      await supabase.from("integrations").insert(integrationData);
+      const { error: insertErr } = await supabase.from("integrations").insert(integrationData);
+      if (insertErr) throw new Error(`保存集成失败: ${insertErr.message}`);
     }
 
     // 同时写入 social_accounts
