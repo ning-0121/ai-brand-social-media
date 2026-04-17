@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Gauge,
   ImagePlus,
+  LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
 
@@ -18,6 +19,9 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
+  // ── 总览 ──
+  { label: "数据总览", href: "/dashboard", icon: LayoutDashboard, group: "总览" },
+
   // ── 运营中心（默认展开，全部真实功能）──
   { label: "运营驾驶舱", href: "/ops-cockpit", icon: Gauge, group: "运营中心" },
   { label: "店铺优化", href: "/store", icon: Store, group: "运营中心" },

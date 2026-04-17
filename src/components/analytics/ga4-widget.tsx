@@ -24,8 +24,10 @@ import {
   Loader2,
   AlertCircle,
   ExternalLink,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import type { GA4OverviewMetrics, GA4TrafficSource, GA4DailyPoint } from "@/lib/ga4-api";
 
 function fmt(n: number): string {
@@ -39,16 +41,32 @@ function fmtDuration(sec: number): string {
   return `${Math.floor(sec / 60)}m${Math.round(sec % 60)}s`;
 }
 
+type Status = "loading" | "not_connected" | "no_property" | "ready" | "error";
+
 export function GA4Widget() {
+  const [status, setStatus] = useState<Status>("loading");
   const [overview, setOverview] = useState<GA4OverviewMetrics | null>(null);
   const [traffic, setTraffic] = useState<GA4TrafficSource[]>([]);
   const [trend, setTrend] = useState<GA4DailyPoint[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [propertyName, setPropertyName] = useState<string | null>(null);
+  const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notConnected, setNotConnected] = useState(false);
 
-  const fetchAll = async () => {
-    setLoading(true);
+  const checkStatus = async () => {
+    try {
+      const res = await fetch("/api/ga4?type=status");
+      const s = await res.json();
+      if (!s.connected) { setStatus("not_connected"); return; }
+      if (!s.hasProperty) { setStatus("no_property"); return; }
+      setPropertyName(s.selectedPropertyName || s.selectedProperty || null);
+      setStatus("ready");
+    } catch {
+      setStatus("not_connected");
+    }
+  };
+
+  const fetchData = async () => {
+    setDataLoading(true);
     setError(null);
     try {
       const [ovRes, trRes, tdRes] = await Promise.all([
@@ -56,29 +74,76 @@ export function GA4Widget() {
         fetch("/api/ga4?type=traffic&days=30"),
         fetch("/api/ga4?type=trend&days=30"),
       ]);
-
       const ovData = await ovRes.json();
       const trData = await trRes.json();
       const tdData = await tdRes.json();
 
-      if (ovData.error?.includes("GA4") || ovData.data === null) {
-        setNotConnected(true);
+      if (ovData.error || ovData.data === null) {
+        setError(ovData.error || "GA4 数据获取失败，请检查 Property 设置");
         return;
       }
-
       setOverview(ovData.data);
       setTraffic(trData.data || []);
       setTrend(tdData.data || []);
     } catch {
-      setError("GA4 数据加载失败");
+      setError("GA4 数据加载失败，请刷新重试");
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    checkStatus();
+  }, []);
 
-  if (notConnected) return null; // Don't render if not connected
+  useEffect(() => {
+    if (status === "ready") fetchData();
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Don't render anything if genuinely not connected
+  if (status === "not_connected") return null;
+
+  if (status === "loading") {
+    return (
+      <Card>
+        <CardContent className="py-6 flex items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-sm">检查 GA4 连接状态...</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (status === "no_property") {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-yellow-500" />
+            <CardTitle className="text-sm font-semibold">Google Analytics 4</CardTitle>
+            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 bg-amber-50">
+              需要选择 Property
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-3 text-sm">
+            <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+            <div className="space-y-2">
+              <p className="text-muted-foreground">GA4 已连接，但未找到可用的 Property。</p>
+              <p className="text-xs text-muted-foreground">请确认你的 Google 账号下有 GA4 Property，然后重新授权。</p>
+              <Link href="/settings">
+                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
+                  <Settings className="h-3.5 w-3.5" />
+                  前往设置重新连接
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -90,23 +155,36 @@ export function GA4Widget() {
             <Badge variant="outline" className="text-[10px] text-green-600 border-green-200 bg-green-50">
               已连接
             </Badge>
+            {propertyName && (
+              <span className="text-[11px] text-muted-foreground truncate max-w-[120px]" title={propertyName}>
+                {propertyName}
+              </span>
+            )}
             <span className="text-[11px] text-muted-foreground">近 30 天</span>
           </div>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={fetchAll}>
-            <RefreshCw className="h-3.5 w-3.5" />
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={fetchData} disabled={dataLoading}>
+            <RefreshCw className={cn("h-3.5 w-3.5", dataLoading && "animate-spin")} />
           </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {loading ? (
+        {dataLoading ? (
           <div className="py-8 flex items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-sm">正在从 GA4 拉取数据...</span>
           </div>
         ) : error ? (
-          <div className="flex items-center gap-2 text-sm text-red-500 py-4">
-            <AlertCircle className="h-4 w-4" />
-            {error}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-red-500 py-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <Link href="/settings">
+              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
+                <Settings className="h-3.5 w-3.5" />
+                检查 GA4 设置
+              </Button>
+            </Link>
           </div>
         ) : overview ? (
           <>
@@ -159,7 +237,7 @@ export function GA4Widget() {
                       tick={{ fontSize: 9 }}
                       tickLine={false}
                       axisLine={false}
-                      tickFormatter={(v: string) => v.slice(4)} // MMDD
+                      tickFormatter={(v: string) => v.slice(4)}
                     />
                     <Tooltip
                       contentStyle={{ fontSize: 11 }}
@@ -218,7 +296,7 @@ export function GA4Widget() {
           <div className="py-6 text-center text-sm text-muted-foreground space-y-2">
             <Globe className="h-8 w-8 mx-auto text-muted-foreground/30" />
             <p>GA4 已连接，但暂无数据</p>
-            <p className="text-xs">请确认已在 GA4 中选择正确的 Property，且网站有访问记录</p>
+            <p className="text-xs">请确认网站已安装 GA4 跟踪代码且有访问记录</p>
             <a
               href="https://analytics.google.com"
               target="_blank"

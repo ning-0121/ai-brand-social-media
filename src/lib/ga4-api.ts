@@ -18,11 +18,23 @@ async function getCredentials(): Promise<GA4Credentials | null> {
 
   if (!data?.access_token) return null;
 
-  const propertyId =
-    data.metadata?.selected_property?.replace("properties/", "") ||
-    data.metadata?.account_id ||
-    null;
+  // Try selected_property first, then fall back to first available property
+  let selectedProp: string | null =
+    data.metadata?.selected_property || null;
 
+  if (!selectedProp) {
+    const props = data.metadata?.properties as Array<{ name: string }> | undefined;
+    if (props && props.length > 0) {
+      selectedProp = props[0].name;
+      // Persist auto-selected property so future calls are faster
+      await supabase
+        .from("integrations")
+        .update({ metadata: { ...data.metadata, selected_property: selectedProp } })
+        .eq("id", data.id);
+    }
+  }
+
+  const propertyId = selectedProp?.replace("properties/", "") || null;
   if (!propertyId) return null;
 
   return {
