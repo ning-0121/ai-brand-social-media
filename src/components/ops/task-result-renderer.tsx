@@ -46,6 +46,12 @@ export function TaskResultRenderer({ taskType, result, targetProductName }: Task
 
   const output = (result.output || result.preview || result) as Record<string, unknown>;
 
+  // Image-bearing skills: check output for image_url first regardless of taskType
+  const imageUrl = (output.image_url || result.image_url) as string | undefined;
+  if (imageUrl) {
+    return <ImageResultRenderer output={output} imageUrl={imageUrl} taskType={taskType} productName={targetProductName} />;
+  }
+
   switch (taskType) {
     case "seo_fix":
       return <SEOFixRenderer result={result} output={output} productName={targetProductName} />;
@@ -66,6 +72,75 @@ export function TaskResultRenderer({ taskType, result, targetProductName }: Task
     default:
       return <GenericRenderer result={result} />;
   }
+}
+
+// ─── 图片结果：大图展示 ──────────────────────────────
+
+function ImageResultRenderer({
+  output,
+  imageUrl,
+  taskType,
+  productName,
+}: {
+  output: Record<string, unknown>;
+  imageUrl: string;
+  taskType: string;
+  productName?: string | null;
+}) {
+  const typeLabels: Record<string, string> = {
+    banner_design: "Banner 广告图",
+    social_media_image: "社媒配图",
+    campaign_poster: "活动海报",
+    ai_product_photo: "AI 商品图",
+    post: "社媒帖子图",
+  };
+  const label = typeLabels[taskType] || "生成图片";
+  const headline = output.headline as string | undefined;
+  const platform = output.platform as string | undefined;
+  const productNameDisplay = (output.product_name as string) || productName;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+        <span className="text-sm font-medium">{label} 已生成</span>
+        {platform && <Badge className="text-[9px]">{platform}</Badge>}
+        {productNameDisplay && (
+          <span className="text-xs text-muted-foreground">· {productNameDisplay}</span>
+        )}
+      </div>
+      <div className="rounded-lg overflow-hidden border bg-black">
+        <img
+          src={imageUrl}
+          alt={headline || label}
+          className="w-full max-h-72 object-contain"
+        />
+      </div>
+      {headline && (
+        <div className="rounded border bg-muted/30 p-2">
+          <div className="text-[10px] text-muted-foreground mb-0.5">标题文案</div>
+          <p className="text-xs font-medium">{headline}</p>
+          {(output.subheadline as string) && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">{output.subheadline as string}</p>
+          )}
+          {(output.cta as string) && (
+            <span className="inline-block mt-1 text-[10px] bg-primary text-primary-foreground rounded px-1.5 py-0.5">
+              {output.cta as string}
+            </span>
+          )}
+        </div>
+      )}
+      <a
+        href={imageUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+      >
+        <ExternalLink className="h-3 w-3" />
+        在新标签页查看原图
+      </a>
+    </div>
+  );
 }
 
 // ─── SEO 修复结果：对比式展示 ────────────────────────

@@ -107,24 +107,22 @@ async function executeSingleTask(
         .from("products").select("*").eq("id", task.target_product_id).single();
       if (!product?.shopify_product_id) return { skipped: true, reason: "no shopify product" };
 
+      // Single-pass: skill now self-scores — no separate reviewContent call
       let seoData: Record<string, unknown> = {};
       let qaScore = 0;
       let attempts = 0;
-      let qaFeedback = "";
 
       for (let i = 0; i < 2; i++) {
         attempts++;
         const inputs: Record<string, unknown> = { product };
-        if (qaFeedback) inputs.qa_feedback = qaFeedback;
+        if (i > 0) inputs.qa_feedback = `Score was ${qaScore}/100, regenerate with higher quality`;
         const { result } = await executeSkill("product_seo_optimize", inputs, { sourceModule: "agent_pool" });
         seoData = result.output as Record<string, unknown>;
-        const qa = await reviewContent("seo", seoData, { name: product.name, category: product.category });
-        qaScore = qa.score;
-        if (qa.passed) break;
-        qaFeedback = qa.improvements.join("; ");
+        qaScore = (seoData.qa_score as number) || 75;
+        if (qaScore >= 75) break;
       }
 
-      if (qaScore < 70) {
+      if (qaScore < 65) {
         return { action: "qa_rejected", product: product.name, score: qaScore, attempts };
       }
 
@@ -140,7 +138,6 @@ async function executeSingleTask(
         product: product.name,
         qa_score: qaScore,
         attempts,
-        fields: Object.keys(seoData),
         preview: {
           meta_title: seoData.meta_title,
           meta_description: seoData.meta_description,

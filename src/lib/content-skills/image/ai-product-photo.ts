@@ -1,14 +1,15 @@
+import { generateImage } from "../../image-service";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 export const aiProductPhotoSkill: ContentSkill = {
   id: "ai_product_photo",
   name: "AI 商品图",
   category: "image",
-  description: "AI 生成商品场景图、白底图、生活方式图（用 Gemini 图片生成）",
+  description: "AI 生成商品场景图、白底图、生活方式图（Gemini 直出真实图片）",
   icon: "Camera",
   color: "blue",
-  estimated_cost: { text: 0.01, image: 0.04 },
-  estimated_time_seconds: 30,
+  estimated_cost: { text: 0, image: 0.04 },
+  estimated_time_seconds: 25,
   requires_image: true,
   agents: ["content_producer"],
   inputs: [
@@ -32,32 +33,36 @@ export const aiProductPhotoSkill: ContentSkill = {
     const product = input.product;
     if (!product) throw new Error("缺少商品");
     const photoStyle = (input.photo_style as string) || "lifestyle";
-    const aspectRatio = (input.aspect_ratio as string) || "1:1";
+    const aspectRatio = (input.aspect_ratio as string) as "1:1" | "4:3" | "3:4" | "16:9" | "9:16";
 
     const stylePrompts: Record<string, string> = {
-      studio_white: "Professional product photography, clean white background, studio lighting, high-end commercial quality, sharp focus",
-      lifestyle: "Lifestyle product photography, natural warm lighting, authentic home/outdoor setting, aspirational feel",
-      flat_lay: "Flat lay photography, top-down view, aesthetically arranged with complementary items, minimalist",
-      model: "Fashion model wearing/holding the product, editorial style, natural pose, professional lighting",
-      outdoor: "Outdoor product shot, natural sunlight, scenic background, adventure/travel aesthetic",
+      studio_white: "Professional product photography, pure white background, soft studio lighting, shot with 85mm lens, commercial quality, sharp focus, e-commerce hero shot",
+      lifestyle: "Lifestyle product photography, warm natural light, authentic cozy home or outdoor setting, aspirational mood, depth of field blur background",
+      flat_lay: "Flat lay product photography, overhead top-down view, artfully arranged on textured surface with complementary props, minimalist aesthetic, bright even lighting",
+      model: "Fashion model wearing the product, editorial style photography, natural confident pose, professional outdoor or studio lighting, high-fashion aesthetic",
+      outdoor: "Outdoor product photography, golden hour natural sunlight, scenic nature or urban background, adventure lifestyle feel, dynamic angle",
     };
 
-    const prompt = `${stylePrompts[photoStyle] || stylePrompts.lifestyle}. Product: ${product.name}. ${product.category ? `Category: ${product.category}.` : ""} High resolution, professional quality.`;
+    const productDesc = `${product.name}${product.category ? `, ${product.category}` : ""}`;
+    const imagePrompt = `${stylePrompts[photoStyle] || stylePrompts.lifestyle}. Product: ${productDesc}. High resolution, ultra realistic, 4K quality.`;
 
-    // Return the prompt and settings — the frontend will call /api/generate-image
-    const output = {
-      image_prompt: prompt,
-      aspect_ratio: aspectRatio,
-      style: photoStyle,
-      product_name: product.name,
-      instructions: "使用上方的 prompt 调用图片生成 API (/api/generate-image)",
-    };
+    const imageUrl = await generateImage(imagePrompt, {
+      style: "product_photo",
+      size: aspectRatio,
+      filename: `product-photo-${photoStyle}-${Date.now()}.png`,
+    });
 
     return {
       skill_id: "ai_product_photo",
-      output,
+      output: {
+        image_url: imageUrl,
+        image_prompt: imagePrompt,
+        style: photoStyle,
+        aspect_ratio: aspectRatio,
+        product_name: product.name,
+      },
       generated_at: new Date().toISOString(),
-      estimated_cost: { text: 0.01, image: 0.04 },
+      estimated_cost: { text: 0, image: 0.04 },
     };
   },
 };
