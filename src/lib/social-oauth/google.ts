@@ -8,10 +8,7 @@ function getGoogleConfig() {
   return { clientId, clientSecret };
 }
 
-const SCOPES = [
-  "https://www.googleapis.com/auth/analytics.readonly",
-  "https://www.googleapis.com/auth/analytics.manage.users.readonly",
-].join(" ");
+const SCOPES = "https://www.googleapis.com/auth/analytics.readonly";
 
 function getRedirectUri() {
   return `${getAppUrl()}/api/oauth/google_analytics/callback`;
