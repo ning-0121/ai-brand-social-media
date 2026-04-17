@@ -19,6 +19,7 @@ import { ActionImpactList } from "@/components/analytics/action-impact-list";
 import { WeeklyReportView } from "@/components/analytics/weekly-report-view";
 import { AuditLogViewer } from "@/components/analytics/audit-log-viewer";
 import { TaskResultRenderer } from "@/components/ops/task-result-renderer";
+import { DailyReportPanel } from "@/components/ops/daily-report-panel";
 import {
   Target,
   Sparkles,
@@ -274,6 +275,7 @@ export default function OpsCockpitPage() {
         description="AI 操盘手：诊断店铺 → 定目标 → 排计划 → 自动执行 → 追踪效果"
         actions={
           <div className="flex gap-2">
+            <DailyReportPanel />
             <Button size="sm" variant="outline" onClick={() => handleGeneratePlan("store")} disabled={!!generatingModule}>
               {generatingModule === "store" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
               {generatingModule === "store" ? "生成中..." : "生成店铺周计划"}
