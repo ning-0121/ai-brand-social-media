@@ -40,11 +40,11 @@ export async function generateDailyReport(): Promise<DailyReport> {
   const today = new Date().toISOString().split("T")[0];
   const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
-  // 1. 今日任务执行情况
+  // 1. 今日任务执行情况 — 按 task_date 查，不按 updated_at（避免漏查）
   const { data: todayTasks } = await supabase
     .from("ops_daily_tasks").select("*")
-    .gte("updated_at", `${today}T00:00:00`)
-    .order("updated_at", { ascending: true });
+    .eq("task_date", today)
+    .order("created_at", { ascending: true });
 
   const executed = (todayTasks || []).filter(t => t.execution_status === "auto_executed" || t.execution_status === "completed");
   const failed = (todayTasks || []).filter(t => t.execution_status === "failed");

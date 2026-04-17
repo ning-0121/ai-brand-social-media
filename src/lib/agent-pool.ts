@@ -19,16 +19,16 @@ interface PoolResult {
 
 // 每种 task 的耗时预估（秒），用于决定一个 worker 可以塞几个
 const TASK_SECONDS: Record<string, number> = {
-  seo_fix: 15,
-  detail_page: 25,
-  post: 30,
+  seo_fix: 10,        // 优化后单次 Claude 调用
+  detail_page: 15,
+  post: 20,
   engage: 8,
   hashtag_strategy: 8,
   content_calendar: 10,
   short_video_script: 10,
-  landing_page: 30,
-  homepage_update: 20,
-  new_product_content: 35,
+  landing_page: 25,
+  homepage_update: 15,
+  new_product_content: 25,
 };
 
 function estimateDuration(taskType: string): number {
@@ -99,14 +99,17 @@ export async function executeAgentPool(maxTasks = 20): Promise<PoolResult> {
     return { dispatched: 0, succeeded: 0, failed: 0, skipped: 0, details: [] };
   }
 
-  // 打包成 5 个并行 batch
+  // 打包成 5 个并行 batch（每个 55s 预算）
   const batches = packTasksIntoBatches(tasks, 55, 5);
   const baseUrl = getWorkerBaseUrl();
   const cronSecret = process.env.CRON_SECRET || "";
 
-  // 并行调用所有 workers
+  // Fire-and-return：立即发起所有 worker 请求（Vercel 会创建独立 serverless 函数实例）
+  // 等待最多 50s 收集能收到的结果；超时的 worker 仍在独立运行，会自行更新 DB
   const workerPromises = batches.map(async (batch, idx) => {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 50_000);
       const res = await fetch(`${baseUrl}/api/agent-worker`, {
         method: "POST",
         headers: {
@@ -114,7 +117,9 @@ export async function executeAgentPool(maxTasks = 20): Promise<PoolResult> {
           Authorization: `Bearer ${cronSecret}`,
         },
         body: JSON.stringify({ task_ids: batch }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       if (!res.ok) {
         const text = await res.text();
         return { batch: idx, status: "failed", error: `HTTP ${res.status}: ${text.slice(0, 100)}` };
@@ -122,10 +127,13 @@ export async function executeAgentPool(maxTasks = 20): Promise<PoolResult> {
       const data = await res.json();
       return { batch: idx, status: "success", processed: data.processed, results: data.results };
     } catch (err) {
-      return { batch: idx, status: "failed", error: err instanceof Error ? err.message : "fetch 失败" };
+      const msg = err instanceof Error ? err.message : "fetch 失败";
+      // AbortError = 超时，worker 仍在后台运行
+      return { batch: idx, status: err instanceof Error && err.name === "AbortError" ? "dispatched" : "failed", error: msg };
     }
   });
 
+  // 等待所有 worker 完成（或 50s 超时各自 abort）
   const results = await Promise.allSettled(workerPromises);
 
   let succeeded = 0, failed = 0, skipped = 0;
@@ -142,12 +150,15 @@ export async function executeAgentPool(maxTasks = 20): Promise<PoolResult> {
           else if (taskResult.status === "failed") failed++;
           else skipped++;
         }
+      } else if (value.status === "dispatched") {
+        // Worker was dispatched but timed out waiting for response — it's still running
+        skipped += batches[i]?.length || 0;
       } else {
-        failed += batches[i].length;
+        failed += batches[i]?.length || 0;
       }
     } else {
       details.push({ batch: i, status: "rejected", error: String(r.reason).slice(0, 100) });
-      failed += batches[i].length;
+      failed += batches[i]?.length || 0;
     }
   }
 

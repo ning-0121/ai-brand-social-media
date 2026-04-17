@@ -6,7 +6,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { runSkillScout } from "@/lib/skill-scout";
 import { generateDailyReport } from "@/lib/daily-report";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const auth = await requireAuth();
