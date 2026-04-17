@@ -59,10 +59,10 @@ const PLATFORMS = [
 export default function SocialPage() {
   const { data: kpiData } = useSupabase(getSocialKPIs, { totalAccounts: 0, connectedAccounts: 0, queuedPosts: 0, publishedPosts: 0 });
   const socialKPIs: KPIData[] = [
-    { label: "已连接账号", value: kpiData.connectedAccounts, trend: "up", trendPercent: 1, icon: "Link", format: "number" },
-    { label: "已发布", value: kpiData.publishedPosts, trend: "up", trendPercent: 15, icon: "CheckCircle", format: "number" },
-    { label: "排队中", value: kpiData.queuedPosts, trend: "flat", trendPercent: 0, icon: "Clock", format: "number" },
-    { label: "总账号", value: kpiData.totalAccounts, trend: "up", trendPercent: 2, icon: "Users", format: "number" },
+    { label: "已连接账号", value: kpiData.connectedAccounts, trend: "up", trendPercent: 1, icon: "Link", format: "number", source: "shopify_live" },
+    { label: "已发布", value: kpiData.publishedPosts, trend: "up", trendPercent: 15, icon: "CheckCircle", format: "number", source: "shopify_live" },
+    { label: "排队中", value: kpiData.queuedPosts, trend: "flat", trendPercent: 0, icon: "Clock", format: "number", source: "shopify_live" },
+    { label: "总账号", value: kpiData.totalAccounts, trend: "up", trendPercent: 2, icon: "Users", format: "number", source: "all_accounts" },
   ];
 
   // Data fetching with local refresh

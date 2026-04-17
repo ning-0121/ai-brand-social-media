@@ -127,10 +127,10 @@ function OverallScoreRing({ score }: { score: number }) {
 export default function StorePage() {
   const { data: kpiData } = useSupabase(getStoreKPIs, { healthScore: 0, avgSEO: 0, totalProducts: 0, outOfStock: 0 });
   const storeKPIs: KPIData[] = [
-    { label: "店铺健康分", value: kpiData.healthScore, trend: "up", trendPercent: 3, icon: "HeartPulse", format: "number" },
-    { label: "SEO 得分", value: kpiData.avgSEO, trend: "up", trendPercent: 5, icon: "Search", format: "number" },
-    { label: "商品总数", value: kpiData.totalProducts, trend: "up", trendPercent: 10, icon: "Package", format: "number" },
-    { label: "缺货商品", value: kpiData.outOfStock, trend: "down", trendPercent: 2, icon: "AlertTriangle", format: "number" },
+    { label: "店铺健康分", value: kpiData.healthScore, trend: "up", trendPercent: 3, icon: "HeartPulse", format: "number", source: "our_estimate", sourceNote: "综合 SEO 完整度 + 产品信息完善度计算" },
+    { label: "SEO 得分", value: kpiData.avgSEO, trend: "up", trendPercent: 5, icon: "Search", format: "number", source: "our_estimate", sourceNote: "基于标题长度、Meta 完整度、内容质量 7 维度打分，非 Google 实际排名" },
+    { label: "商品总数", value: kpiData.totalProducts, trend: "up", trendPercent: 10, icon: "Package", format: "number", source: "shopify_live" },
+    { label: "缺货商品", value: kpiData.outOfStock, trend: "down", trendPercent: 2, icon: "AlertTriangle", format: "number", source: "shopify_live" },
   ];
 
   const { data: initialProducts, loading: loadingProducts } = useSupabase(getProducts, []);

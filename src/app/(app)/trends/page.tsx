@@ -58,10 +58,10 @@ const PLATFORM_OPTIONS: { value: string; label: string }[] = [
 export default function TrendsPage() {
   const { data: kpiData } = useSupabase(getTrendsKPIs, { categories: 0, trending: 0, avgGrowth: 0, competitors: 0 });
   const trendsKPIs: KPIData[] = [
-    { label: "热门品类数", value: kpiData.categories, trend: "up", trendPercent: 5, icon: "Layers", format: "number" },
-    { label: "本周爆款", value: kpiData.trending, trend: "up", trendPercent: 20, icon: "Flame", format: "number" },
-    { label: "平均增长率", value: kpiData.avgGrowth, trend: "up", trendPercent: 3.5, icon: "TrendingUp", format: "percent" },
-    { label: "竞品数", value: kpiData.competitors, trend: "flat", trendPercent: 0, icon: "Target", format: "number" },
+    { label: "热门品类数", value: kpiData.categories, trend: "up", trendPercent: 5, icon: "Layers", format: "number", source: "our_estimate" },
+    { label: "本周爆款", value: kpiData.trending, trend: "up", trendPercent: 20, icon: "Flame", format: "number", source: "our_estimate" },
+    { label: "平均增长率", value: kpiData.avgGrowth, trend: "up", trendPercent: 3.5, icon: "TrendingUp", format: "percent", source: "our_estimate" },
+    { label: "竞品数", value: kpiData.competitors, trend: "flat", trendPercent: 0, icon: "Target", format: "number", source: "our_estimate" },
   ];
 
   // AI search state

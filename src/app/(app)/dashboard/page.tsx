@@ -282,6 +282,7 @@ export default function DashboardPage() {
           trendPercent={kpis.revenueTrend}
           icon="DollarSign"
           format="currency"
+          source="shopify_live"
         />
         <KPICard
           label="总订单 (30天)"
@@ -290,6 +291,7 @@ export default function DashboardPage() {
           trendPercent={kpis.ordersTrend}
           icon="ShoppingCart"
           format="number"
+          source="shopify_live"
         />
         <KPICard
           label="客单价"
@@ -297,6 +299,7 @@ export default function DashboardPage() {
           trend="flat"
           icon="TrendingUp"
           format="currency"
+          source="shopify_live"
         />
         <KPICard
           label="客户总数"
@@ -304,6 +307,8 @@ export default function DashboardPage() {
           trend="flat"
           icon="Users"
           format="number"
+          source="all_accounts"
+          sourceNote="包含注册未购买、邮件订阅、弃购等所有账号"
         />
       </KPICardGrid>
 

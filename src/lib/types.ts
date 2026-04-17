@@ -22,4 +22,6 @@ export interface KPIData {
   trendPercent?: number;
   icon: string;
   format?: 'number' | 'currency' | 'percent';
+  source?: 'shopify_live' | 'our_estimate' | 'needs_ga4' | 'all_accounts';
+  sourceNote?: string;
 }

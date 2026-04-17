@@ -78,9 +78,9 @@ function getIcon(name: string) {
 export default function SkillsPage() {
   const { data: kpiData } = useSupabase(getSkillsKPIs, { total: 0, topSkill: "-", totalUsage: 0 });
   const skillsKPIs: KPIData[] = [
-    { label: "技能包总数", value: kpiData.total, trend: "up", trendPercent: 6, icon: "BookOpen", format: "number" },
-    { label: "热门技能", value: kpiData.topSkill, trend: "up", trendPercent: 0, icon: "Star" },
-    { label: "总使用次数", value: kpiData.totalUsage, trend: "up", trendPercent: 18, icon: "Users", format: "number" },
+    { label: "技能包总数", value: kpiData.total, trend: "up", trendPercent: 6, icon: "BookOpen", format: "number", source: "shopify_live" },
+    { label: "热门技能", value: kpiData.topSkill, trend: "up", trendPercent: 0, icon: "Star", source: "shopify_live" },
+    { label: "总使用次数", value: kpiData.totalUsage, trend: "up", trendPercent: 18, icon: "Users", format: "number", source: "shopify_live" },
   ];
 
   const { data: skills, loading: loadingSkills } = useSupabase(getSkillPacks, []);

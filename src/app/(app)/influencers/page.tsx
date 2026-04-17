@@ -119,10 +119,10 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
 export default function InfluencersPage() {
   const { data: kpiData } = useSupabase(getInfluencerKPIs, { total: 0, active: 0, pending: 0, avgROI: 0 });
   const kpis: KPIData[] = [
-    { label: "达人总数", value: kpiData.total, trend: "up", trendPercent: 12, icon: "Users", format: "number" },
-    { label: "合作中", value: kpiData.active, trend: "up", trendPercent: 8, icon: "Handshake", format: "number" },
-    { label: "待联系", value: kpiData.pending, trend: "flat", trendPercent: 0, icon: "PhoneCall", format: "number" },
-    { label: "平均 ROI", value: kpiData.avgROI > 0 ? `${kpiData.avgROI}x` : "-", trend: "up", trendPercent: 15, icon: "TrendingUp" },
+    { label: "达人总数", value: kpiData.total, trend: "up", trendPercent: 12, icon: "Users", format: "number", source: "shopify_live" },
+    { label: "合作中", value: kpiData.active, trend: "up", trendPercent: 8, icon: "Handshake", format: "number", source: "shopify_live" },
+    { label: "待联系", value: kpiData.pending, trend: "flat", trendPercent: 0, icon: "PhoneCall", format: "number", source: "shopify_live" },
+    { label: "平均 ROI", value: kpiData.avgROI > 0 ? `${kpiData.avgROI}x` : "-", trend: "up", trendPercent: 15, icon: "TrendingUp", source: "our_estimate" },
   ];
 
   const { data: initialInfluencers } = useSupabase(getInfluencers, []);
