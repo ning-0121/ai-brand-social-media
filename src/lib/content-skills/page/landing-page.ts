@@ -1,4 +1,5 @@
 import { callLLM } from "../llm";
+import { tryRunPrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 export const landingPageSkill: ContentSkill = {
@@ -27,6 +28,26 @@ export const landingPageSkill: ContentSkill = {
     const product = input.product;
     const headline = (input.headline_idea as string) || "";
     const offer = (input.offer as string) || "";
+    const urgency = (input.urgency as string) || "";
+    const audience = (input.audience as string) || "";
+
+    const dbOut = await tryRunPrompt("page.landing", {
+      goal,
+      product: { name: product?.name || "" },
+      product_description: (product?.body_html || "").slice(0, 300),
+      headline_idea: headline,
+      offer,
+      urgency,
+      audience,
+    }, { source: "landing_page" });
+    if (dbOut) {
+      return {
+        skill_id: "landing_page",
+        output: dbOut,
+        generated_at: new Date().toISOString(),
+        estimated_cost: { text: 0.03, image: 0 },
+      };
+    }
 
     const goalSections: Record<string, string> = {
       purchase: "Hero with product image, 3 benefit blocks, social proof section (reviews/stats), urgency element, pricing, FAQ, final CTA",

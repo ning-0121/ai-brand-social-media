@@ -1,5 +1,6 @@
 import { callLLM } from "../llm";
 import { generateImage } from "../../image-service";
+import { tryRunPrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 const SIZE_MAP: Record<string, "1:1" | "16:9" | "9:16" | "3:4"> = {
@@ -48,8 +49,17 @@ export const bannerDesignSkill: ContentSkill = {
     const extra = (input.extra_info as string) || "";
     const size = SIZE_MAP[templateId] || "16:9";
 
-    // Step 1: LLM 生成设计方案 + image prompt
-    const design = await callLLM(
+    // Step 1: LLM 生成设计方案 + image prompt（优先 DB prompt）
+    const dbDesign = await tryRunPrompt("image.banner.design", {
+      purpose,
+      product_name: product?.name || "fashion activewear",
+      category: product?.category || "fashion",
+      template_id: templateId,
+      size,
+      extra,
+    }, { source: "banner_design" });
+
+    const design = dbDesign || await callLLM(
       `You are a marketing creative director. Generate copy, color scheme, AND a detailed image generation prompt for a banner.
 Return JSON:
 {
