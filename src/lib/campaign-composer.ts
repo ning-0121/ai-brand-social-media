@@ -34,6 +34,8 @@ export interface CampaignResult {
   duration_ms: number;
   /** 落地页 prompt_runs.id — A/B winner 会据此回写 score */
   landing_prompt_run_id?: string | null;
+  /** 顶级活动策划大师的战略蓝图（4 阶段计划、资产需求、风险、成功标准） */
+  master_plan?: Record<string, unknown> | null;
   components: {
     landing_page?: { success: boolean; output?: Record<string, unknown>; error?: string };
     banner?: { success: boolean; output?: Record<string, unknown>; error?: string };
@@ -49,10 +51,43 @@ export async function composeCampaign(spec: CampaignSpec): Promise<CampaignResul
 
   // Fetch product if specified
   let product: ProductLite | undefined;
+  let productSold30d = 0;
   if (spec.product_id) {
     const { data } = await supabase.from("products").select("*").eq("id", spec.product_id).maybeSingle();
-    if (data) product = data as unknown as ProductLite;
+    if (data) {
+      product = data as unknown as ProductLite;
+      // 拉销量给活动策划专家参考
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+      const { data: orders } = await supabase.from("shopify_orders")
+        .select("line_items").gte("created_at", thirtyDaysAgo).limit(500);
+      for (const o of orders || []) {
+        const items = (o.line_items as Array<{ product_id?: number | string; quantity?: number }>) || [];
+        for (const i of items) {
+          if (String(i.product_id) === String((data as Record<string, unknown>).shopify_product_id)) {
+            productSold30d += i.quantity || 0;
+          }
+        }
+      }
+    }
   }
+
+  // Step 0: 调用活动策划专家产出战略蓝图（被下游 skill 当作指导思想）
+  let masterPlan: Record<string, unknown> | null = null;
+  try {
+    const { tryRunPrompt } = await import("./prompts");
+    masterPlan = await tryRunPrompt("expert.campaign.master", {
+      campaign_name: spec.name,
+      target_date: new Date().toISOString().split("T")[0],
+      campaign_type: spec.goal === "presale" ? "新品首发" : spec.goal === "brand_story" ? "品牌活动" : "促销",
+      product: {
+        name: product?.name || "未指定",
+        price: (product as unknown as { price?: number })?.price || "N/A",
+        sold_30d: productSold30d,
+      },
+      offer: spec.offer || "无",
+      urgency: spec.urgency || "无",
+    }, { source: "campaign_composer" });
+  } catch { /* 失败不阻塞 */ }
 
   // Variant B 时偏移 headline 方向：让 AI 用对立角度写
   const variantHint = spec.variant_hint === "B"
@@ -140,6 +175,7 @@ export async function composeCampaign(spec: CampaignSpec): Promise<CampaignResul
     started_at: startedAt,
     duration_ms: Date.now() - started,
     landing_prompt_run_id: landingPromptRunId,
+    master_plan: masterPlan,
     components: {
       landing_page: unwrap(landingRes),
       banner: unwrap(bannerRes),

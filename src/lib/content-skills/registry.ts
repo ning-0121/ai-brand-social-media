@@ -40,6 +40,7 @@ import { landingPageSkill } from "./page/landing-page";
 
 // Copy skills
 import { adCopySkill } from "./copy/ad-copy";
+import { adCampaignBlueprintSkill } from "./copy/ad-campaign-blueprint";
 import { emailCopySkill } from "./copy/email-copy";
 import { customerReviewSkill } from "./copy/customer-review";
 import { productDescriptionSkill } from "./copy/product-description";
@@ -77,6 +78,7 @@ const allSkills: ContentSkill[] = [
   landingPageSkill,
   // Copy (4 new + existing website/social reclassified below)
   adCopySkill,
+  adCampaignBlueprintSkill,
   emailCopySkill,
   customerReviewSkill,
   productDescriptionSkill,

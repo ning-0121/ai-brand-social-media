@@ -431,6 +431,63 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
   const lastReview = lastPlan?.review as Record<string, unknown> | null;
   const lastStrategy = lastPlan?.strategy as Record<string, unknown> | null;
 
+  // 优先走 DB 里的顶级运营专家 prompt（可随时改版本、滚动评分）
+  const { tryRunPrompt } = await import("./prompts");
+  const expertResult = await tryRunPrompt("expert.ops.strategist", {
+    total_revenue_30d: totalRevenue.toFixed(0),
+    order_count_30d: orderCount,
+    aov: orderCount > 0 ? (totalRevenue / orderCount).toFixed(1) : "0",
+    top_sellers: topSellers.map((p, i) =>
+      `${i+1}. [${p.id}] ${p.name} — 售 ${p.sold_30d}/30d, 营收 $${p.revenue_30d.toFixed(0)}, 价 $${p.price}, 库存 ${p.stock || 0}`
+    ).join("\n") || "无销售数据",
+    slow_movers: slowMovers.map(p =>
+      `- [${p.id}] ${p.name}（库存 ${p.stock}, 价 $${p.price}, 0 销量/30d）`
+    ).join("\n") || "无滞销品",
+    goals_progress: (goals || []).map(g =>
+      `- ${g.metric}: ${g.current_value}/${g.target_value} ${g.unit}（截止 ${g.deadline}）`
+    ).join("\n") || "暂无目标",
+    last_week_review: lastReview
+      ? `得分 ${(lastReview as Record<string, unknown>).overall_score}/100 · ${JSON.stringify(lastReview).slice(0, 300)}`
+      : "首周无复盘",
+  }, { source: "generateWeeklyPlan" });
+
+  if (expertResult?.tasks && Array.isArray(expertResult.tasks)) {
+    // 用专家 prompt 结果，走下方写入逻辑
+    const taskList = expertResult.tasks as Array<Record<string, unknown>>;
+    const weekStart = weekStartStr;
+    const planData = {
+      module,
+      week_start: weekStart,
+      strategy: expertResult.strategy || {},
+      task_count: taskList.length,
+    };
+    const { data: plan } = await supabase.from("ops_weekly_plans").insert(planData).select().single();
+    if (plan) {
+      const dailyTasks = taskList.map((t, idx) => {
+        const taskDate = new Date(weekStart);
+        taskDate.setDate(taskDate.getDate() + ((t.day_offset as number) || Math.floor(idx / 3)));
+        return {
+          plan_id: plan.id,
+          module,
+          task_date: taskDate.toISOString().split("T")[0],
+          task_type: t.task_type as string,
+          title: t.title as string,
+          description: t.description as string || "",
+          target_product_id: (t.target_product_id as string) || null,
+          target_product_name: (t.target_product_name as string) || null,
+          auto_executable: t.auto_executable !== false,
+          expected_impact: t.expected_impact as string || null,
+          execution_status: "pending",
+        };
+      });
+      if (dailyTasks.length > 0) {
+        await supabase.from("ops_daily_tasks").insert(dailyTasks);
+      }
+      return plan.id;
+    }
+  }
+
+  // 专家 prompt 不在 DB 或失败 → 回退硬编码路径
   const result = await callLLM(
     `你是月销百万的 Shopify DTC 品牌操盘手。你在排本周的执行计划，不是写报告。
 
