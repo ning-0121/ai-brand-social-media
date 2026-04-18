@@ -74,7 +74,7 @@ export const ugcResponseSkill: ContentSkill = {
   }
 }`;
 
-    const output = await callLLM(systemPrompt, userPrompt, 2500);
+    const output = await callLLM(systemPrompt, userPrompt, 2500, "fast");
 
     return {
       skill_id: "ugc_response",

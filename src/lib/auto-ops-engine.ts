@@ -6,6 +6,7 @@ import { executeDailyTasks, recordPerformanceSnapshot, generateWeeklyPlan, weekl
 import { runSkillScout } from "./skill-scout";
 import { generateDailyReport } from "./daily-report";
 import { autoRetryFailedTasks } from "./failure-diagnostic";
+import { runAIInspector } from "./ai-inspector";
 
 interface TaskResult {
   task: string;
@@ -92,6 +93,19 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
       status: "failed",
       message: err instanceof Error ? err.message : "Auto-publish failed",
     });
+  }
+
+  // 4.4 AI 督察：每小时体检 + 自动修复卡住任务
+  try {
+    const insp = await runAIInspector();
+    results.push({
+      task: "ai_inspector",
+      status: insp.verdict === "critical" ? "failed" : "success",
+      message: insp.summary,
+      data: insp as unknown as Record<string, unknown>,
+    });
+  } catch (err) {
+    results.push({ task: "ai_inspector", status: "failed", message: err instanceof Error ? err.message : "督察失败" });
   }
 
   // 4.5 自动重试失败任务（限流/超时类可重试）

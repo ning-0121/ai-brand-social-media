@@ -74,7 +74,7 @@ export const contentCalendarSkill: ContentSkill = {
   "key_dates": [{"date": "日期", "event": "节日/事件", "content_idea": "内容创意"}]
 }`;
 
-    const output = await callLLM(systemPrompt, userPrompt, 4500);
+    const output = await callLLM(systemPrompt, userPrompt, 4500, "fast");
 
     return {
       skill_id: "content_calendar",

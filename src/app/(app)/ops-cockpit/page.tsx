@@ -20,6 +20,7 @@ import { WeeklyReportView } from "@/components/analytics/weekly-report-view";
 import { AuditLogViewer } from "@/components/analytics/audit-log-viewer";
 import { TaskResultRenderer } from "@/components/ops/task-result-renderer";
 import { DailyReportPanel } from "@/components/ops/daily-report-panel";
+import { AIInspectorPanel } from "@/components/ops/ai-inspector-panel";
 import {
   Target,
   Sparkles,
@@ -332,6 +333,9 @@ export default function OpsCockpitPage() {
           </Card>
         );
       })()}
+
+      {/* AI 督察 */}
+      <AIInspectorPanel />
 
       {/* ═══ Main Tabs — 页面核心导航 ═══ */}
       <Tabs value={activeTab} onValueChange={(v) => v && setActiveTab(v)}>

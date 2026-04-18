@@ -76,7 +76,7 @@ export const shortVideoScriptSkill: ContentSkill = {
   "caption": "视频文案"
 }`;
 
-    const output = await callLLM(systemPrompt, userPrompt, 3500);
+    const output = await callLLM(systemPrompt, userPrompt, 3500, "fast");
 
     return {
       skill_id: "short_video_script",

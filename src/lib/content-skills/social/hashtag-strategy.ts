@@ -60,7 +60,7 @@ ${audience ? `目标人群：${audience}` : ""}
   "avoid": ["要避免的标签1", "要避免的标签2"]
 }`;
 
-    const output = await callLLM(systemPrompt, userPrompt, 2000);
+    const output = await callLLM(systemPrompt, userPrompt, 2000, "fast");
 
     return {
       skill_id: "hashtag_strategy",
