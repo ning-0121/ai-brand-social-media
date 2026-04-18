@@ -6,11 +6,12 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export type LLMTier = "fast" | "balanced" | "complex" | "reasoning";
 
 // Anthropic-direct fallback models (when OPENROUTER_API_KEY not set)
+// Use consistent versioned IDs to avoid silent breakage if aliases are deprecated
 const ANTHROPIC_MODEL_MAP: Record<LLMTier, string> = {
   fast: "claude-haiku-4-5-20251001",
-  balanced: "claude-sonnet-4-5",
-  complex: "claude-sonnet-4-5",
-  reasoning: "claude-sonnet-4-5",
+  balanced: "claude-sonnet-4-5-20250929",
+  complex: "claude-sonnet-4-5-20250929",
+  reasoning: "claude-sonnet-4-5-20250929",
 };
 
 function parseJson(content: string): Record<string, unknown> {

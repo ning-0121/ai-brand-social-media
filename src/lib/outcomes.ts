@@ -67,7 +67,10 @@ export async function recordSEOOutcome(params: {
     status: "pending",
   }).select("id").single();
 
-  if (error) return null;
+  if (error) {
+    console.error("[outcomes] recordSEOOutcome insert failed:", error.message, "— 可能 prompt_outcomes 表未迁移");
+    return null;
+  }
   return { outcome_id: data.id };
 }
 
@@ -220,7 +223,7 @@ export async function summarizeRecentOutcomes(days = 30): Promise<{
 }> {
   const since = new Date(Date.now() - days * 86400000).toISOString();
 
-  const [{ data: pending }, { data: measured }] = await Promise.all([
+  const [pendingRes, { data: measured }] = await Promise.all([
     supabase.from("prompt_outcomes").select("id", { count: "exact", head: true })
       .eq("status", "pending")
       .gte("created_at", since),
@@ -231,7 +234,7 @@ export async function summarizeRecentOutcomes(days = 30): Promise<{
       .limit(100),
   ]);
 
-  const pendingCount = (pending as unknown as { count?: number })?.count || 0;
+  const pendingCount = pendingRes.count || 0;
   const measuredList = measured || [];
 
   const scores = measuredList.map(m => m.business_score).filter((s): s is number => typeof s === "number");
