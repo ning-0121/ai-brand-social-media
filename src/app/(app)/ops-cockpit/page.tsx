@@ -733,20 +733,95 @@ function PlanCard({ plan, onGenerate, generating }: { plan: WeeklyPlan | null; o
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {typeof strategy?.strategy === "string" && (
-          <div className="rounded-lg bg-primary/5 border border-primary/10 p-3">
-            <p className="text-xs font-medium text-primary mb-1">本周策略</p>
-            <p className="text-xs">{strategy.strategy}</p>
-          </div>
+        {/* 诊断官结论 */}
+        {strategy?.diagnosis ? (() => {
+          const diag = strategy.diagnosis as Record<string, unknown>;
+          const d = diag.diagnosis as Record<string, unknown> | undefined;
+          const rf = diag.recommended_focus as Record<string, unknown> | undefined;
+          return (
+            <div className="rounded-lg bg-red-50 dark:bg-red-950/20 border-2 border-red-200 dark:border-red-900 p-3 space-y-2">
+              <p className="text-[10px] font-medium text-red-700 dark:text-red-400 uppercase tracking-wide">诊断官结论</p>
+              {Boolean(d?.headline) && <p className="text-sm font-semibold">{String(d?.headline)}</p>}
+              {Boolean(d?.primary_constraint) && (
+                <Badge className="bg-red-600 hover:bg-red-600 text-[10px]">
+                  主要瓶颈: {String(d?.primary_constraint)}
+                </Badge>
+              )}
+              {Array.isArray(d?.evidence) && (d.evidence as string[]).length > 0 && (
+                <ul className="text-[11px] space-y-0.5 text-muted-foreground">
+                  {(d.evidence as string[]).map((e, i) => <li key={i}>· {e}</li>)}
+                </ul>
+              )}
+              {Boolean(rf?.primary_lever) && (
+                <div className="pt-1 border-t border-red-100 dark:border-red-900">
+                  <p className="text-[10px] font-medium text-red-700 dark:text-red-400">最大杠杆</p>
+                  <p className="text-xs mt-0.5">{String(rf?.primary_lever)}</p>
+                  {Boolean(rf?.success_threshold) && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">成功阈值: {String(rf?.success_threshold)}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })() : null}
+
+        {/* Thesis（战略一句话 + anti-thesis） */}
+        {strategy?.thesis ? (() => {
+          const t = strategy.thesis as Record<string, unknown>;
+          return (
+            <div className="rounded-lg bg-primary/5 border-2 border-primary/20 p-3 space-y-2">
+              <p className="text-[10px] font-medium text-primary uppercase tracking-wide">本周 Thesis</p>
+              {Boolean(t.one_liner) && <p className="text-sm font-semibold">{String(t.one_liner)}</p>}
+              {Boolean(t.hypothesis) && (
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground">假设</p>
+                  <p className="text-xs">{String(t.hypothesis)}</p>
+                </div>
+              )}
+              {Boolean(t.success_threshold) && (
+                <p className="text-[11px]">🎯 <span className="font-medium">{String(t.success_threshold)}</span></p>
+              )}
+              {Array.isArray(t.anti_thesis) && (t.anti_thesis as string[]).length > 0 && (
+                <div>
+                  <p className="text-[10px] font-medium text-red-600 mt-1">本周明确不做</p>
+                  <ul className="text-[11px] text-muted-foreground space-y-0.5">
+                    {(t.anti_thesis as string[]).map((a, i) => <li key={i}>✗ {a}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          );
+        })() : (
+          // Fallback to legacy format
+          <>
+            {typeof strategy?.strategy === "string" && (
+              <div className="rounded-lg bg-primary/5 border border-primary/10 p-3">
+                <p className="text-xs font-medium text-primary mb-1">本周策略</p>
+                <p className="text-xs">{strategy.strategy}</p>
+              </div>
+            )}
+            {typeof strategy?.rationale === "string" && (
+              <p className="text-xs text-muted-foreground">{strategy.rationale}</p>
+            )}
+            {Array.isArray(strategy?.key_focus) && (
+              <div className="flex flex-wrap gap-1">
+                {(strategy.key_focus as string[]).map((f, i) => (
+                  <Badge key={i} variant="secondary" className="text-[10px]">{f}</Badge>
+                ))}
+              </div>
+            )}
+          </>
         )}
-        {typeof strategy?.rationale === "string" && (
-          <p className="text-xs text-muted-foreground">{strategy.rationale}</p>
-        )}
-        {Array.isArray(strategy?.key_focus) && (
-          <div className="flex flex-wrap gap-1">
-            {(strategy.key_focus as string[]).map((f, i) => (
-              <Badge key={i} variant="secondary" className="text-[10px]">{f}</Badge>
-            ))}
+
+        {/* KPI daily watch */}
+        {Array.isArray(strategy?.kpi_watch_daily) && (strategy.kpi_watch_daily as string[]).length > 0 && (
+          <div className="rounded bg-muted/30 p-2">
+            <p className="text-[10px] font-medium text-muted-foreground mb-1">每日必盯</p>
+            <div className="flex flex-wrap gap-1">
+              {(strategy.kpi_watch_daily as string[]).map((k, i) => (
+                <Badge key={i} variant="outline" className="text-[10px]">{k}</Badge>
+              ))}
+            </div>
           </div>
         )}
         {plan.review && (
