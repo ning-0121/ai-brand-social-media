@@ -10,6 +10,7 @@
 
 import { supabase } from "./supabase";
 import { callLLM, type LLMTier } from "./content-skills/llm";
+import { getBrandGuide, formatForPrompt, formatAsContextBlock } from "./brand-guide";
 
 export interface PromptRow {
   id: string;
@@ -97,10 +98,20 @@ export async function runPrompt(
   const prompt = await getActivePrompt(slug);
   if (!prompt) throw new Error(`Prompt not found: ${slug}`);
 
-  const rendered = renderTemplate(prompt.template, vars);
-  const systemPrompt = prompt.system_prompt
-    ? renderTemplate(prompt.system_prompt, vars)
+  // 自动注入品牌指南 — 所有 DB prompt 都能用 {{brand.xxx}} 变量
+  const brandGuide = await getBrandGuide();
+  const brandVars = formatForPrompt(brandGuide);
+  const mergedVars = { ...brandVars, ...vars };
+
+  const rendered = renderTemplate(prompt.template, mergedVars);
+  // 品牌上下文作为 system prompt 前缀，保证语气/色彩一致
+  const brandContext = formatAsContextBlock(brandGuide);
+  const baseSystem = prompt.system_prompt
+    ? renderTemplate(prompt.system_prompt, mergedVars)
     : "";
+  const systemPrompt = brandContext
+    ? `${brandContext}\n\n---\n\n${baseSystem}`
+    : baseSystem;
 
   let output: Record<string, unknown> = {};
   let success = true;
