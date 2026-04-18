@@ -6,6 +6,18 @@ import { reviewContent } from "@/lib/content-qa";
 import { productContentPipeline, socialContentPipeline, campaignPipeline } from "@/lib/content-pipeline";
 import { createApprovalTask } from "@/lib/supabase-approval";
 
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || err.name || "unknown error";
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object") {
+    const o = err as Record<string, unknown>;
+    const msg = o.message || o.error || o.statusText || o.code;
+    if (msg) return String(msg);
+    try { return JSON.stringify(err).slice(0, 300); } catch { return "non-serializable error"; }
+  }
+  return String(err).slice(0, 300);
+}
+
 // 单个 worker 60s 限制，执行 1-4 个任务
 export const maxDuration = 60;
 
@@ -73,7 +85,7 @@ export async function POST(request: Request) {
 
       results.push({ task_id: taskId, status: "success", result });
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : "执行失败";
+      const errMsg = extractErrorMessage(err);
       await supabase.from("ops_daily_tasks").update({
         execution_status: "failed",
         execution_result: {

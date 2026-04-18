@@ -3,6 +3,38 @@
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HtmlPreview } from "./html-preview";
+
+function assembleDetailPageHtml(output: Record<string, unknown>, productName?: string | null): string {
+  const title = String(output.title || productName || "");
+  const subtitle = String(output.subtitle || "");
+  const description = String(output.description || output.body || output.body_html || "");
+  const highlights = (output.highlights as string[]) || [];
+  const specs = (output.specs as Array<{ name: string; value: string }>) || [];
+  const cta = String(output.cta_primary || output.cta || "");
+  const hero = String(output.hero_image || output.image_url || "");
+
+  // If description already contains HTML tags, use it; otherwise wrap as text.
+  const descHtml = /<[a-z][\s\S]*>/i.test(description)
+    ? description
+    : `<p>${description.replace(/\n/g, "<br/>")}</p>`;
+
+  return `<article style="max-width:900px;margin:0 auto;padding:24px;font-family:system-ui,-apple-system,sans-serif;color:#1a1a1a;line-height:1.7">
+${hero ? `<img src="${hero}" alt="${title}" style="width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin-bottom:24px"/>` : ""}
+${title ? `<h1 style="font-size:32px;font-weight:700;margin:0 0 8px">${title}</h1>` : ""}
+${subtitle ? `<p style="font-size:16px;color:#666;margin:0 0 24px">${subtitle}</p>` : ""}
+${highlights.length > 0 ? `<ul style="list-style:none;padding:0;margin:0 0 24px">
+${highlights.map(h => `<li style="padding:6px 0;border-bottom:1px solid #eee"><span style="color:#22c55e;margin-right:8px">✓</span>${h}</li>`).join("")}
+</ul>` : ""}
+<div style="font-size:15px;margin-bottom:24px">${descHtml}</div>
+${specs.length > 0 ? `<div style="background:#fafafa;border-radius:8px;padding:16px;margin-bottom:24px">
+<h3 style="font-size:14px;font-weight:600;margin:0 0 12px">规格参数</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+${specs.map(s => `<tr><td style="padding:6px 0;color:#666;width:40%">${s.name}</td><td style="padding:6px 0;font-weight:500">${s.value}</td></tr>`).join("")}
+</table></div>` : ""}
+${cta ? `<button style="background:#111;color:#fff;border:0;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer">${cta}</button>` : ""}
+</article>`;
+}
 
 interface TaskResultRendererProps {
   taskType: string;
@@ -193,69 +225,17 @@ function DetailPageRenderer({
   output: Record<string, unknown>;
   productName?: string | null;
 }) {
-  const title = String(output.title || productName || "");
-  const subtitle = String(output.subtitle || "");
-  const description = String(output.description || output.body || "");
-  const highlights = (output.highlights as string[]) || [];
-  const specs = (output.specs as Array<{ name: string; value: string }>) || [];
-  const cta = String(output.cta_primary || output.cta || "Shop Now");
+  // Prefer existing body_html if present, otherwise assemble from structured fields.
+  const existingHtml = (output.body_html || output.html) as string | undefined;
+  const html = existingHtml && existingHtml.length > 100
+    ? existingHtml
+    : assembleDetailPageHtml(output, productName);
 
   return (
-    <div className="space-y-3 rounded-lg border bg-background p-3">
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="text-[9px]">详情页预览</Badge>
-      </div>
-
-      {title ? (
-        <div>
-          <h3 className="text-base font-semibold">{title}</h3>
-          {subtitle ? <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p> : null}
-        </div>
-      ) : null}
-
-      {highlights.length > 0 ? (
-        <div>
-          <div className="text-[10px] font-medium text-muted-foreground mb-1">卖点</div>
-          <ul className="space-y-0.5">
-            {highlights.map((h, i) => (
-              <li key={i} className="text-xs flex items-start gap-1.5">
-                <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0 mt-0.5" />
-                {h}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {description ? (
-        <div>
-          <div className="text-[10px] font-medium text-muted-foreground mb-1">描述</div>
-          <p className="text-xs leading-relaxed whitespace-pre-wrap">{description.slice(0, 500)}{description.length > 500 ? "..." : ""}</p>
-        </div>
-      ) : null}
-
-      {specs.length > 0 ? (
-        <div>
-          <div className="text-[10px] font-medium text-muted-foreground mb-1">规格参数</div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {specs.slice(0, 6).map((s, i) => (
-              <div key={i} className="text-[11px] flex justify-between gap-2 border-b pb-1">
-                <span className="text-muted-foreground">{s.name}</span>
-                <span className="font-medium text-right">{s.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {cta ? (
-        <div className="pt-2">
-          <div className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium">
-            {cta} <ExternalLink className="h-3 w-3" />
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <HtmlPreview
+      html={html}
+      title={productName ? `详情页 · ${productName}` : "详情页"}
+    />
   );
 }
 
@@ -372,26 +352,34 @@ function VideoScriptRenderer({ output }: { output: Record<string, unknown> }) {
 // ─── 页面 (landing / homepage) ──────────────────────
 
 function PageRenderer({ output }: { output: Record<string, unknown> }) {
+  // Skills like homepage_hero / landing_page return body_html directly.
+  // Fallback: assemble from hero_title / hero_subtitle / sections if only structured data exists.
+  let html = (output.body_html || output.html || output.raw_text) as string | undefined;
+
+  if (!html || html.length < 50) {
+    const heroTitle = String(output.hero_title || output.title || "");
+    const heroSub = String(output.hero_subtitle || output.subtitle || "");
+    const imageUrl = String(output.image_url || "");
+    const sections = (output.sections as Array<Record<string, unknown>>) || [];
+    html = `<section style="text-align:center;padding:64px 24px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white">
+${heroTitle ? `<h1 style="font-size:48px;font-weight:800;margin:0 0 16px">${heroTitle}</h1>` : ""}
+${heroSub ? `<p style="font-size:20px;opacity:0.9;max-width:640px;margin:0 auto">${heroSub}</p>` : ""}
+${imageUrl ? `<img src="${imageUrl}" style="max-width:800px;margin:32px auto 0;border-radius:12px"/>` : ""}
+</section>
+${sections.map(s => `<section style="max-width:900px;margin:0 auto;padding:48px 24px">
+<h2 style="font-size:28px;font-weight:700;margin:0 0 16px">${String(s.title || "")}</h2>
+<p style="font-size:16px;line-height:1.7;color:#444">${String(s.content || "")}</p>
+</section>`).join("")}`;
+  }
+
+  const pageId = output.page_id ? String(output.page_id) : null;
+
   return (
-    <div className="rounded-lg border bg-background p-3 space-y-2">
-      <Badge variant="outline" className="text-[9px]">页面内容</Badge>
-      {output.hero_title ? <h3 className="text-base font-semibold">{String(output.hero_title)}</h3> : null}
-      {output.hero_subtitle ? <p className="text-xs text-muted-foreground">{String(output.hero_subtitle)}</p> : null}
-      {output.image_url ? (
-        <img src={String(output.image_url)} alt="" className="max-h-48 rounded object-cover" />
-      ) : null}
-      {output.sections && Array.isArray(output.sections) ? (
-        <div className="space-y-1">
-          {(output.sections as Array<Record<string, unknown>>).slice(0, 3).map((s, i) => (
-            <div key={i} className="text-xs border-l-2 border-muted pl-2">
-              <strong>{String(s.title || `Section ${i + 1}`)}</strong>: {String(s.content || "").slice(0, 150)}
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {output.page_id ? (
-        <div className="text-[10px] text-green-600">✅ 已创建 Shopify 页面 (ID: {String(output.page_id)})</div>
-      ) : null}
+    <div className="space-y-2">
+      <HtmlPreview html={html} title="页面预览" defaultViewport="desktop" />
+      {pageId && (
+        <div className="text-[10px] text-green-600 px-2">✅ 已创建 Shopify 页面 (ID: {pageId})</div>
+      )}
     </div>
   );
 }
