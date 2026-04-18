@@ -30,6 +30,9 @@ export interface BrandGuide {
   differentiators: string[];
   social_proof: Record<string, unknown>;
   reference_brands: string[];
+  visual_dna: string | null;
+  moodboard_urls: string[];
+  visual_dna_generated_at: string | null;
   updated_at?: string;
 }
 
@@ -95,6 +98,7 @@ export function formatForPrompt(b: BrandGuide | null): Record<string, unknown> {
       value_props: b.value_props.join(" · "),
       differentiators: b.differentiators.join(" · "),
       reference_brands: b.reference_brands.join(", "),
+      visual_dna: b.visual_dna || "",
     },
   };
 }
@@ -114,5 +118,6 @@ export function formatAsContextBlock(b: BrandGuide | null): string {
   if (b.vocabulary_no.length) parts.push(`NEVER use: ${b.vocabulary_no.join(", ")}`);
   parts.push(`Colors: primary ${b.primary_color} / accent ${b.accent_color} / neutral ${b.neutral_color}`);
   if (b.reference_brands.length) parts.push(`Design reference: ${b.reference_brands.join(", ")}`);
+  if (b.visual_dna) parts.push(`\nVISUAL DNA — all imagery must match this:\n${b.visual_dna}`);
   return parts.join("\n");
 }

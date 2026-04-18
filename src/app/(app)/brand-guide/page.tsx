@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
-import { Loader2, Save, Palette, Type, Mic, Users, Trophy } from "lucide-react";
+import { Loader2, Save, Palette, Type, Mic, Users, Trophy, Sparkles, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +33,9 @@ interface Guide {
   value_props: string[];
   differentiators: string[];
   reference_brands: string[];
+  visual_dna: string | null;
+  moodboard_urls: string[];
+  visual_dna_generated_at: string | null;
 }
 
 function arrayToText(a: string[]): string { return (a || []).join("\n"); }
@@ -42,6 +45,7 @@ export default function BrandGuidePage() {
   const [guide, setGuide] = useState<Guide | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generatingDna, setGeneratingDna] = useState(false);
 
   const load = async () => {
     try {
@@ -70,6 +74,20 @@ export default function BrandGuidePage() {
       toast.error("保存失败");
     }
     setSaving(false);
+  };
+
+  const generateDna = async () => {
+    setGeneratingDna(true);
+    try {
+      const res = await fetch("/api/brand-guide/visual-dna", { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "failed");
+      toast.success(`Visual DNA 已生成 · ${d.moodboard_urls?.length || 0} 张 moodboard`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "生成失败");
+    }
+    setGeneratingDna(false);
   };
 
   if (loading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
@@ -162,6 +180,66 @@ export default function BrandGuidePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Visual DNA — AI Art Director */}
+      <Card className="border-purple-200 bg-gradient-to-br from-purple-50/50 to-pink-50/50 dark:from-purple-950/10 dark:to-pink-950/10">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              Visual DNA（AI Art Director）
+              <span className="text-[11px] text-muted-foreground font-normal">
+                所有 AI 图片生成的视觉锚 — 保证跨 skill 视觉一致性
+              </span>
+            </CardTitle>
+            <Button size="sm" variant="default" onClick={generateDna} disabled={generatingDna}>
+              {generatingDna
+                ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />生成中（约 1-2 分钟）...</>
+                : <><Sparkles className="h-3.5 w-3.5 mr-1.5" />{guide.visual_dna ? "重新生成" : "生成 Visual DNA"}</>}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {guide.visual_dna ? (
+            <>
+              <div>
+                <div className="text-[11px] font-medium text-muted-foreground mb-1">风格描述（已注入所有图片 prompt）</div>
+                <div className="rounded border bg-background p-3 text-xs leading-relaxed whitespace-pre-wrap max-h-48 overflow-auto">
+                  {guide.visual_dna}
+                </div>
+                {guide.visual_dna_generated_at && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    生成于 {new Date(guide.visual_dna_generated_at).toLocaleString("zh-CN")}
+                  </p>
+                )}
+              </div>
+              {guide.moodboard_urls.length > 0 && (
+                <div>
+                  <div className="text-[11px] font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                    <ImageIcon className="h-3 w-3" />
+                    Moodboard（视觉参考）
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {guide.moodboard_urls.map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        className="aspect-square rounded overflow-hidden border group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={`moodboard-${i}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground py-4 text-center">
+              点击右上角「生成 Visual DNA」— AI 会根据你填写的品牌信息生成一段 500 字视觉语言描述 + 4 张 moodboard 参考图。
+              之后所有图片 skill（商品图、Banner、海报）都会自动参照这份 DNA，保证跨 skill 视觉一致。
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 色卡预览 */}
       <Card>

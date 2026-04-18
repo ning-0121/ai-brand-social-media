@@ -1,4 +1,5 @@
 import { generateImage } from "../../image-service";
+import { getBrandGuide } from "../../brand-guide";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 export const aiProductPhotoSkill: ContentSkill = {
@@ -90,6 +91,12 @@ export const aiProductPhotoSkill: ContentSkill = {
     const s = styleMatrix[photoStyle] || styleMatrix.lifestyle;
     const productDesc = `${product.name}${product.category ? ` (${product.category})` : ""}`;
 
+    // 品牌视觉 DNA — 保证这张图和品牌其他图片属于同一视觉宇宙
+    const guide = await getBrandGuide();
+    const brandDnaBlock = guide?.visual_dna
+      ? `\n\nBRAND VISUAL DNA (follow as hard constraints):\n${guide.visual_dna}\n\nThis photo must feel like part of ${guide.brand_name}'s unified visual world. Match the color palette, lighting mood, and composition feel established above.`
+      : "";
+
     const imagePrompt = `Professional commercial product photograph of ${productDesc}.
 SCENE: ${s.scene}.
 LIGHTING: ${s.lighting}.
@@ -97,7 +104,7 @@ CAMERA: ${s.camera}.
 COMPOSITION: ${s.composition}. Frame aspect ratio ${aspectRatio}.
 MOOD: ${s.mood}.
 POST: ${s.postProcessing}.
-Photorealistic 8K quality, no text overlay, no watermark, no logos other than product's own, tack sharp where needed, authentic materials and textures.`;
+Photorealistic 8K quality, no text overlay, no watermark, no logos other than product's own, tack sharp where needed, authentic materials and textures.${brandDnaBlock}`;
 
     const imageUrl = await generateImage(imagePrompt, {
       style: "product_photo",

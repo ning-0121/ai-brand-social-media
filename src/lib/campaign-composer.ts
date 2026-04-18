@@ -24,6 +24,8 @@ export interface CampaignSpec {
   offer?: string;                   // 如 "限时 8 折"
   urgency?: string;                 // 如 "本周末结束"
   banner_size?: "ad_banner" | "wide_banner" | "promo_poster";
+  /** 'B' 版会在 headline 和视觉方向上偏移 */
+  variant_hint?: "A" | "B";
 }
 
 export interface CampaignResult {
@@ -50,12 +52,17 @@ export async function composeCampaign(spec: CampaignSpec): Promise<CampaignResul
     if (data) product = data as unknown as ProductLite;
   }
 
+  // Variant B 时偏移 headline 方向：让 AI 用对立角度写
+  const variantHint = spec.variant_hint === "B"
+    ? `\n\nIMPORTANT — This is VARIANT B of an A/B test. Take the OPPOSITE angle from a typical ${spec.goal} page: emphasize transformation/outcome over features, use emotional hook instead of rational, scarcity over abundance, personal story over product specs.`
+    : "";
+
   // 并行跑 5 个子任务
   const [landingRes, bannerRes, postIG, postTT, postXHS, hashtagRes, videoRes] = await Promise.allSettled([
     executeSkill("landing_page", {
       page_goal: spec.goal,
       product,
-      headline_idea: spec.headline_idea || spec.name,
+      headline_idea: (spec.headline_idea || spec.name) + variantHint,
       offer: spec.offer || "",
       urgency: spec.urgency || "",
     }, { sourceModule: "campaign_composer", productId: spec.product_id }),

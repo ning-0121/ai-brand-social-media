@@ -46,6 +46,8 @@ export default function CampaignComposePage() {
   });
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<CampaignResult | null>(null);
+  const [abMode, setAbMode] = useState(false);
+  const [abResult, setAbResult] = useState<{ id: string; variant_a: CampaignResult; variant_b: CampaignResult } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -63,18 +65,24 @@ export default function CampaignComposePage() {
   const compose = async () => {
     if (!spec.name) { toast.error("请填活动名"); return; }
     setRunning(true);
-    setResult(null);
+    setResult(null); setAbResult(null);
     try {
-      const res = await fetch("/api/campaigns/compose", {
+      const endpoint = abMode ? "/api/campaigns/ab" : "/api/campaigns/compose";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(spec),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "failed");
-      setResult(d.result);
-      const ok = Object.values(d.result.components).flat().filter((c: unknown) => (c as Component)?.success).length;
-      toast.success(`活动套件已生成（${ok} 件成功，耗时 ${(d.result.duration_ms / 1000).toFixed(1)}s）`);
+      if (abMode) {
+        setAbResult(d.result);
+        toast.success(`A/B 两版已生成（约 ${((d.result.variant_a.duration_ms + d.result.variant_b.duration_ms) / 2000).toFixed(1)}s）`);
+      } else {
+        setResult(d.result);
+        const ok = Object.values(d.result.components).flat().filter((c: unknown) => (c as Component)?.success).length;
+        toast.success(`活动套件已生成（${ok} 件成功，耗时 ${(d.result.duration_ms / 1000).toFixed(1)}s）`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "生成失败");
     }
@@ -140,16 +148,69 @@ export default function CampaignComposePage() {
             <Textarea value={spec.headline_idea} onChange={e => setSpec({ ...spec, headline_idea: e.target.value })}
               placeholder="留空让 AI 发挥..." rows={2} className="mt-1" />
           </div>
+          <div className="flex items-center gap-2 p-2 rounded border bg-background">
+            <input type="checkbox" id="ab" checked={abMode} onChange={e => setAbMode(e.target.checked)} className="h-4 w-4" />
+            <label htmlFor="ab" className="text-xs font-medium cursor-pointer flex-1">
+              A/B 双版模式 — 同时生成两版，部署后自动分流 + 统计转化
+            </label>
+          </div>
           <Button size="lg" className="w-full" onClick={compose} disabled={running}>
             {running
-              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />并行生成中（约 30-60 秒）...</>
-              : <><Zap className="h-4 w-4 mr-2" />一键生成完整活动包</>}
+              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{abMode ? "并行生成 A+B 两版..." : "并行生成中..."}</>
+              : <><Zap className="h-4 w-4 mr-2" />{abMode ? "一键生成 A/B 双版" : "一键生成完整活动包"}</>}
           </Button>
           <p className="text-[11px] text-muted-foreground text-center">
             将并行调用 5 个 AI skill，所有输出使用你在 <a href="/brand-guide" className="underline">品牌指南</a> 里定义的色彩/语气
           </p>
         </CardContent>
       </Card>
+
+      {abResult && (
+        <Card className="border-purple-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              A/B 双版结果 — 分别部署，自动追踪，赢家自动宣布
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {(["variant_a", "variant_b"] as const).map((k, i) => {
+                const v = abResult[k];
+                const label = i === 0 ? "版本 A（理性）" : "版本 B（感性）";
+                const accent = i === 0 ? "border-blue-300" : "border-rose-300";
+                return (
+                  <div key={k} className={`rounded-lg border-2 ${accent} p-3 space-y-2`}>
+                    <Badge className={i === 0 ? "bg-blue-600" : "bg-rose-600"}>{label}</Badge>
+                    {v.components.landing_page?.success && v.components.landing_page.output && (
+                      <HtmlPreview
+                        html={(v.components.landing_page.output.body_html as string) || ""}
+                        title={`${spec.name} — ${label}`}
+                        shopifyDeploy={{ target: "new_page", defaultTitle: `${spec.name} ${i === 0 ? "A" : "B"}` }}
+                        deployLabel={`部署 ${label}`}
+                      />
+                    )}
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground">查看该版其他素材</summary>
+                      <div className="mt-2 space-y-1.5">
+                        {v.components.banner?.success && <p>✓ Banner 已生成</p>}
+                        {v.components.social_posts?.filter(p => p.success).map((p, j) => <p key={j}>✓ {p.platform} 帖子</p>)}
+                        {v.components.hashtag_strategy?.success && <p>✓ Hashtag 策略</p>}
+                        {v.components.video_script?.success && <p>✓ 视频脚本</p>}
+                      </div>
+                    </details>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-3 p-2 rounded bg-muted/30 text-[11px] text-muted-foreground">
+              Variant ID: <code className="font-mono">{abResult.id}</code> ·
+              追踪方式：<code>POST /api/campaigns/track {"{"} variant_id, which: &quot;a|b&quot;, event: &quot;view|conversion&quot; {"}"}</code> ·
+              两边各 100 views + 转化差 ≥30% 时自动宣布 winner
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {result && (
         <div className="space-y-4">

@@ -1,6 +1,7 @@
 import { callLLM } from "../llm";
 import { generateImage } from "../../image-service";
 import { tryRunPrompt } from "../../prompts";
+import { getBrandGuide } from "../../brand-guide";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 const SIZE_MAP: Record<string, "1:1" | "16:9" | "9:16" | "3:4"> = {
@@ -85,8 +86,13 @@ Generate professional ${purpose} banner design. The image_prompt must describe a
     );
 
     // Step 2: Gemini 生成真实 Banner
-    const imagePrompt = (design as Record<string, unknown>).image_prompt as string
+    // 注入品牌视觉 DNA
+    const guide = await getBrandGuide();
+    const basePrompt = (design as Record<string, unknown>).image_prompt as string
       || `Professional ${purpose} banner for fashion brand, ${product?.name || "activewear"}, clean modern design, ${size} aspect ratio`;
+    const imagePrompt = guide?.visual_dna
+      ? `${basePrompt}\n\nBRAND VISUAL DNA (hard constraints — follow strictly):\n${guide.visual_dna}`
+      : basePrompt;
 
     const imageUrl = await generateImage(imagePrompt, {
       style: purpose === "ad" ? "social_media" : "lifestyle",
