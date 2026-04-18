@@ -5,6 +5,11 @@ import { updateProductSEO, updateProductBodyHtml } from "@/lib/shopify-operation
 import { reviewContent } from "@/lib/content-qa";
 import { productContentPipeline, socialContentPipeline, campaignPipeline } from "@/lib/content-pipeline";
 import { createApprovalTask } from "@/lib/supabase-approval";
+import { inngest } from "@/inngest/client";
+
+function inngestEnabled(): boolean {
+  return !!process.env.INNGEST_EVENT_KEY;
+}
 
 function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || err.name || "unknown error";
@@ -234,6 +239,14 @@ async function executeSingleTask(
     }
 
     case "homepage_update": {
+      // If Inngest enabled, dispatch to DAG (doesn't block worker)
+      if (inngestEnabled()) {
+        await inngest.send({
+          name: "content/homepage.hero.requested",
+          data: { brand_name: "JOJOFEIFEI", season: "general", ops_task_id: task.id },
+        });
+        return { action: "dispatched_to_inngest", event: "content/homepage.hero.requested" };
+      }
       const { result } = await executeSkill("homepage_hero", {
         brand_name: "JOJOFEIFEI",
         season: "general",
@@ -243,6 +256,18 @@ async function executeSingleTask(
 
     case "new_product_content": {
       if (!task.target_product_id || !integrationId) return { skipped: true };
+      // Heavy pipeline — always go through Inngest when available to avoid 60s timeout
+      if (inngestEnabled()) {
+        await inngest.send({
+          name: "content/product.full.requested",
+          data: {
+            product_id: task.target_product_id,
+            integration_id: integrationId,
+            ops_task_id: task.id,
+          },
+        });
+        return { action: "dispatched_to_inngest", event: "content/product.full.requested" };
+      }
       const r = await productContentPipeline(task.target_product_id, integrationId);
       return r as unknown as Record<string, unknown>;
     }
