@@ -1,4 +1,5 @@
 import { callLLM } from "../llm";
+import { runPrompt, getActivePrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillContext, SkillResult } from "../types";
 
 export const productSeoOptimizeSkill: ContentSkill = {
@@ -23,6 +24,34 @@ export const productSeoOptimizeSkill: ContentSkill = {
     const competitors = context?.competitors || [];
     const qaFeedback = (input.qa_feedback as string) || "";
 
+    // Try DB prompt first (versioned, logged, A/B testable)
+    try {
+      const dbPrompt = await getActivePrompt("product.seo.optimize");
+      if (dbPrompt) {
+        const output = await runPrompt("product.seo.optimize", {
+          product: {
+            ...product,
+            body_html_plain: (product.body_html || "").replace(/<[^>]+>/g, " ").slice(0, 300),
+            meta_title: product.meta_title || "none",
+            meta_description: product.meta_description || "none",
+            tags: product.tags || "none",
+          },
+          keywords_block: keywords ? `Target keywords: ${keywords}` : "",
+          qa_feedback_block: qaFeedback ? `Previous QA feedback to fix: ${qaFeedback}` : "",
+          competitors_block: competitors.length > 0 ? `Competitor reference: ${JSON.stringify(competitors).slice(0, 200)}` : "",
+        }, { source: "product_seo_optimize" });
+        return {
+          skill_id: "product_seo_optimize",
+          output,
+          generated_at: new Date().toISOString(),
+          estimated_cost: { text: 0.01, image: 0 },
+        };
+      }
+    } catch (err) {
+      console.warn("DB prompt failed, falling back to hardcoded:", err instanceof Error ? err.message : err);
+    }
+
+    // Fallback: hardcoded prompt (used when DB not migrated yet)
     const output = await callLLM(
       `You are a senior Shopify SEO expert. Generate optimized SEO content AND self-score it in one pass.
 

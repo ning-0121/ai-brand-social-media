@@ -7,6 +7,7 @@ import {
   Gauge,
   ImagePlus,
   LayoutDashboard,
+  Beaker,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   // ── 内容 ──
   { label: "内容工厂", href: "/content", icon: FileText, group: "内容" },
   { label: "素材库", href: "/media-library", icon: ImagePlus, group: "内容" },
+  { label: "Prompt 实验室", href: "/prompts", icon: Beaker, group: "内容" },
 
   // ── 系统 ──
   { label: "系统设置", href: "/settings", icon: Settings, group: "系统" },

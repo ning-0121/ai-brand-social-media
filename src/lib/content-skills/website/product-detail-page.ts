@@ -1,4 +1,5 @@
 import { callLLM } from "../llm";
+import { runPrompt, getActivePrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillContext, SkillResult } from "../types";
 
 export const productDetailPageSkill: ContentSkill = {
@@ -28,6 +29,34 @@ export const productDetailPageSkill: ContentSkill = {
     const tone = (input.tone as string) || "professional";
     const audience = (input.target_audience as string) || "";
     const positioning = context?.brand_positioning || "";
+
+    // Try DB prompt first
+    try {
+      const dbPrompt = await getActivePrompt("product.detail.page");
+      if (dbPrompt) {
+        const output = await runPrompt("product.detail.page", {
+          product: {
+            ...product,
+            body_html: product.body_html || product.description || "无",
+            price: product.price || "未知",
+            category: product.category || "未知",
+            meta_title: product.meta_title || "",
+            meta_description: product.meta_description || "",
+          },
+          brand_positioning: positioning,
+          tone,
+          audience_block: audience ? `目标人群：${audience}` : "",
+        }, { source: "product_detail_page" });
+        return {
+          skill_id: "product_detail_page",
+          output,
+          generated_at: new Date().toISOString(),
+          estimated_cost: { text: 0.02, image: 0 },
+        };
+      }
+    } catch (err) {
+      console.warn("DB prompt failed, falling back to hardcoded:", err instanceof Error ? err.message : err);
+    }
 
     const systemPrompt = `你是顶级电商详情页文案专家，擅长为 Shopify、Amazon、独立站撰写高转化率的商品详情页。
 你的文案有以下特点：
