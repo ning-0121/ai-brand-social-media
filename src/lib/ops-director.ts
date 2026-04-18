@@ -373,6 +373,39 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
   const { data: signals } = await supabase
     .from("radar_signals").select("*").eq("status", "open").limit(5);
 
+  // 真实销售数据 — 让 AI 知道哪些商品卖得好，哪些滞销
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+  const { data: recentOrders } = await supabase
+    .from("shopify_orders")
+    .select("line_items, total_price, financial_status")
+    .gte("created_at", thirtyDaysAgo)
+    .limit(1000);
+
+  // 按 product_id 聚合销量
+  const salesByProduct: Record<string, { units: number; revenue: number }> = {};
+  let totalRevenue = 0, orderCount = 0;
+  for (const o of recentOrders || []) {
+    if (o.financial_status !== "paid" && o.financial_status !== "partially_refunded") continue;
+    orderCount++;
+    totalRevenue += Number(o.total_price || 0);
+    const items = (o.line_items as Array<{ product_id?: number | string; quantity?: number; price?: number }>) || [];
+    for (const item of items) {
+      const pid = String(item.product_id || "");
+      if (!pid) continue;
+      if (!salesByProduct[pid]) salesByProduct[pid] = { units: 0, revenue: 0 };
+      salesByProduct[pid].units += item.quantity || 0;
+      salesByProduct[pid].revenue += (item.price || 0) * (item.quantity || 0);
+    }
+  }
+  // Top sellers + slow movers（按 shopify_product_id 匹配本地 product）
+  const salesRanked = (products || []).map(p => ({
+    ...p,
+    sold_30d: salesByProduct[String(p.shopify_product_id)]?.units || 0,
+    revenue_30d: salesByProduct[String(p.shopify_product_id)]?.revenue || 0,
+  })).sort((a, b) => b.revenue_30d - a.revenue_30d);
+  const topSellers = salesRanked.slice(0, 5);
+  const slowMovers = salesRanked.filter(p => p.sold_30d === 0 && (p.stock || 0) > 0).slice(0, 10);
+
   const today = new Date();
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - today.getDay() + 1); // Monday
@@ -380,7 +413,7 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
 
   const taskTypes = module === "social"
     ? "post (发社媒帖子), engage (生成互动回复), hashtag_strategy (生成标签策略), content_calendar (排期规划), short_video_script (短视频脚本)"
-    : "seo_fix (修复商品 SEO), detail_page (优化详情页), homepage_update (更新首页), landing_page (创建落地页), new_product_content (新品内容制作)";
+    : "seo_fix (修复商品 SEO), detail_page (优化详情页), homepage_update (更新首页), landing_page (创建落地页), new_product_content (新品内容制作), discount_create (创建折扣码拉销量), bundle_page (创建套装交叉销售页), winback_email (弃购挽回邮件文案)";
 
   // 构建产品摘要 — 完整但结构化
   const productSummary = (products || []).map(p => {
@@ -408,21 +441,31 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
 规则：
 1. 每个任务必须解决一个具体问题，指向具体的商品或内容
 2. 好任务示例：
-   ✅ "为 JOJOFEIFEI Blush Flare Leggings 添加 meta_title（当前缺失，SEO 分 23，价格 $68）"
-   ✅ "为 Instagram 发布 Coast Power Contour Top 种草帖（该商品本月 0 条内容）"
+   ✅ "为热销 TOP1 Blush Flare Leggings 创建套装页（交叉销售 Coast Top，30 天卖了 47 件 vs Coast 3 件）"
+   ✅ "为滞销 Mist Zip Hoodie 创建 15% 折扣码（30 天 0 销量，库存 62 件）"
    ❌ "优化低 SEO 分商品" — 太笼统
-   ❌ "提升品牌知名度" — 空话
-3. 优先级：高价商品 > 低价，有问题的 > 没问题的，缺货的跳过
-4. 节奏要紧凑：自动执行的任务全部安排在前 1-2 天（Mon/Tue），不要分散到一周
-5. 每个有问题的产品都要安排修复任务 — 不要只挑几个，全部列出来
-6. 需要审批的任务可以安排在后面几天
-7. target_product_id 必须用上面产品列表中的真实 UUID
-8. 所有 auto_executable 任务必须设为 true
+3. **销售导向**：一切以推动订单为目标
+   - 热销 TOP 5：加码社媒内容 + 交叉销售 + 首页 Hero 推广 — 不要打折（已经在卖）
+   - 滞销品：discount_create（给 10-20% 折扣码）或 bundle_page（和热销品做套装）
+   - 弃购率高时：winback_email 挽回邮件
+4. 每周必须至少包含：1 个 discount_create + 1 个 bundle_page + 继续 seo_fix 对 SEO 差商品
+5. 节奏：自动执行任务安排在前 2 天，需审批任务后 3 天
+6. target_product_id 必须用上面产品列表中的真实 UUID
+7. 所有 auto_executable 任务必须设为 true，但以下需审批：landing_page, homepage_update, new_product_content, discount_create
 
 返回 JSON，不要有解释。`,
     `模块: ${module}
 本周: ${weekStartStr} 开始
 今天: ${today.toISOString().split("T")[0]}
+
+【30 天真实销售数据 — 优先围绕真实数据排计划】
+总营收: $${totalRevenue.toFixed(0)} · 订单: ${orderCount} 单 · 客单价: $${orderCount > 0 ? (totalRevenue / orderCount).toFixed(1) : 0}
+
+热销 TOP 5（集中加码这些 — 多做内容、交叉销售、别打折）:
+${topSellers.map((p, i) => `${i+1}. [${p.id}] ${p.name} — 售出 ${p.sold_30d} 件, 营收 $${p.revenue_30d.toFixed(0)}`).join("\n") || "暂无销售数据"}
+
+滞销（有库存但 30 天 0 销量 — 优先 discount_create 或 bundle_page 去库存）:
+${slowMovers.map(p => `- [${p.id}] ${p.name}（库存 ${p.stock}, 价格 $${p.price}）`).join("\n") || "无明显滞销品"}
 
 当前目标:
 ${(goals || []).map(g => `- ${g.metric}: 当前 ${g.current_value}/${g.target_value} ${g.unit}（截止 ${g.deadline}）`).join("\n") || "暂无目标"}

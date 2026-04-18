@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, Code2 } from "lucide-react";
+import { Copy, Check, Code2, Zap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 /**
@@ -12,7 +12,29 @@ import { toast } from "sonner";
  */
 export function TrackingSnippet({ variantId, appUrl }: { variantId: string; appUrl?: string }) {
   const [copied, setCopied] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const base = appUrl || (typeof window !== "undefined" ? window.location.origin : "https://brandmind-ai-eight.vercel.app");
+
+  const autoInstall = async () => {
+    setInstalling(true);
+    try {
+      const res = await fetch("/api/shopify/install-tracking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variant_id: variantId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "install failed");
+      toast.success(
+        d.already_installed
+          ? `snippet 已存在于主题 "${d.theme_name}"（已激活）`
+          : `自动安装到主题 "${d.theme_name}" 成功`
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "自动安装失败");
+    }
+    setInstalling(false);
+  };
 
   const snippet = `<!-- BrandMind A/B Tracking — variant ${variantId.slice(0, 8)} -->
 <script>
@@ -95,9 +117,16 @@ export function TrackingSnippet({ variantId, appUrl }: { variantId: string; appU
           <span className="text-xs font-medium">Shopify Theme 追踪代码</span>
           <Badge variant="outline" className="text-[9px]">variant {variantId.slice(0, 8)}</Badge>
         </div>
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={copy}>
-          {copied ? <><Check className="h-3 w-3 mr-1 text-green-600" />已复制</> : <><Copy className="h-3 w-3 mr-1" />复制</>}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="default" className="h-6 px-2 text-[10px]" onClick={autoInstall} disabled={installing}>
+            {installing
+              ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />安装中</>
+              : <><Zap className="h-3 w-3 mr-1" />一键装到 Shopify</>}
+          </Button>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={copy}>
+            {copied ? <><Check className="h-3 w-3 mr-1 text-green-600" />已复制</> : <><Copy className="h-3 w-3 mr-1" />复制</>}
+          </Button>
+        </div>
       </div>
       <pre className="p-2.5 text-[10px] font-mono bg-neutral-950 text-neutral-100 max-h-64 overflow-auto leading-snug">{snippet}</pre>
       <div className="p-2 text-[10px] text-muted-foreground border-t bg-background space-y-1">

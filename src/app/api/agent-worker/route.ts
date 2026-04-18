@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { executeSkill } from "@/lib/content-skills/executor";
-import { updateProductSEO, updateProductBodyHtml } from "@/lib/shopify-operations";
+import { updateProductSEO, updateProductBodyHtml, createDiscountCode, createShopifyPage } from "@/lib/shopify-operations";
+import { callLLM } from "@/lib/content-skills/llm";
 import { reviewContent } from "@/lib/content-qa";
 import { productContentPipeline, socialContentPipeline, campaignPipeline } from "@/lib/content-pipeline";
 import { createApprovalTask } from "@/lib/supabase-approval";
@@ -290,6 +291,103 @@ async function executeSingleTask(
       }
       const r = await productContentPipeline(task.target_product_id, integrationId);
       return r as unknown as Record<string, unknown>;
+    }
+
+    case "discount_create": {
+      if (!integrationId) return { skipped: true, reason: "no integration" };
+      // 生成一个随机码 + 默认 15% 折扣，7 天有效
+      const code = `AI${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      let shopifyProductId: number | undefined;
+      if (task.target_product_id) {
+        const { data: p } = await supabaseClient.from("products")
+          .select("shopify_product_id").eq("id", task.target_product_id).maybeSingle();
+        shopifyProductId = p?.shopify_product_id || undefined;
+      }
+      const endsAt = new Date(Date.now() + 7 * 86400000).toISOString();
+      const r = await createDiscountCode(integrationId, {
+        code,
+        value: 15,
+        value_type: "percentage",
+        ends_at: endsAt,
+        usage_limit: 200,
+        applies_to_product_id: shopifyProductId,
+        title: `AI Auto-Discount — ${task.title}`,
+      });
+      return {
+        action: "discount_created",
+        code: r.code,
+        value: "15%",
+        ends_at: endsAt,
+        price_rule_id: r.price_rule_id,
+        applies_to: task.target_product_name || "整店",
+      };
+    }
+
+    case "bundle_page": {
+      if (!integrationId || !task.target_product_id) return { skipped: true, reason: "缺主商品或集成" };
+      // 拉主商品 + 另一热销做搭配
+      const { data: mainP } = await supabaseClient.from("products")
+        .select("*").eq("id", task.target_product_id).maybeSingle();
+      if (!mainP) return { skipped: true, reason: "找不到主商品" };
+
+      // 找一个热销品搭配（简化：取近 30 天有销量的随机 2 个）
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+      const { data: recentOrders } = await supabaseClient.from("shopify_orders")
+        .select("line_items").gte("created_at", thirtyDaysAgo).limit(200);
+      const soldIds = new Set<string>();
+      for (const o of recentOrders || []) {
+        const items = (o.line_items as Array<{ product_id?: number | string }>) || [];
+        for (const i of items) if (i.product_id) soldIds.add(String(i.product_id));
+      }
+      const { data: bundlePartners } = await supabaseClient.from("products")
+        .select("id, name, price, image_url, shopify_product_id")
+        .neq("id", task.target_product_id)
+        .in("shopify_product_id", Array.from(soldIds).slice(0, 50))
+        .limit(2);
+
+      // LLM 生成 bundle HTML
+      const bundleOutput = await callLLM(
+        `Generate a Shopify bundle cross-sell page HTML (inline CSS, Shopify-ready). Highlight savings when bought together. Return JSON: { "title": "...", "body_html": "<div>...</div>" }`,
+        `Main product: ${mainP.name} ($${mainP.price})
+Bundle partners: ${(bundlePartners || []).map(p => `${p.name} ($${p.price})`).join(", ")}
+Suggested bundle price: 10% off total
+
+Generate the cross-sell page.`,
+        3500,
+        "complex"
+      );
+      const bodyHtml = (bundleOutput.body_html as string) || `<h1>${mainP.name} Bundle</h1>`;
+      const title = (bundleOutput.title as string) || `${mainP.name} Bundle`;
+
+      const page = await createShopifyPage(integrationId, title, bodyHtml);
+      return {
+        action: "bundle_page_created",
+        page_id: page.page_id,
+        handle: page.handle,
+        main_product: mainP.name,
+        bundle_partners: (bundlePartners || []).map(p => p.name),
+        output: { body_html: bodyHtml, title },
+      };
+    }
+
+    case "winback_email": {
+      // 弃购挽回邮件文案 — 目前只生成内容，需要用户接入邮件发送后自动触发
+      const out = await callLLM(
+        `You write win-back emails for abandoned carts. Return JSON: { "subject_a": "variant A", "subject_b": "variant B", "preview_text": "...", "body_html": "<div>...</div>", "cta_text": "..." }`,
+        `Brand: JOJOFEIFEI athletic wear
+Abandoned product: ${task.target_product_name || "recent item"}
+Offer: 10% off for 24 hours with code WINBACK10
+Goal: recover cart
+
+Write 2 subject line variants + email HTML.`,
+        2500,
+        "balanced"
+      );
+      return {
+        action: "winback_email_generated",
+        output: out,
+        note: "邮件内容已生成，需接入邮件服务（Klaviyo/Mailchimp）才能自动发送",
+      };
     }
 
     default:

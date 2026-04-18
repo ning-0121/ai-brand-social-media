@@ -756,3 +756,184 @@ export async function updateProductBodyHtml(
 
   return { success: true };
 }
+
+/**
+ * 创建 Shopify 折扣码 + price rule
+ *   折扣类型：percentage（百分比）或 fixed_amount（固定金额）
+ *   作用域：针对单个商品 / 整店
+ */
+export async function createDiscountCode(
+  integrationId: string,
+  params: {
+    code: string;                                // e.g. "SAVE15"
+    value: number;                               // 15 表示 15% 或 $15
+    value_type: "percentage" | "fixed_amount";
+    starts_at?: string;
+    ends_at?: string;
+    usage_limit?: number;
+    applies_to_product_id?: number;              // shopify product id（单品）
+    title?: string;
+  }
+): Promise<{ success: boolean; price_rule_id: number; discount_id: number; code: string }> {
+  const creds = await getCredentials(integrationId);
+  const headers = shopifyHeaders(creds.accessToken);
+
+  // percentage 用 negative percentage，fixed_amount 用 negative currency
+  const adjustedValue = params.value_type === "percentage" ? -Math.abs(params.value) : -Math.abs(params.value);
+  const valueType = params.value_type;
+
+  const priceRuleBody: Record<string, unknown> = {
+    price_rule: {
+      title: params.title || `AI-${params.code}`,
+      target_type: "line_item",
+      target_selection: params.applies_to_product_id ? "entitled" : "all",
+      allocation_method: "across",
+      value_type: valueType,
+      value: adjustedValue.toString(),
+      customer_selection: "all",
+      starts_at: params.starts_at || new Date().toISOString(),
+      ...(params.ends_at ? { ends_at: params.ends_at } : {}),
+      ...(params.usage_limit ? { usage_limit: params.usage_limit } : {}),
+      ...(params.applies_to_product_id
+        ? { entitled_product_ids: [params.applies_to_product_id] }
+        : {}),
+    },
+  };
+
+  const prRes = await fetch(
+    `https://${creds.domain}/admin/api/2024-01/price_rules.json`,
+    { method: "POST", headers, body: JSON.stringify(priceRuleBody) }
+  );
+  if (!prRes.ok) {
+    const text = await prRes.text();
+    throw new Error(`price rule 创建失败: ${prRes.status} ${text.slice(0, 200)}`);
+  }
+  const { price_rule } = await prRes.json();
+
+  const discRes = await fetch(
+    `https://${creds.domain}/admin/api/2024-01/price_rules/${price_rule.id}/discount_codes.json`,
+    {
+      method: "POST", headers,
+      body: JSON.stringify({ discount_code: { code: params.code } }),
+    }
+  );
+  if (!discRes.ok) {
+    const text = await discRes.text();
+    throw new Error(`discount code 创建失败: ${discRes.status} ${text.slice(0, 200)}`);
+  }
+  const { discount_code } = await discRes.json();
+
+  return {
+    success: true,
+    price_rule_id: price_rule.id,
+    discount_id: discount_code.id,
+    code: discount_code.code,
+  };
+}
+
+/**
+ * 自动安装 A/B tracking snippet 到 Shopify 主题：
+ * 1. 找到 role=main 的活跃主题
+ * 2. 写入 snippets/bm-ab-tracking.liquid
+ * 3. 若 theme.liquid 还没 include 就自动插入到 </body> 之前
+ */
+export async function installTrackingSnippet(
+  integrationId: string,
+  variantId: string,
+  appUrl: string
+): Promise<{ success: boolean; theme_id: number; theme_name: string; already_installed: boolean }> {
+  const creds = await getCredentials(integrationId);
+  const headers = shopifyHeaders(creds.accessToken);
+
+  // 1. 找 active theme
+  const themesRes = await fetch(
+    `https://${creds.domain}/admin/api/2024-01/themes.json`,
+    { headers }
+  );
+  if (!themesRes.ok) throw new Error(`获取 themes 失败: ${themesRes.status}`);
+  const { themes } = await themesRes.json();
+  const mainTheme = themes.find((t: { role: string }) => t.role === "main");
+  if (!mainTheme) throw new Error("找不到 active theme (role=main)");
+
+  // 2. 构造 snippet
+  const snippetKey = "snippets/bm-ab-tracking.liquid";
+  const snippetContent = `{%- comment -%} BrandMind A/B Tracking — auto-installed {%- endcomment -%}
+<script>
+(function() {
+  var VID = ${JSON.stringify(variantId)};
+  var API = ${JSON.stringify(appUrl)} + "/api/campaigns/track";
+  var which = localStorage.getItem("bm_ab_" + VID);
+  if (!which) { which = Math.random() < 0.5 ? "a" : "b"; localStorage.setItem("bm_ab_" + VID, which); }
+  window.__bm_variant = which;
+
+  function report(event) {
+    try {
+      var payload = JSON.stringify({ variant_id: VID, which: which, event: event });
+      if (navigator.sendBeacon) navigator.sendBeacon(API, new Blob([payload], { type: "application/json" }));
+      else fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true });
+    } catch(e) {}
+  }
+
+  function writeCartAttrs() {
+    try {
+      fetch("/cart/update.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attributes: { bm_variant_id: VID, bm_variant_which: which } }),
+      }).catch(function(){});
+    } catch(e) {}
+  }
+
+  var viewKey = "bm_view_" + VID + "_" + which;
+  if (!sessionStorage.getItem(viewKey)) { report("view"); sessionStorage.setItem(viewKey, "1"); }
+
+  document.addEventListener("click", function(e) {
+    var t = e.target && e.target.closest && e.target.closest("[data-bm-convert],[name=add],button[type=submit][form*=cart]");
+    if (t) { writeCartAttrs(); report("conversion"); }
+  });
+  if (/\\/(checkout|thank)/.test(location.pathname)) { writeCartAttrs(); report("conversion"); }
+})();
+</script>`;
+
+  await fetch(`https://${creds.domain}/admin/api/2024-01/themes/${mainTheme.id}/assets.json`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      asset: { key: snippetKey, value: snippetContent },
+    }),
+  });
+
+  // 3. 读 theme.liquid 看有没有 include
+  const layoutRes = await fetch(
+    `https://${creds.domain}/admin/api/2024-01/themes/${mainTheme.id}/assets.json?asset[key]=layout/theme.liquid`,
+    { headers }
+  );
+  let alreadyInstalled = false;
+  if (layoutRes.ok) {
+    const { asset } = await layoutRes.json();
+    const current = asset.value as string;
+    const includeLine = "{% render 'bm-ab-tracking' %}";
+    if (current.includes("bm-ab-tracking")) {
+      alreadyInstalled = true;
+    } else {
+      // 插入到 </body> 之前
+      const updated = current.replace(/<\/body>/i, `${includeLine}\n</body>`);
+      if (updated !== current) {
+        await fetch(`https://${creds.domain}/admin/api/2024-01/themes/${mainTheme.id}/assets.json`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            asset: { key: "layout/theme.liquid", value: updated },
+          }),
+        });
+      }
+    }
+  }
+
+  return {
+    success: true,
+    theme_id: mainTheme.id,
+    theme_name: mainTheme.name,
+    already_installed: alreadyInstalled,
+  };
+}
