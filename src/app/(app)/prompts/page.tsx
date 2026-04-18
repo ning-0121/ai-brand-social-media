@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   FileText, Trophy, Zap, Clock, CheckCircle2, AlertCircle,
-  Plus, Loader2, ChevronRight, Code2,
+  Plus, Loader2, ChevronRight, Code2, GitCompare, Play,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -197,6 +197,7 @@ export default function PromptsPage() {
                     <TabsList>
                       <TabsTrigger value="versions">版本（{detail.versions.length}）</TabsTrigger>
                       <TabsTrigger value="runs">执行记录（{detail.recent_runs.length}）</TabsTrigger>
+                      {detail.versions.length >= 2 && <TabsTrigger value="compare">版本对比</TabsTrigger>}
                     </TabsList>
 
                     <TabsContent value="versions" className="space-y-2 mt-3">
@@ -282,6 +283,12 @@ export default function PromptsPage() {
                         </div>
                       )}
                     </TabsContent>
+
+                    {detail.versions.length >= 2 && (
+                      <TabsContent value="compare" className="mt-3">
+                        <CompareTab slug={selectedSlug!} versions={detail.versions} />
+                      </TabsContent>
+                    )}
                   </Tabs>
                 </CardContent>
               </Card>
@@ -392,6 +399,107 @@ function EditPromptForm({ base, onSaved }: { base: Prompt; onSaved: () => void }
           {saving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />保存中</> : <><Zap className="h-3.5 w-3.5 mr-1.5" />创建新版本</>}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function CompareTab({ slug, versions }: { slug: string; versions: Prompt[] }) {
+  const sorted = [...versions].sort((a, b) => b.version - a.version);
+  const [leftV, setLeftV] = useState<number>(sorted[1]?.version ?? sorted[0].version);
+  const [rightV, setRightV] = useState<number>(sorted[0].version);
+  const [varsJson, setVarsJson] = useState("{}");
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState<Array<{ version: number; output: Record<string, unknown> | null; latency_ms: number; error: string | null }> | null>(null);
+
+  const run = async () => {
+    let parsedVars: Record<string, unknown>;
+    try { parsedVars = JSON.parse(varsJson); }
+    catch { toast.error("变量 JSON 解析失败"); return; }
+    setRunning(true);
+    setResults(null);
+    try {
+      const res = await fetch("/api/prompts/compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, versions: [leftV, rightV], vars: parsedVars }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed");
+      setResults(data.results);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "对比失败");
+    }
+    setRunning(false);
+  };
+
+  const winner = results && results[0]?.latency_ms && results[1]?.latency_ms
+    ? results[0].latency_ms < results[1].latency_ms ? 0 : 1
+    : null;
+
+  return (
+    <div className="space-y-3">
+      <Card className="bg-muted/20">
+        <CardContent className="p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground">左侧版本</label>
+              <select value={leftV} onChange={(e) => setLeftV(parseInt(e.target.value))}
+                className="mt-0.5 w-full h-8 rounded-md border px-2 text-xs">
+                {sorted.map((v) => <option key={v.version} value={v.version}>v{v.version} {v.is_active && "（生效中）"}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground">右侧版本</label>
+              <select value={rightV} onChange={(e) => setRightV(parseInt(e.target.value))}
+                className="mt-0.5 w-full h-8 rounded-md border px-2 text-xs">
+                {sorted.map((v) => <option key={v.version} value={v.version}>v{v.version} {v.is_active && "（生效中）"}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground">变量（JSON 格式，按模板 {"{{var}}"} 填）</label>
+            <Textarea value={varsJson} onChange={(e) => setVarsJson(e.target.value)}
+              className="mt-0.5 font-mono text-xs" rows={5}
+              placeholder='{"product": {"name": "Silk Cami"}, "keywords": "silk top"}' />
+          </div>
+          <Button size="sm" onClick={run} disabled={running || leftV === rightV} className="w-full">
+            {running ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />并行执行中...</> : <><GitCompare className="h-3.5 w-3.5 mr-1.5" />并排跑两个版本</>}
+          </Button>
+          {leftV === rightV && <p className="text-[10px] text-amber-600">左右版本相同，选不同的版本对比</p>}
+        </CardContent>
+      </Card>
+
+      {results && (
+        <div className="grid grid-cols-2 gap-3">
+          {results.map((r, i) => (
+            <Card key={i} className={cn(winner === i && "border-green-500")}>
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge className="text-[10px]">v{r.version}</Badge>
+                    {winner === i && <Badge className="text-[10px] bg-green-600 hover:bg-green-600">更快 ⚡</Badge>}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-2.5 w-2.5" />{fmtMs(r.latency_ms)}
+                  </span>
+                </div>
+                {r.error ? (
+                  <div className="text-xs text-red-600">❌ {r.error}</div>
+                ) : (
+                  <pre className="text-[10px] bg-muted/30 p-2 rounded max-h-96 overflow-auto whitespace-pre-wrap">{JSON.stringify(r.output, null, 2)}</pre>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {!results && !running && (
+        <div className="text-center py-6 text-xs text-muted-foreground">
+          <Play className="h-5 w-5 mx-auto mb-1 opacity-40" />
+          选择两个版本 + 填入变量，点击上方按钮并行执行
+        </div>
+      )}
     </div>
   );
 }

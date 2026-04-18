@@ -15,6 +15,7 @@
 
 import { supabase } from "./supabase";
 import { executeAgentPool } from "./agent-pool";
+import { autoPromoteChampion } from "./prompts";
 
 export interface InspectorReport {
   timestamp: string;
@@ -167,7 +168,29 @@ export async function runAIInspector(): Promise<InspectorReport> {
     actionsTaken.push(`重置 ${stuckCount} 个卡住任务 (running >15min)`);
   }
 
-  // 2. 如果积压严重，触发 agent-pool
+  // 2. Prompt 自动晋升：扫描所有 slug，有新版本超过冠军 5%+ 就晋升
+  try {
+    const { data: slugs } = await supabase
+      .from("prompts").select("slug").eq("is_active", true);
+    const uniqueSlugs = Array.from(new Set((slugs || []).map(s => s.slug)));
+    let promoted = 0;
+    for (const s of uniqueSlugs) {
+      try {
+        const r = await autoPromoteChampion(s);
+        if (r.promoted) {
+          promoted++;
+          actionsTaken.push(`🏆 ${s}: v${r.from_version} → v${r.to_version}（+${r.score_gain}分）`);
+        }
+      } catch { /* skip */ }
+    }
+    if (promoted === 0 && uniqueSlugs.length > 0) {
+      // Silent: no promotions this round
+    }
+  } catch (e) {
+    actionsTaken.push(`Prompt 晋升扫描失败：${e instanceof Error ? e.message : "unknown"}`);
+  }
+
+  // 3. 如果积压严重，触发 agent-pool
   if (pendingNow > 30) {
     try {
       const r = await executeAgentPool(20);
