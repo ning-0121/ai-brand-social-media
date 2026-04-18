@@ -16,11 +16,10 @@ export interface ABResult {
 }
 
 export async function composeAB(spec: CampaignSpec): Promise<ABResult> {
-  // 并行两个版本（B 版带 variant_hint）
-  const [a, b] = await Promise.all([
-    composeCampaign({ ...spec, variant_hint: "A" }),
-    composeCampaign({ ...spec, variant_hint: "B" }),
-  ]);
+  // 串行两个版本：并行会让两个 landing_page 的 prompt_run_id 互相污染
+  // （两个 composeCampaign 同时查最近的 page.landing run 会抢到对方的 id）
+  const a = await composeCampaign({ ...spec, variant_hint: "A" });
+  const b = await composeCampaign({ ...spec, variant_hint: "B" });
 
   const { data } = await supabase.from("campaign_variants").insert({
     campaign_name: spec.name,
@@ -45,11 +44,18 @@ export async function trackABEvent(variantId: string, which: "a" | "b", event: T
     ? (which === "a" ? "views_a" : "views_b")
     : (which === "a" ? "conversions_a" : "conversions_b");
 
-  // RPC 原子递增更稳，这里简化：读取 → +1 → 写回
-  const { data } = await supabase.from("campaign_variants").select(col).eq("id", variantId).maybeSingle();
-  if (!data) return;
-  const current = (data as Record<string, number>)[col] || 0;
-  await supabase.from("campaign_variants").update({ [col]: current + 1 }).eq("id", variantId);
+  // 原子递增 — 通过 SQL RPC 避免并发写丢失
+  const { error } = await supabase.rpc("increment_ab_counter", {
+    p_variant_id: variantId,
+    p_column: col,
+  });
+  if (error) {
+    // RPC 不存在时降级 read-modify-write（老 schema 兼容）
+    const { data } = await supabase.from("campaign_variants").select(col).eq("id", variantId).maybeSingle();
+    if (!data) return;
+    const current = (data as Record<string, number>)[col] || 0;
+    await supabase.from("campaign_variants").update({ [col]: current + 1 }).eq("id", variantId);
+  }
 }
 
 /**

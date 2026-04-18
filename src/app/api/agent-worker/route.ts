@@ -295,13 +295,16 @@ async function executeSingleTask(
 
     case "discount_create": {
       if (!integrationId) return { skipped: true, reason: "no integration" };
-      // 生成一个随机码 + 默认 15% 折扣，7 天有效
       const code = `AI${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
       let shopifyProductId: number | undefined;
       if (task.target_product_id) {
         const { data: p } = await supabaseClient.from("products")
           .select("shopify_product_id").eq("id", task.target_product_id).maybeSingle();
         shopifyProductId = p?.shopify_product_id || undefined;
+        // 护栏：指定了商品但找不到 → 拒绝执行，绝不退化为全店折扣
+        if (!shopifyProductId) {
+          throw new Error(`target_product_id=${task.target_product_id} 在 Shopify 无对应商品，拒绝创建全店折扣以防乱打折`);
+        }
       }
       const endsAt = new Date(Date.now() + 7 * 86400000).toISOString();
       const r = await createDiscountCode(integrationId, {
@@ -334,11 +337,15 @@ async function executeSingleTask(
       const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
       const { data: recentOrders } = await supabaseClient.from("shopify_orders")
         .select("line_items").gte("created_at", thirtyDaysAgo).limit(200);
-      const soldIds = new Set<string>();
+      const soldIds = new Set<number>();
       for (const o of recentOrders || []) {
         const items = (o.line_items as Array<{ product_id?: number | string }>) || [];
-        for (const i of items) if (i.product_id) soldIds.add(String(i.product_id));
+        for (const i of items) {
+          const pid = Number(i.product_id);
+          if (pid && !Number.isNaN(pid)) soldIds.add(pid);
+        }
       }
+      // shopify_product_id 是 numeric 列，必须传数字数组
       const { data: bundlePartners } = await supabaseClient.from("products")
         .select("id, name, price, image_url, shopify_product_id")
         .neq("id", task.target_product_id)

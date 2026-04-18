@@ -75,10 +75,11 @@ export async function generateImages(
   // Generate all images in parallel for better performance
   const settled = await Promise.allSettled(
     prompts.map(async (p) => {
+      const uniq = Math.random().toString(36).slice(2, 10);
       const url = await generateImage(p.prompt, {
         style: p.style,
         size: p.size,
-        filename: `${p.label || "img"}-${Date.now()}.png`,
+        filename: `${p.label || "img"}-${Date.now()}-${uniq}.png`,
       });
       return url ? { label: p.label || "image", url } : null;
     })

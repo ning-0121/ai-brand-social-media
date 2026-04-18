@@ -679,9 +679,28 @@ export async function createShopifyPage(
   integrationId: string,
   title: string,
   bodyHtml: string
-): Promise<{ success: boolean; page_id?: number; handle?: string }> {
+): Promise<{ success: boolean; page_id?: number; handle?: string; reused?: boolean }> {
   const creds = await getCredentials(integrationId);
   const headers = shopifyHeaders(creds.accessToken);
+
+  // 幂等：若同 title 的页面已存在（worker 重试场景），更新而不是新建
+  try {
+    const existingRes = await fetch(
+      `https://${creds.domain}/admin/api/2024-01/pages.json?title=${encodeURIComponent(title)}&limit=1`,
+      { headers }
+    );
+    if (existingRes.ok) {
+      const { pages } = await existingRes.json();
+      const existing = pages?.[0];
+      if (existing?.id) {
+        await fetch(`https://${creds.domain}/admin/api/2024-01/pages/${existing.id}.json`, {
+          method: "PUT", headers,
+          body: JSON.stringify({ page: { id: existing.id, body_html: bodyHtml, published: true } }),
+        });
+        return { success: true, page_id: existing.id, handle: existing.handle, reused: true };
+      }
+    }
+  } catch { /* fall through to create */ }
 
   const res = await fetch(
     `https://${creds.domain}/admin/api/2024-01/pages.json`,

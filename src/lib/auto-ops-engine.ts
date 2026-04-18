@@ -190,18 +190,25 @@ export async function runDailyTasks(): Promise<TaskResult[]> {
   // 0.0 自动 Shopify 同步（每天刷新商品 + 订单）
   try {
     const { data: shopify } = await supabase.from("integrations")
-      .select("id, metadata").eq("platform", "shopify").eq("status", "active").maybeSingle();
+      .select("id, user_id, metadata").eq("platform", "shopify").eq("status", "active").maybeSingle();
     if (shopify) {
-      const userId = (shopify.metadata as Record<string, unknown>)?.user_id as string || shopify.id;
-      const [p, o] = await Promise.all([
-        syncProducts(shopify.id),
-        syncOrders(shopify.id, userId),
-      ]);
+      // 正确读 integrations.user_id 列（不是 metadata），避免污染 shopify_orders.user_id
+      const userId = (shopify as { user_id?: string }).user_id
+        || ((shopify.metadata as Record<string, unknown>)?.user_id as string)
+        || null;
+      const p = await syncProducts(shopify.id);
+      let ordersMsg = "订单跳过(无 user_id)";
+      let orderData: Record<string, unknown> | null = null;
+      if (userId) {
+        const o = await syncOrders(shopify.id, userId);
+        ordersMsg = `订单 ${o.synced_orders ?? 0}`;
+        orderData = o as unknown as Record<string, unknown>;
+      }
       results.push({
         task: "shopify_auto_sync",
         status: "success",
-        message: `商品 ${p.synced_products ?? 0} / 订单 ${o.synced_orders ?? 0}`,
-        data: { products: p, orders: o } as unknown as Record<string, unknown>,
+        message: `商品 ${p.synced_products ?? 0} / ${ordersMsg}`,
+        data: { products: p, orders: orderData } as unknown as Record<string, unknown>,
       });
     }
   } catch (err) {

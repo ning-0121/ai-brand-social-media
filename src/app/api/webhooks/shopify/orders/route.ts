@@ -20,15 +20,20 @@ export async function POST(request: Request) {
   try {
     const rawBody = await request.text();
 
-    // HMAC 验证
+    // HMAC 验证 — fail-closed：缺 secret 或缺签名直接拒绝，不允许匿名 POST
     const hmac = request.headers.get("x-shopify-hmac-sha256");
     const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
-    if (secret && hmac) {
-      const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("base64");
-      if (expected !== hmac) {
-        console.warn("[shopify webhook] HMAC 不匹配");
-        return NextResponse.json({ error: "invalid signature" }, { status: 401 });
-      }
+    if (!secret) {
+      console.error("[shopify webhook] SHOPIFY_WEBHOOK_SECRET 未配置，拒绝所有请求");
+      return NextResponse.json({ error: "webhook secret not configured" }, { status: 500 });
+    }
+    if (!hmac) {
+      return NextResponse.json({ error: "missing signature" }, { status: 401 });
+    }
+    const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("base64");
+    if (expected !== hmac) {
+      console.warn("[shopify webhook] HMAC 不匹配");
+      return NextResponse.json({ error: "invalid signature" }, { status: 401 });
     }
 
     const order = JSON.parse(rawBody);

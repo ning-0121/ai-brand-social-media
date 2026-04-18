@@ -15,13 +15,54 @@ const ANTHROPIC_MODEL_MAP: Record<LLMTier, string> = {
 };
 
 function parseJson(content: string): Record<string, unknown> {
+  // 1. 剥离 markdown 代码围栏 ```json ... ``` 或 ``` ... ```
+  const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  const cleaned = fenceMatch ? fenceMatch[1] : content;
+
+  // 2. 先尝试整块
   try {
-    const jsonMatch = content.match(/[\[{][\s\S]*[\]}]/);
-    const obj = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+    const obj = JSON.parse(cleaned.trim());
     return Array.isArray(obj) ? { items: obj } : obj;
-  } catch {
-    return { raw_text: content };
+  } catch { /* fallthrough */ }
+
+  // 3. 尝试找最大的对象块 {...}（用平衡匹配）
+  const objMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try {
+      const obj = JSON.parse(objMatch[0]);
+      return Array.isArray(obj) ? { items: obj } : obj;
+    } catch { /* fallthrough */ }
   }
+
+  // 4. 尝试数组
+  const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try {
+      const obj = JSON.parse(arrMatch[0]);
+      return Array.isArray(obj) ? { items: obj } : obj;
+    } catch { /* fallthrough */ }
+  }
+
+  return { raw_text: content };
+}
+
+/** 指数退避重试（限流/临时错误） */
+async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      // 只对限流/过载类错误重试；其他直接抛
+      const retriable = /429|529|overload|rate.?limit|timeout|ECONNRESET|ETIMEDOUT/i.test(msg);
+      if (!retriable || i === attempts) break;
+      const delay = 1000 * Math.pow(2, i) + Math.random() * 500; // 1s → 2s → 4s
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
 }
 
 export async function callLLM(
@@ -33,10 +74,10 @@ export async function callLLM(
   // Route via OpenRouter when enabled (multi-model fallback + cost routing)
   if (openRouterEnabled()) {
     try {
-      const res = await callOpenRouter(systemPrompt, userPrompt, {
+      const res = await withRetry(() => callOpenRouter(systemPrompt, userPrompt, {
         tier: tier as RouterTier,
         maxTokens,
-      });
+      }));
       const parsed = parseJson(res.text);
       parsed._llm_meta = {
         model: res.model_used,
@@ -58,12 +99,12 @@ export async function callLLM(
   const started = Date.now();
   const model = ANTHROPIC_MODEL_MAP[tier];
 
-  const message = await anthropic.messages.create({
+  const message = await withRetry(() => anthropic.messages.create({
     model,
     max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
-  });
+  }));
 
   const content = message.content[0]?.type === "text" ? message.content[0].text : "{}";
   const parsed = parseJson(content);
