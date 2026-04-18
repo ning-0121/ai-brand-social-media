@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { HtmlPreview } from "@/components/ops/html-preview";
 import { TaskResultRenderer } from "@/components/ops/task-result-renderer";
+import { TrackingSnippet } from "@/components/ops/tracking-snippet";
 import { Loader2, Zap, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -203,10 +204,8 @@ export default function CampaignComposePage() {
                 );
               })}
             </div>
-            <div className="mt-3 p-2 rounded bg-muted/30 text-[11px] text-muted-foreground">
-              Variant ID: <code className="font-mono">{abResult.id}</code> ·
-              追踪方式：<code>POST /api/campaigns/track {"{"} variant_id, which: &quot;a|b&quot;, event: &quot;view|conversion&quot; {"}"}</code> ·
-              两边各 100 views + 转化差 ≥30% 时自动宣布 winner
+            <div className="mt-3">
+              <TrackingSnippet variantId={abResult.id} />
             </div>
           </CardContent>
         </Card>

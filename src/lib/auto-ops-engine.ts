@@ -8,6 +8,7 @@ import { generateDailyReport } from "./daily-report";
 import { autoRetryFailedTasks } from "./failure-diagnostic";
 import { runAIInspector } from "./ai-inspector";
 import { measureDueOutcomes } from "./outcomes";
+import { runDueCalendar } from "./campaign-calendar";
 
 interface TaskResult {
   task: string;
@@ -182,6 +183,21 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
 export async function runDailyTasks(): Promise<TaskResult[]> {
   const startTime = Date.now();
   const results: TaskResult[] = [];
+
+  // 0b. 营销日历：到期的 planned 活动自动 compose
+  try {
+    const cal = await runDueCalendar();
+    if (cal.due > 0) {
+      results.push({
+        task: "calendar_auto_compose",
+        status: cal.composed > 0 ? "success" : (cal.failed > 0 ? "failed" : "skipped"),
+        message: `到期 ${cal.due}，生成 ${cal.composed}，失败 ${cal.failed}，跳过 ${cal.skipped}`,
+        data: cal as unknown as Record<string, unknown>,
+      });
+    }
+  } catch (err) {
+    results.push({ task: "calendar_auto_compose", status: "failed", message: err instanceof Error ? err.message : "日历 cron 失败" });
+  }
 
   // 0a. 效果回传：测量到期的 SEO outcomes，回写 prompt_runs.score
   try {

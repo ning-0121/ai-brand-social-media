@@ -32,6 +32,8 @@ export interface CampaignResult {
   campaign_name: string;
   started_at: string;
   duration_ms: number;
+  /** 落地页 prompt_runs.id — A/B winner 会据此回写 score */
+  landing_prompt_run_id?: string | null;
   components: {
     landing_page?: { success: boolean; output?: Record<string, unknown>; error?: string };
     banner?: { success: boolean; output?: Record<string, unknown>; error?: string };
@@ -120,10 +122,24 @@ export async function composeCampaign(spec: CampaignSpec): Promise<CampaignResul
     return { platform, ...base };
   };
 
+  // 捕获本次 compose 对应的 landing_page prompt_run_id（给 A/B 回流用）
+  let landingPromptRunId: string | null = null;
+  try {
+    const { data: recentRun } = await supabase
+      .from("prompt_runs")
+      .select("id")
+      .eq("prompt_slug", "page.landing")
+      .gte("created_at", startedAt)
+      .order("created_at", { ascending: false })
+      .limit(1).maybeSingle();
+    landingPromptRunId = recentRun?.id || null;
+  } catch { /* silent */ }
+
   const result: CampaignResult = {
     campaign_name: spec.name,
     started_at: startedAt,
     duration_ms: Date.now() - started,
+    landing_prompt_run_id: landingPromptRunId,
     components: {
       landing_page: unwrap(landingRes),
       banner: unwrap(bannerRes),

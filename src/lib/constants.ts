@@ -12,6 +12,7 @@ import {
   Palette,
   Rocket,
   CalendarDays,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 
@@ -38,6 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "素材库", href: "/media-library", icon: ImagePlus, group: "内容" },
   { label: "营销日历", href: "/campaigns/calendar", icon: CalendarDays, group: "内容" },
   { label: "Campaign Composer", href: "/campaigns/compose", icon: Rocket, group: "内容" },
+  { label: "竞品拆解", href: "/references", icon: Search, group: "内容" },
   { label: "Prompt 实验室", href: "/prompts", icon: Beaker, group: "内容" },
   { label: "AI 成本看板", href: "/costs", icon: DollarSign, group: "内容" },
 

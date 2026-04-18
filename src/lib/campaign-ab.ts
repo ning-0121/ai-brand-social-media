@@ -74,5 +74,34 @@ export async function declareWinner(variantId: string): Promise<{ winner: "a" | 
     winner_declared_at: new Date().toISOString(),
   }).eq("id", variantId);
 
-  return { winner, reason: `A: ${(rateA * 100).toFixed(1)}% vs B: ${(rateB * 100).toFixed(1)}%` };
+  // 回流：把转化率映射到 0-100 分，写回对应 landing_page prompt_run.score
+  // 10% 转化 → 100 分；5% → 80 分；2% → 60 分；1% → 40；0.5% → 20
+  const toBusinessScore = (rate: number): number => {
+    if (rate >= 0.10) return 100;
+    if (rate <= 0) return 0;
+    return Math.round(Math.min(100, Math.log10(rate * 1000) * 33));
+  };
+
+  const variantA = data.variant_a as { landing_prompt_run_id?: string } | null;
+  const variantB = data.variant_b as { landing_prompt_run_id?: string } | null;
+
+  const updates: Array<Promise<unknown>> = [];
+  if (variantA?.landing_prompt_run_id) {
+    updates.push(Promise.resolve(supabase.from("prompt_runs").update({
+      score: toBusinessScore(rateA),
+      tags: ["ab_measured", `winner_${winner}`, `rate_${(rateA * 100).toFixed(1)}pct`],
+    }).eq("id", variantA.landing_prompt_run_id)));
+  }
+  if (variantB?.landing_prompt_run_id) {
+    updates.push(Promise.resolve(supabase.from("prompt_runs").update({
+      score: toBusinessScore(rateB),
+      tags: ["ab_measured", `winner_${winner}`, `rate_${(rateB * 100).toFixed(1)}pct`],
+    }).eq("id", variantB.landing_prompt_run_id)));
+  }
+  await Promise.allSettled(updates);
+
+  return {
+    winner,
+    reason: `A: ${(rateA * 100).toFixed(1)}% (${toBusinessScore(rateA)}pt) vs B: ${(rateB * 100).toFixed(1)}% (${toBusinessScore(rateB)}pt)`,
+  };
 }

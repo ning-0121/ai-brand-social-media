@@ -102,6 +102,56 @@ export async function autoPlanMonth(days = 60): Promise<{ created: number; skipp
 }
 
 /**
+ * Daily cron：扫描「今天及以前」的 planned 条目，自动 compose。
+ * 限流避免耗尽 60s 预算：每次 cron 最多跑 2 条。
+ */
+export async function runDueCalendar(): Promise<{
+  due: number;
+  composed: number;
+  failed: number;
+  skipped: number;
+  details: Array<{ id: string; name: string; status: string; error?: string }>;
+}> {
+  const today = new Date().toISOString().split("T")[0];
+  const { data: due } = await supabase
+    .from("campaign_calendar")
+    .select("id, campaign_name, scheduled_date, spec")
+    .eq("status", "planned")
+    .lte("scheduled_date", today)
+    .order("scheduled_date", { ascending: true })
+    .limit(2);
+
+  const details: Array<{ id: string; name: string; status: string; error?: string }> = [];
+  let composed = 0, failed = 0, skipped = 0;
+
+  for (const entry of due || []) {
+    // 没有 spec 或没 goal 时跳过
+    const spec = entry.spec as Partial<CampaignSpec>;
+    if (!spec?.name || !spec?.goal) {
+      skipped++;
+      details.push({ id: entry.id, name: entry.campaign_name, status: "skipped", error: "spec 不完整" });
+      continue;
+    }
+
+    try {
+      const r = await runCalendarEntry(entry.id);
+      if (r.success) {
+        composed++;
+        details.push({ id: entry.id, name: entry.campaign_name, status: "composed" });
+      } else {
+        failed++;
+        details.push({ id: entry.id, name: entry.campaign_name, status: "failed", error: r.error });
+      }
+    } catch (err) {
+      failed++;
+      details.push({ id: entry.id, name: entry.campaign_name, status: "failed", error: err instanceof Error ? err.message : "unknown" });
+    }
+  }
+
+  return { due: due?.length || 0, composed, failed, skipped, details };
+}
+
+/**
  * 运行日历某条：调用 composeCampaign + 回写状态
  */
 export async function runCalendarEntry(entryId: string): Promise<{ success: boolean; campaign_result?: Record<string, unknown>; error?: string }> {
