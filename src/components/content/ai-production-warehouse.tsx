@@ -163,6 +163,7 @@ function ListRow({ item, expanded, onToggle }: { item: WarehouseItem; expanded: 
               taskType={item.skill_id}
               result={item.result}
               targetProductName={item.product_name}
+              targetProductId={item.product_id}
             />
           </div>
         )}

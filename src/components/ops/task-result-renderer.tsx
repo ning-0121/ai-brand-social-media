@@ -40,13 +40,14 @@ interface TaskResultRendererProps {
   taskType: string;
   result: Record<string, unknown> | null;
   targetProductName?: string | null;
+  /** Optional local product uuid, enables "部署到 Shopify" action */
+  targetProductId?: string | null;
 }
-
 /**
  * 按 skill 类型渲染可视化结果
  * 不再显示原始 JSON
  */
-export function TaskResultRenderer({ taskType, result, targetProductName }: TaskResultRendererProps) {
+export function TaskResultRenderer({ taskType, result, targetProductName, targetProductId }: TaskResultRendererProps) {
   if (!result) return <div className="text-xs text-muted-foreground">暂无结果</div>;
 
   // 错误情况统一处理
@@ -89,7 +90,7 @@ export function TaskResultRenderer({ taskType, result, targetProductName }: Task
       return <SEOFixRenderer result={result} output={output} productName={targetProductName} />;
     case "detail_page":
     case "new_product_content":
-      return <DetailPageRenderer output={output} productName={targetProductName} />;
+      return <DetailPageRenderer output={output} productName={targetProductName} productId={targetProductId} />;
     case "post":
       return <SocialPostRenderer output={output} />;
     case "engage":
@@ -221,11 +222,12 @@ function SEOFixRenderer({
 function DetailPageRenderer({
   output,
   productName,
+  productId,
 }: {
   output: Record<string, unknown>;
   productName?: string | null;
+  productId?: string | null;
 }) {
-  // Prefer existing body_html if present, otherwise assemble from structured fields.
   const existingHtml = (output.body_html || output.html) as string | undefined;
   const html = existingHtml && existingHtml.length > 100
     ? existingHtml
@@ -235,6 +237,8 @@ function DetailPageRenderer({
     <HtmlPreview
       html={html}
       title={productName ? `详情页 · ${productName}` : "详情页"}
+      shopifyDeploy={productId ? { target: "product_body", productId, productName: productName ?? undefined } : undefined}
+      deployLabel="推送到 Shopify 商品"
     />
   );
 }
@@ -376,7 +380,17 @@ ${sections.map(s => `<section style="max-width:900px;margin:0 auto;padding:48px 
 
   return (
     <div className="space-y-2">
-      <HtmlPreview html={html} title="页面预览" defaultViewport="desktop" />
+      <HtmlPreview
+        html={html}
+        title="页面预览"
+        defaultViewport="desktop"
+        shopifyDeploy={
+          pageId
+            ? { target: "update_page", pageId: parseInt(pageId) }
+            : { target: "new_page", defaultTitle: String(output.hero_title || output.title || "New Landing Page") }
+        }
+        deployLabel={pageId ? "更新 Shopify 页面" : "创建 Shopify 页面"}
+      />
       {pageId && (
         <div className="text-[10px] text-green-600 px-2">✅ 已创建 Shopify 页面 (ID: {pageId})</div>
       )}

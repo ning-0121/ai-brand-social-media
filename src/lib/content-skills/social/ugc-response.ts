@@ -1,4 +1,5 @@
 import { callLLM } from "../llm";
+import { tryRunPrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 export const ugcResponseSkill: ContentSkill = {
@@ -23,6 +24,19 @@ export const ugcResponseSkill: ContentSkill = {
   async execute(input: SkillInputData): Promise<SkillResult> {
     const ugc = (input.ugc_content as string) || "";
     const sentiment = (input.sentiment as string) || "positive";
+
+    const dbOut = await tryRunPrompt("social.ugc.response", {
+      ugc_content: ugc,
+      sentiment,
+    }, { source: "ugc_response" });
+    if (dbOut) {
+      return {
+        skill_id: "ugc_response",
+        output: dbOut,
+        generated_at: new Date().toISOString(),
+        estimated_cost: { text: 0.01, image: 0 },
+      };
+    }
 
     const systemPrompt = `你是顶级品牌社媒运营官，擅长处理 UGC（用户生成内容）。
 你的回复有这些特点：

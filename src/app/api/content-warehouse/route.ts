@@ -8,6 +8,7 @@ export interface WarehouseItem {
   id: string;
   source: "content_task" | "ops_task";
   skill_id: string;
+  product_id: string | null;
   product_name: string | null;
   status: string;
   result: Record<string, unknown> | null;
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
     // ── 1. content_tasks (manual skill executions) ──
     const { data: contentTasks } = await supabase
       .from("content_tasks")
-      .select("id, skill_id, product_name, source_module, status, result, created_at")
+      .select("id, skill_id, product_id, product_name, source_module, status, result, created_at")
       .in("status", ["completed", "approved", "failed"])
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
     // ── 2. ops_daily_tasks (auto-executed tasks with results) ──
     const { data: opsTasks } = await supabase
       .from("ops_daily_tasks")
-      .select("id, task_type, target_product_name, execution_status, execution_result, created_at")
+      .select("id, task_type, target_product_id, target_product_name, execution_status, execution_result, created_at")
       .in("execution_status", ["auto_executed", "completed", "failed"])
       .not("execution_result", "is", null)
       .order("created_at", { ascending: false })
@@ -70,6 +71,7 @@ export async function GET(request: Request) {
         id: t.id,
         source: "content_task",
         skill_id: t.skill_id,
+        product_id: (t as { product_id?: string | null }).product_id ?? null,
         product_name: t.product_name,
         status: t.status,
         result: t.result,
@@ -84,7 +86,6 @@ export async function GET(request: Request) {
     for (const t of opsTasks || []) {
       const result = t.execution_result as Record<string, unknown> | null;
       const imgUrl = extractImageUrl(result);
-      // Map task_type to skill_id equivalent for display
       const skillId = t.task_type === "seo_fix" ? "product_seo_optimize"
         : t.task_type === "detail_page" ? "product_detail_page"
         : t.task_type === "post" ? "social_post_pack"
@@ -95,6 +96,7 @@ export async function GET(request: Request) {
         id: t.id,
         source: "ops_task",
         skill_id: skillId,
+        product_id: (t as { target_product_id?: string | null }).target_product_id ?? null,
         product_name: t.target_product_name || null,
         status: t.execution_status,
         result,

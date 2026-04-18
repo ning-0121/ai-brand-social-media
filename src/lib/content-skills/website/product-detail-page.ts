@@ -46,7 +46,11 @@ export const productDetailPageSkill: ContentSkill = {
           brand_positioning: positioning,
           tone,
           audience_block: audience ? `目标人群：${audience}` : "",
-        }, { source: "product_detail_page" });
+        }, {
+          source: "product_detail_page",
+          scoreWithSlug: "product.detail.page.judge",
+          scoreContext: { input: { product: product.name, tone, audience } },
+        });
         return {
           skill_id: "product_detail_page",
           output,

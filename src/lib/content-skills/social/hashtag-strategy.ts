@@ -1,4 +1,5 @@
 import { callLLM } from "../llm";
+import { tryRunPrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 export const hashtagStrategySkill: ContentSkill = {
@@ -22,6 +23,20 @@ export const hashtagStrategySkill: ContentSkill = {
 
     const platform = (input.platform as string) || "instagram";
     const audience = (input.audience as string) || "";
+
+    const dbOut = await tryRunPrompt("social.hashtag.strategy", {
+      platform,
+      product: { name: product.name, category: product.category || "未知" },
+      audience_block: audience ? `目标人群：${audience}` : "",
+    }, { source: "hashtag_strategy" });
+    if (dbOut) {
+      return {
+        skill_id: "hashtag_strategy",
+        output: dbOut,
+        generated_at: new Date().toISOString(),
+        estimated_cost: { text: 0.01, image: 0 },
+      };
+    }
 
     const systemPrompt = `你是顶级社媒 hashtag 策略专家，深谙各平台的标签算法。
 hashtag 三层策略：

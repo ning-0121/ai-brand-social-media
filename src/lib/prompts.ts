@@ -68,6 +68,25 @@ export interface RunPromptOptions {
 }
 
 /**
+ * Helper：尝试用 DB prompt 执行，如果 slug 不在 DB 里则返回 null
+ * 用于 skill 渐进式迁移：DB 里有就用 DB，没有就回退硬编码
+ */
+export async function tryRunPrompt(
+  slug: string,
+  vars: Record<string, unknown>,
+  options: RunPromptOptions = {}
+): Promise<Record<string, unknown> | null> {
+  const prompt = await getActivePrompt(slug);
+  if (!prompt) return null;
+  try {
+    return await runPrompt(slug, vars, options);
+  } catch (err) {
+    console.warn(`DB prompt ${slug} failed, caller should fallback:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
  * 执行一个存储的 prompt，自动记录 prompt_runs
  */
 export async function runPrompt(

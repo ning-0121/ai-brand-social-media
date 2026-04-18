@@ -1,4 +1,5 @@
 import { callLLM } from "../llm";
+import { tryRunPrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 export const shortVideoScriptSkill: ContentSkill = {
@@ -34,6 +35,22 @@ export const shortVideoScriptSkill: ContentSkill = {
     const platform = (input.platform as string) || "tiktok";
     const duration = (input.duration as string) || "30s";
     const style = (input.style as string) || "engaging";
+
+    const dbOut = await tryRunPrompt("social.video.script", {
+      platform,
+      duration,
+      style,
+      product: { name: product.name },
+      product_desc: (product.body_html || product.description || "").slice(0, 200),
+    }, { source: "short_video_script" });
+    if (dbOut) {
+      return {
+        skill_id: "short_video_script",
+        output: dbOut,
+        generated_at: new Date().toISOString(),
+        estimated_cost: { text: 0.02, image: 0 },
+      };
+    }
 
     const systemPrompt = `你是顶级短视频编剧，曾创作过多个百万播放的短视频。
 你的脚本特点：

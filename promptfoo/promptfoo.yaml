@@ -1,0 +1,104 @@
+# Promptfoo golden tests — 防止 prompt 改版后质量回退
+# 运行：npx promptfoo eval -c promptfoo/promptfoo.yaml
+# 所有测试都会用 DB 里 is_active 的 prompt 版本执行
+
+description: BrandMind core prompts quality gate
+
+providers:
+  - id: brandmind-local
+    config:
+      # 自定义 provider：调我们自己的 /api/prompts test_run 端点
+      apiBaseUrl: "${API_URL}"
+      apiKey: "${CRON_SECRET}"
+
+# Golden test cases — 每个 skill 至少 3 个具有挑战性的输入
+tests:
+  - description: "SEO - 完整商品信息（英文 Shopify 风格）"
+    vars:
+      slug: product.seo.optimize
+      product:
+        name: "Minimalist Leather Tote Bag"
+        category: "Bags"
+        body_html: "A clean, everyday tote made from full-grain leather."
+        meta_title: ""
+        meta_description: ""
+        tags: "bag"
+      keywords: "leather tote, minimalist bag, everyday carry"
+    assert:
+      - type: javascript
+        value: |
+          output.meta_title && output.meta_title.length <= 60 &&
+          output.meta_description && output.meta_description.length <= 155 &&
+          output.tags && output.tags.split(',').length >= 6
+      - type: llm-rubric
+        value: |
+          Check that:
+          - meta_title leads with primary keyword (leather/tote/bag)
+          - meta_description has a CTA verb (Shop, Discover, Get, Buy, Explore)
+          - body_html uses <h2> or <ul> tags
+          - qa_score is present and >=70
+
+  - description: "SEO - 仅有名称，极简信息（考察兜底能力）"
+    vars:
+      slug: product.seo.optimize
+      product:
+        name: "Silk Cami Top"
+    assert:
+      - type: javascript
+        value: "output.meta_title && output.meta_description && output.body_html && output.body_html.length > 200"
+
+  - description: "详情页 - 服饰（轻松语气）"
+    vars:
+      slug: product.detail.page
+      product:
+        name: "Summer Breeze Linen Shirt"
+        category: "Tops"
+        price: "$89"
+      tone: casual
+      target_audience: "25-35 岁追求舒适的都市女性"
+    assert:
+      - type: javascript
+        value: |
+          Array.isArray(output.highlights) && output.highlights.length >= 3 &&
+          output.description && output.description.length >= 200 &&
+          Array.isArray(output.specs) && output.specs.length >= 2
+      - type: llm-rubric
+        value: |
+          Check that:
+          - title is benefit-focused, not just product name repeat
+          - description has sensory/scene details (not just specs)
+          - cta_primary is action-oriented
+
+  - description: "Hashtag - 小红书平台"
+    vars:
+      slug: social.hashtag.strategy
+      platform: xiaohongshu
+      product:
+        name: "Cashmere Cardigan"
+        category: "Knitwear"
+      audience: "25-35 岁轻奢风女性"
+    assert:
+      - type: javascript
+        value: |
+          Array.isArray(output.core_hashtags) && output.core_hashtags.length >= 3 &&
+          Array.isArray(output.long_tail_hashtags) && output.long_tail_hashtags.length >= 5
+
+  - description: "短视频脚本 - TikTok 15s"
+    vars:
+      slug: social.video.script
+      platform: tiktok
+      duration: 15s
+      style: engaging
+      product:
+        name: "Retro Denim Jacket"
+      product_desc: "Oversized fit, washed indigo, vintage feel."
+    assert:
+      - type: javascript
+        value: |
+          output.hook && output.hook.length > 0 &&
+          Array.isArray(output.scenes) && output.scenes.length >= 2 &&
+          output.cta
+
+defaultTest:
+  options:
+    provider: openai:gpt-4.1-mini # LLM-rubric judge

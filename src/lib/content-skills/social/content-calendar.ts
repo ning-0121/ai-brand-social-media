@@ -1,4 +1,5 @@
 import { callLLM } from "../llm";
+import { tryRunPrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 export const contentCalendarSkill: ContentSkill = {
@@ -37,6 +38,22 @@ export const contentCalendarSkill: ContentSkill = {
 
     const today = new Date();
     const productNames = products.map((p) => p.name).slice(0, 20).join(", ");
+
+    const dbOut = await tryRunPrompt("social.content.calendar", {
+      today: today.toISOString().split("T")[0],
+      platforms: platforms.join(", "),
+      frequency,
+      product_count: products.length,
+      product_names: productNames,
+    }, { source: "content_calendar" });
+    if (dbOut) {
+      return {
+        skill_id: "content_calendar",
+        output: dbOut,
+        generated_at: new Date().toISOString(),
+        estimated_cost: { text: 0.05, image: 0 },
+      };
+    }
 
     const userPrompt = `生成未来 30 天的社媒内容日历：
 

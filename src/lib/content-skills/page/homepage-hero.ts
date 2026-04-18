@@ -1,4 +1,5 @@
 import { callLLM } from "../llm";
+import { tryRunPrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
 export const homepageHeroSkill: ContentSkill = {
@@ -30,6 +31,21 @@ export const homepageHeroSkill: ContentSkill = {
     const positioning = (input.brand_positioning as string) || "";
     const season = (input.season as string) || "general";
     const products = input.products || [];
+
+    const dbOut = await tryRunPrompt("page.homepage.hero", {
+      brand,
+      positioning: positioning || "premium fashion",
+      season,
+      product_names: products.map((p) => p.name).join(", ") || "none",
+    }, { source: "homepage_hero" });
+    if (dbOut) {
+      return {
+        skill_id: "homepage_hero",
+        output: dbOut,
+        generated_at: new Date().toISOString(),
+        estimated_cost: { text: 0.02, image: 0 },
+      };
+    }
 
     const output = await callLLM(
       `You are a premium e-commerce homepage designer. Generate a Shopify-ready Hero section with inline CSS. The HTML should be visually striking, conversion-focused, and mobile-responsive.

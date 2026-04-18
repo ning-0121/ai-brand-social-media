@@ -27,6 +27,11 @@ interface HtmlPreviewProps {
   deployLabel?: string;
   /** Initial viewport: desktop or mobile */
   defaultViewport?: "desktop" | "mobile";
+  /** If set, shows built-in "部署到 Shopify" button that POSTs to /api/shopify/deploy-html */
+  shopifyDeploy?:
+    | { target: "product_body"; productId: string; productName?: string }
+    | { target: "new_page"; defaultTitle: string }
+    | { target: "update_page"; pageId: number; title?: string };
 }
 
 /**
@@ -40,6 +45,7 @@ export function HtmlPreview({
   onDeploy,
   deployLabel = "部署到 Shopify",
   defaultViewport = "desktop",
+  shopifyDeploy,
 }: HtmlPreviewProps) {
   const [html, setHtml] = useState(initialHtml);
   const [view, setView] = useState<"preview" | "source">("preview");
@@ -87,6 +93,38 @@ export function HtmlPreview({
   };
 
   const handleDeploy = async () => {
+    // Built-in Shopify deploy path
+    if (shopifyDeploy) {
+      setDeploying(true);
+      try {
+        const body: Record<string, unknown> = { target: shopifyDeploy.target, html };
+        if (shopifyDeploy.target === "product_body") {
+          body.product_id = shopifyDeploy.productId;
+        } else if (shopifyDeploy.target === "new_page") {
+          const userTitle = prompt("页面标题：", shopifyDeploy.defaultTitle);
+          if (!userTitle) { setDeploying(false); return; }
+          body.title = userTitle;
+        } else {
+          body.page_id = shopifyDeploy.pageId;
+          if (shopifyDeploy.title) body.title = shopifyDeploy.title;
+        }
+
+        const res = await fetch("/api/shopify/deploy-html", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "部署失败");
+        toast.success(data.message || "Shopify 部署成功");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "部署失败");
+      } finally {
+        setDeploying(false);
+      }
+      return;
+    }
+
     if (!onDeploy) return;
     setDeploying(true);
     try {
@@ -172,7 +210,7 @@ export function HtmlPreview({
               {saving ? "保存中..." : "保存"}
             </Button>
           )}
-          {onDeploy && (
+          {(onDeploy || shopifyDeploy) && (
             <Button size="sm" variant="default" className="h-6 px-2 text-[10px]" onClick={handleDeploy} disabled={deploying}>
               {deploying ? "部署中..." : deployLabel}
             </Button>

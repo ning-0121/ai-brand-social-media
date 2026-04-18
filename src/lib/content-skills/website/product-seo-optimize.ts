@@ -39,7 +39,11 @@ export const productSeoOptimizeSkill: ContentSkill = {
           keywords_block: keywords ? `Target keywords: ${keywords}` : "",
           qa_feedback_block: qaFeedback ? `Previous QA feedback to fix: ${qaFeedback}` : "",
           competitors_block: competitors.length > 0 ? `Competitor reference: ${JSON.stringify(competitors).slice(0, 200)}` : "",
-        }, { source: "product_seo_optimize" });
+        }, {
+          source: "product_seo_optimize",
+          scoreWithSlug: "product.seo.judge",
+          scoreContext: { input: { product: product.name, keywords } },
+        });
         return {
           skill_id: "product_seo_optimize",
           output,
