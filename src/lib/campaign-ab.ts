@@ -5,6 +5,7 @@
 
 import { supabase } from "./supabase";
 import { composeCampaign, type CampaignSpec, type CampaignResult } from "./campaign-composer";
+import { createShopifyPage } from "./shopify-operations";
 
 export interface ABResult {
   id: string;
@@ -104,4 +105,56 @@ export async function declareWinner(variantId: string): Promise<{ winner: "a" | 
     winner,
     reason: `A: ${(rateA * 100).toFixed(1)}% (${toBusinessScore(rateA)}pt) vs B: ${(rateB * 100).toFixed(1)}% (${toBusinessScore(rateB)}pt)`,
   };
+}
+
+/**
+ * Daily：扫已宣告 winner 但未部署的 variant，自动把胜出 landing_page HTML 推到 Shopify
+ */
+export async function deployWinnerVariants(): Promise<{
+  deployed: number;
+  skipped: number;
+  failed: number;
+  details: Array<{ variant_id: string; campaign: string; winner: string; status: string; error?: string; url?: string }>;
+}> {
+  const { data: winners } = await supabase
+    .from("campaign_variants")
+    .select("id, campaign_name, winner, variant_a, variant_b, deployed_a_url, deployed_b_url")
+    .not("winner", "is", null)
+    .is("deployed_a_url", null).is("deployed_b_url", null)
+    .order("winner_declared_at", { ascending: false })
+    .limit(5);
+
+  const details: Array<{ variant_id: string; campaign: string; winner: string; status: string; error?: string; url?: string }> = [];
+  let deployed = 0, skipped = 0, failed = 0;
+
+  const { data: shopify } = await supabase.from("integrations")
+    .select("id").eq("platform", "shopify").eq("status", "active").maybeSingle();
+  if (!shopify) {
+    return { deployed: 0, skipped: 0, failed: 0, details: [{ variant_id: "-", campaign: "-", winner: "-", status: "no_shopify", error: "未连接 Shopify" }] };
+  }
+
+  for (const v of winners || []) {
+    const winnerData = (v.winner === "a" ? v.variant_a : v.variant_b) as CampaignResult | null;
+    const html = winnerData?.components?.landing_page?.output?.body_html as string | undefined;
+    if (!html || html.length < 200) {
+      skipped++;
+      details.push({ variant_id: v.id, campaign: v.campaign_name, winner: v.winner, status: "skipped", error: "胜出版本无 landing_page HTML" });
+      continue;
+    }
+
+    try {
+      const result = await createShopifyPage(shopify.id, `${v.campaign_name} · 胜出版`, html);
+      const url = `https://admin.shopify.com/pages/${result.page_id}`;
+      await supabase.from("campaign_variants").update({
+        [v.winner === "a" ? "deployed_a_url" : "deployed_b_url"]: url,
+      }).eq("id", v.id);
+      deployed++;
+      details.push({ variant_id: v.id, campaign: v.campaign_name, winner: v.winner, status: "deployed", url });
+    } catch (err) {
+      failed++;
+      details.push({ variant_id: v.id, campaign: v.campaign_name, winner: v.winner, status: "failed", error: err instanceof Error ? err.message : "deploy failed" });
+    }
+  }
+
+  return { deployed, skipped, failed, details };
 }

@@ -52,12 +52,31 @@ export function TrackingSnippet({ variantId, appUrl }: { variantId: string; appU
     sessionStorage.setItem(viewKey, "1");
   }
 
+  // 注入到 Shopify 购物车，订单 webhook 会读这两个属性把转化算回对应 variant
+  function writeCartAttributes() {
+    try {
+      fetch("/cart/update.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          attributes: {
+            bm_variant_id: VID,
+            bm_variant_which: which,
+          },
+        }),
+      }).catch(function(){});
+    } catch(e) {}
+  }
+
   // Fire conversion when user clicks anything with [data-bm-convert] or reaches /checkout
   document.addEventListener("click", function(e) {
     var t = e.target && e.target.closest && e.target.closest("[data-bm-convert]");
-    if (t) report("conversion");
+    if (t) { writeCartAttributes(); report("conversion"); }
+    // 也追加到 "Add to cart" 按钮
+    var addBtn = e.target && e.target.closest && e.target.closest("[name=add],button[type=submit][form*=cart]");
+    if (addBtn) writeCartAttributes();
   });
-  if (/\\/(checkout|thank)/.test(location.pathname)) report("conversion");
+  if (/\\/(checkout|thank)/.test(location.pathname)) { writeCartAttributes(); report("conversion"); }
 })();
 </script>`;
 
@@ -84,9 +103,9 @@ export function TrackingSnippet({ variantId, appUrl }: { variantId: string; appU
       <div className="p-2 text-[10px] text-muted-foreground border-t bg-background space-y-1">
         <p><strong>使用方法：</strong></p>
         <p>1. 把上面代码粘贴到 Shopify 主题的 <code className="font-mono">theme.liquid</code> 的 <code className="font-mono">&lt;/body&gt;</code> 之前</p>
-        <p>2. 给 CTA 按钮/链接加属性 <code className="font-mono">data-bm-convert</code> 追踪转化点击</p>
-        <p>3. 访问 /checkout 或 /thank-you 会自动上报转化</p>
-        <p>4. 两边各 100 views + 转化差 30% 自动宣布 winner，商业分写回 <code className="font-mono">prompt_runs.score</code></p>
+        <p>2. 用户 Add to Cart 时自动写 <code className="font-mono">note_attributes</code>（无需加 data 属性）</p>
+        <p>3. 在 Shopify Admin 配 Order Created webhook 到 <code className="font-mono">/api/webhooks/shopify/orders</code> → 订单转化自动回传</p>
+        <p>4. 两边各 100 views + 转化差 30% 自动宣布 winner，商业分写回 <code className="font-mono">prompt_runs.score</code> → 督察晋升冠军 prompt</p>
       </div>
     </div>
   );

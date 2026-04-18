@@ -9,6 +9,9 @@ import { autoRetryFailedTasks } from "./failure-diagnostic";
 import { runAIInspector } from "./ai-inspector";
 import { measureDueOutcomes } from "./outcomes";
 import { runDueCalendar } from "./campaign-calendar";
+import { syncProducts, syncOrders } from "./shopify-operations";
+import { proposeGoals, adoptGoals } from "./ops-director";
+import { deployWinnerVariants } from "./campaign-ab";
 
 interface TaskResult {
   task: string;
@@ -183,6 +186,62 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
 export async function runDailyTasks(): Promise<TaskResult[]> {
   const startTime = Date.now();
   const results: TaskResult[] = [];
+
+  // 0.0 自动 Shopify 同步（每天刷新商品 + 订单）
+  try {
+    const { data: shopify } = await supabase.from("integrations")
+      .select("id, metadata").eq("platform", "shopify").eq("status", "active").maybeSingle();
+    if (shopify) {
+      const userId = (shopify.metadata as Record<string, unknown>)?.user_id as string || shopify.id;
+      const [p, o] = await Promise.all([
+        syncProducts(shopify.id),
+        syncOrders(shopify.id, userId),
+      ]);
+      results.push({
+        task: "shopify_auto_sync",
+        status: "success",
+        message: `商品 ${p.synced_products ?? 0} / 订单 ${o.synced_orders ?? 0}`,
+        data: { products: p, orders: o } as unknown as Record<string, unknown>,
+      });
+    }
+  } catch (err) {
+    results.push({ task: "shopify_auto_sync", status: "failed", message: err instanceof Error ? err.message : "sync 失败" });
+  }
+
+  // 0.1 首次运行：无目标时自动 propose + adopt（解锁周计划引导）
+  try {
+    const { count: goalCount } = await supabase
+      .from("ops_goals").select("id", { count: "exact", head: true }).eq("status", "active");
+    if ((goalCount ?? 0) === 0) {
+      const proposal = await proposeGoals();
+      if (proposal?.proposed_goals?.length) {
+        const ids = await adoptGoals(proposal.proposed_goals);
+        results.push({
+          task: "auto_adopt_goals",
+          status: "success",
+          message: `自动采纳 ${ids.length} 个目标（首次运行无目标时）`,
+          data: { goal_ids: ids, proposal } as unknown as Record<string, unknown>,
+        });
+      }
+    }
+  } catch (err) {
+    results.push({ task: "auto_adopt_goals", status: "failed", message: err instanceof Error ? err.message : "采纳失败" });
+  }
+
+  // 0.2 A/B winner 到期 → 自动部署胜出版本
+  try {
+    const dep = await deployWinnerVariants();
+    if (dep.deployed > 0) {
+      results.push({
+        task: "ab_winner_deploy",
+        status: "success",
+        message: `部署 ${dep.deployed} 个 A/B 胜出页面到 Shopify`,
+        data: dep as unknown as Record<string, unknown>,
+      });
+    }
+  } catch (err) {
+    results.push({ task: "ab_winner_deploy", status: "failed", message: err instanceof Error ? err.message : "部署失败" });
+  }
 
   // 0b. 营销日历：到期的 planned 活动自动 compose
   try {
