@@ -7,6 +7,7 @@ import { runSkillScout } from "./skill-scout";
 import { generateDailyReport } from "./daily-report";
 import { autoRetryFailedTasks } from "./failure-diagnostic";
 import { runAIInspector } from "./ai-inspector";
+import { measureDueOutcomes } from "./outcomes";
 
 interface TaskResult {
   task: string;
@@ -181,6 +182,19 @@ export async function runHourlyTasks(): Promise<TaskResult[]> {
 export async function runDailyTasks(): Promise<TaskResult[]> {
   const startTime = Date.now();
   const results: TaskResult[] = [];
+
+  // 0a. 效果回传：测量到期的 SEO outcomes，回写 prompt_runs.score
+  try {
+    const om = await measureDueOutcomes();
+    results.push({
+      task: "measure_outcomes",
+      status: "success",
+      message: `测量 ${om.measured} 个效果（跳过 ${om.skipped}，失败 ${om.failed}），平均商业分 ${om.avg_business_score ?? "N/A"}`,
+      data: om as unknown as Record<string, unknown>,
+    });
+  } catch (err) {
+    results.push({ task: "measure_outcomes", status: "failed", message: err instanceof Error ? err.message : "outcomes 失败" });
+  }
 
   // 0. 日结归档：昨天未完成的任务归档
   try {

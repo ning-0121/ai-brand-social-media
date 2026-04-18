@@ -6,6 +6,8 @@ import { reviewContent } from "@/lib/content-qa";
 import { productContentPipeline, socialContentPipeline, campaignPipeline } from "@/lib/content-pipeline";
 import { createApprovalTask } from "@/lib/supabase-approval";
 import { inngest } from "@/inngest/client";
+import { recordSEOOutcome } from "@/lib/outcomes";
+import { supabase as supabaseClient } from "@/lib/supabase";
 
 function inngestEnabled(): boolean {
   return !!process.env.INNGEST_EVENT_KEY;
@@ -150,11 +152,29 @@ async function executeSingleTask(
         tags: seoData.tags as string,
       });
 
+      // 记录效果基线 — 7 天后 daily cron 自动测量真实 SEO 分变化
+      let outcomeId: string | null = null;
+      try {
+        const { data: latestRun } = await supabaseClient
+          .from("prompt_runs").select("id, prompt_version")
+          .eq("prompt_slug", "product.seo.optimize")
+          .order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const r = await recordSEOOutcome({
+          productId: product.id,
+          productName: product.name,
+          promptSlug: "product.seo.optimize",
+          promptRunId: latestRun?.id,
+          promptVersion: latestRun?.prompt_version,
+        });
+        outcomeId = r?.outcome_id || null;
+      } catch { /* outcome tracking failure doesn't block task */ }
+
       return {
         action: "seo_updated",
         product: product.name,
         qa_score: qaScore,
         attempts,
+        outcome_id: outcomeId,
         preview: {
           meta_title: seoData.meta_title,
           meta_description: seoData.meta_description,

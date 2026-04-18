@@ -21,6 +21,7 @@ import { AuditLogViewer } from "@/components/analytics/audit-log-viewer";
 import { TaskResultRenderer } from "@/components/ops/task-result-renderer";
 import { DailyReportPanel } from "@/components/ops/daily-report-panel";
 import { AIInspectorPanel } from "@/components/ops/ai-inspector-panel";
+import { OutcomesPanel } from "@/components/ops/outcomes-panel";
 import {
   Target,
   Sparkles,
@@ -336,6 +337,9 @@ export default function OpsCockpitPage() {
 
       {/* AI 督察 */}
       <AIInspectorPanel />
+
+      {/* 效果回传 */}
+      <OutcomesPanel />
 
       {/* ═══ Main Tabs — 页面核心导航 ═══ */}
       <Tabs value={activeTab} onValueChange={(v) => v && setActiveTab(v)}>
