@@ -14,6 +14,7 @@ import {
   CalendarDays,
   Search,
   Activity,
+  Shield,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   // ── 总览 ──
   { label: "数据总览", href: "/dashboard", icon: LayoutDashboard, group: "总览" },
   { label: "运行监控", href: "/monitor", icon: Activity, group: "总览" },
+  { label: "系统自检", href: "/health", icon: Shield, group: "总览" },
 
   // ── 运营中心（默认展开，全部真实功能）──
   { label: "运营驾驶舱", href: "/ops-cockpit", icon: Gauge, group: "运营中心" },
