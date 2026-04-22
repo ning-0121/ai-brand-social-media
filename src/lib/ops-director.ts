@@ -7,6 +7,12 @@ import { createApprovalTask } from "./supabase-approval";
 import { reviewContent } from "./content-qa";
 import { productContentPipeline, socialContentPipeline, campaignPipeline } from "./content-pipeline";
 import { executeAgentPool } from "./agent-pool";
+import { getHolidaysInRange } from "./campaign-calendar";
+
+// Task types that always require human approval regardless of what LLM says
+const APPROVAL_REQUIRED_TYPES = new Set([
+  "landing_page", "homepage_update", "new_product_content", "discount_create",
+]);
 
 // ============ Types ============
 
@@ -503,7 +509,7 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
               description: t.description as string || "",
               target_product_id: (t.target_product_id as string) || null,
               target_product_name: (t.target_product_name as string) || null,
-              auto_executable: t.auto_executable !== false,
+              auto_executable: !APPROVAL_REQUIRED_TYPES.has(t.task_type as string) && t.auto_executable !== false,
               expected_impact: impactText,
               execution_status: "pending",
             };
@@ -521,12 +527,20 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
   }
 
   // 专家 prompt 不在 DB 或失败 → 回退硬编码路径
+  const upcomingHolidays = getHolidaysInRange(
+    today.toISOString().split("T")[0],
+    new Date(today.getTime() + 60 * 86400000).toISOString().split("T")[0]
+  );
+  const holidayList = upcomingHolidays.length > 0
+    ? upcomingHolidays.map(h => `  - ${h.date} ${h.tag}（${h.angle}）`).join("\n")
+    : "  （未来 60 天暂无白名单节日）";
+
   const result = await callLLM(
     `你是月销百万的 Shopify DTC 品牌操盘手。你在排本周的执行计划，不是写报告。
 
 可用任务类型：[${taskTypes}]
 自动执行：seo_fix, detail_page, post, engage, hashtag_strategy, short_video_script
-需要审批：landing_page, homepage_update, new_product_content
+需要审批：landing_page, homepage_update, new_product_content, discount_create
 
 规则：
 1. 每个任务必须解决一个具体问题，指向具体的商品或内容
@@ -541,7 +555,9 @@ export async function generateWeeklyPlan(module: "social" | "store"): Promise<st
 4. 每周必须至少包含：1 个 discount_create + 1 个 bundle_page + 继续 seo_fix 对 SEO 差商品
 5. 节奏：自动执行任务安排在前 2 天，需审批任务后 3 天
 6. target_product_id 必须用上面产品列表中的真实 UUID
-7. 所有 auto_executable 任务必须设为 true，但以下需审批：landing_page, homepage_update, new_product_content, discount_create
+7. landing_page 只能围绕以下白名单节日创建，**严禁自造节日**（不得使用"地球日"、"感恩节"等不在白名单的节日）：
+${holidayList}
+8. 所有 auto_executable 字段：自动执行类型填 true，需审批类型（landing_page/homepage_update/new_product_content/discount_create）填 false
 
 返回 JSON，不要有解释。`,
     `模块: ${module}
@@ -586,7 +602,7 @@ ${productSummary}
       "task_type": "任务类型",
       "title": "具体任务标题（包含商品名或平台名）",
       "description": "做什么、为什么、预期效果",
-      "auto_executable": true,
+      "auto_executable": true或false（landing_page/homepage_update/new_product_content/discount_create 必须填 false）,
       "target_product_id": "UUID 或 null",
       "target_product_name": "商品名 或 null",
       "target_platform": "平台名 或 null",
@@ -624,8 +640,7 @@ ${productSummary}
   const todayStr = new Date().toISOString().split("T")[0];
 
   for (const task of tasks) {
-    // 自动执行的任务 → 今天立刻执行；需审批的 → 按计划日期
-    const isAuto = task.auto_executable !== false;
+    const isAuto = !APPROVAL_REQUIRED_TYPES.has(task.task_type) && task.auto_executable !== false;
     let taskDateStr = todayStr;
     if (!isAuto) {
       const dayOffset = (dayMap[task.day] || 1) - 1;
@@ -634,7 +649,7 @@ ${productSummary}
       taskDateStr = taskDate.toISOString().split("T")[0];
     }
 
-    const isAuto2 = task.auto_executable !== false;
+    const isAuto2 = isAuto;
 
     const { data: insertedTask } = await supabase.from("ops_daily_tasks").insert({
       plan_id: plan.id,

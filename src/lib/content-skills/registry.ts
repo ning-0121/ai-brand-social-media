@@ -4,7 +4,6 @@ import type { ContentSkill } from "./types";
 import { productDetailPageSkill } from "./website/product-detail-page";
 import { productSeoOptimizeSkill } from "./website/product-seo-optimize";
 import { homepageDesignSkill } from "./website/homepage-design";
-import { campaignLandingSkill } from "./website/campaign-landing";
 import { internalSiteOptimizeSkill } from "./website/internal-site-optimize";
 import { promotionStrategySkill } from "./website/promotion-strategy";
 
@@ -31,6 +30,9 @@ import { aiProductPhotoSkill } from "./image/ai-product-photo";
 import { bannerDesignSkill } from "./image/banner-design";
 import { socialMediaImageSkill } from "./image/social-media-image";
 import { campaignPosterSkill } from "./image/campaign-poster";
+import { bgRemoveSkill } from "./image/bg-remove";
+import { imageEnhanceSkill } from "./image/image-enhance";
+import { productVideoSkill } from "./image/product-video";
 
 // Page skills
 import { shopifyDetailPageSkill } from "./page/shopify-detail-page";
@@ -56,6 +58,28 @@ import { competitorDeepAnalysisSkill } from "./copy/competitor-deep-analysis";
 import { adPerformanceOptimizerSkill } from "./copy/ad-performance-optimizer";
 import { adCreativeGeneratorSkill } from "./copy/ad-creative-generator";
 import { adRoiGuardianSkill } from "./copy/ad-roi-guardian";
+import { googleShoppingTitleSkill } from "./copy/google-shopping-title";
+import { abandonedCartSequenceSkill } from "./copy/abandoned-cart-sequence";
+import { adCreativeBriefSkill } from "./copy/ad-creative-brief";
+import { productValidatorSkill } from "./copy/product-validator";
+import { storeHealthAuditSkill } from "./copy/store-health-audit";
+import { flashSalePlannerSkill } from "./copy/flash-sale-planner";
+import { pricingStrategySkill } from "./copy/pricing-strategy";
+import { programmaticSeoSkill } from "./copy/programmatic-seo";
+import { topicalAuthoritySkill } from "./copy/topical-authority";
+import { schemaMarkupAuditorSkill } from "./copy/schema-markup-auditor";
+import { haroPitchWriterSkill } from "./copy/haro-pitch-writer";
+import { reviewSequencerSkill } from "./copy/review-sequencer";
+import { trustSignalAuditorSkill } from "./copy/trust-signal-auditor";
+import { qualityFeedbackAnalyzerSkill } from "./copy/quality-feedback-analyzer";
+import { customerServiceResponderSkill } from "./copy/customer-service-responder";
+// Module 5: Campaign Planning + Partnerships
+import { annualCampaignCalendarSkill } from "./copy/annual-campaign-calendar";
+import { kolSourcingEngineSkill } from "./copy/kol-sourcing-engine";
+import { affiliateTierDesignerSkill } from "./copy/affiliate-tier-designer";
+import { brandCollabMatcherSkill } from "./copy/brand-collab-matcher";
+import { marketplaceExpansionScorerSkill } from "./copy/marketplace-expansion-scorer";
+import { incrementalityTesterSkill } from "./copy/incrementality-tester";
 
 // OEM B2B skills
 import { oemInquiryReplySkill } from "./oem/oem-inquiry-reply";
@@ -66,11 +90,13 @@ import { oemFollowupMessageSkill } from "./oem/oem-followup-message";
 import { oemBuyerResearchSkill } from "./oem/oem-buyer-research";
 
 const allSkills: ContentSkill[] = [
-  // Image (4)
+  // Image (7)
   aiProductPhotoSkill,
   bannerDesignSkill,
   socialMediaImageSkill,
   campaignPosterSkill,
+  bgRemoveSkill,
+  imageEnhanceSkill,
   // Page (4)
   shopifyDetailPageSkill,
   campaignPageSkill,
@@ -94,11 +120,32 @@ const allSkills: ContentSkill[] = [
   adPerformanceOptimizerSkill,
   adCreativeGeneratorSkill,
   adRoiGuardianSkill,
+  googleShoppingTitleSkill,
+  abandonedCartSequenceSkill,
+  adCreativeBriefSkill,
+  productValidatorSkill,
+  storeHealthAuditSkill,
+  flashSalePlannerSkill,
+  pricingStrategySkill,
+  programmaticSeoSkill,
+  topicalAuthoritySkill,
+  schemaMarkupAuditorSkill,
+  haroPitchWriterSkill,
+  reviewSequencerSkill,
+  trustSignalAuditorSkill,
+  qualityFeedbackAnalyzerSkill,
+  customerServiceResponderSkill,
+  // Module 5: Campaign Planning + Partnerships (6)
+  annualCampaignCalendarSkill,
+  kolSourcingEngineSkill,
+  affiliateTierDesignerSkill,
+  brandCollabMatcherSkill,
+  marketplaceExpansionScorerSkill,
+  incrementalityTesterSkill,
   // Website (legacy, serves as additional copy/page skills)
   productDetailPageSkill,
   productSeoOptimizeSkill,
   homepageDesignSkill,
-  campaignLandingSkill,
   internalSiteOptimizeSkill,
   promotionStrategySkill,
   // Social
@@ -114,6 +161,7 @@ const allSkills: ContentSkill[] = [
   productSelectionSkill,
   // Video
   liveStreamScriptSkill,
+  productVideoSkill,
   // Advanced SEO & Analytics
   technicalSeoAuditSkill,
   seoRankingTrackerSkill,

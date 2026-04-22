@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { GA4Widget } from "@/components/analytics/ga4-widget";
+import { DataSyncBar } from "@/components/ops/data-sync-bar";
 
 const QUOTES = [
   "每一次用心经营，都是品牌成长的养分。",
@@ -253,14 +254,16 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <GreetingBanner todayRevenue={0} todayOrders={0} />
+        {/* Smart banner: detects whether Shopify is connected or not */}
+        <DataSyncBar />
         <EmptyState
-          title="暂无店铺数据"
-          description="连接你的 Shopify 店铺，同步真实运营数据"
+          title="暂无销售数据"
+          description="同步 Shopify 订单数据后，这里将显示收入、订单趋势和 AI 分析"
           action={
             <Link href="/settings">
-              <Button>
+              <Button variant="outline">
                 <Store className="mr-2 h-4 w-4" />
-                连接 Shopify
+                Shopify 设置
               </Button>
             </Link>
           }
@@ -274,6 +277,9 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <GreetingBanner todayRevenue={todayStats.todayRevenue} todayOrders={todayStats.todayOrders} />
+
+      {/* Shopify sync status — shows orange banner if orders not synced yet */}
+      <DataSyncBar />
 
       <KPICardGrid>
         <KPICard

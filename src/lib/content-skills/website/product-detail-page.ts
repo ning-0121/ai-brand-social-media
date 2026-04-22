@@ -2,9 +2,17 @@ import { callLLM } from "../llm";
 import { runPrompt, getActivePrompt } from "../../prompts";
 import type { ContentSkill, SkillInputData, SkillContext, SkillResult } from "../types";
 
+/**
+ * product_detail_page — 生成结构化 JSON（标题/卖点/meta/规格），用于:
+ *   - 批量更新商品 meta_title / meta_description
+ *   - 为 Shopify admin 写结构化字段
+ *   - 给其他 skill 提供 context
+ *
+ * 如果需要完整 body_html（推到 Shopify 商品描述），用 shopify_detail_page 代替。
+ */
 export const productDetailPageSkill: ContentSkill = {
   id: "product_detail_page",
-  name: "商品详情页制作",
+  name: "商品结构化文案",
   category: "website",
   description: "为商品生成完整的详情页（标题、副标题、卖点、规格、CTA、SEO meta）",
   icon: "FileText",

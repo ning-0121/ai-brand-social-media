@@ -10,6 +10,7 @@ import {
   updateProductInfo,
   updateProductPrice,
   updateProductInventory,
+  listShopifyPages,
 } from "@/lib/shopify-operations";
 
 async function getAuthUserId(): Promise<string | null> {
@@ -30,6 +31,41 @@ async function getAuthUserId(): Promise<string | null> {
   );
   const { data: { user } } = await supabase.auth.getUser();
   return user?.id || null;
+}
+
+// GET: return integration sync status (no integration_id needed)
+export async function GET() {
+  const { createServerClient } = await import("@supabase/ssr");
+  const { cookies } = await import("next/headers");
+  const cookieStore = cookies();
+  const sb = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+  );
+  const { data: integration } = await sb
+    .from("integrations")
+    .select("id,platform,store_name,store_url,status,last_synced_at,metadata")
+    .eq("platform", "shopify")
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!integration) {
+    return NextResponse.json({ connected: false });
+  }
+
+  const meta = (integration.metadata || {}) as Record<string, unknown>;
+  return NextResponse.json({
+    connected: true,
+    integration_id: integration.id,
+    store_name: integration.store_name,
+    store_url: integration.store_url,
+    last_synced_at: integration.last_synced_at,
+    total_products: meta.total_products || 0,
+    total_orders: meta.total_orders || 0,
+    last_sync_result: meta.last_sync_result || null,
+    last_order_sync_at: meta.last_order_sync_at || null,
+  });
 }
 
 export async function POST(request: Request) {
@@ -116,6 +152,11 @@ export async function POST(request: Request) {
           integration_id, shopify_variant_id, local_product_id, quantity
         );
         return NextResponse.json(result);
+      }
+
+      case "list_pages": {
+        const pages = await listShopifyPages(integration_id);
+        return NextResponse.json({ success: true, pages, count: pages.length });
       }
 
       default:

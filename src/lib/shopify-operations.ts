@@ -722,6 +722,21 @@ export async function createShopifyPage(
   return { success: true, page_id: page.id, handle: page.handle };
 }
 
+export async function listShopifyPages(
+  integrationId: string
+): Promise<Array<{ id: number; title: string; handle: string; published_at: string | null }>> {
+  const creds = await getCredentials(integrationId);
+  const headers = shopifyHeaders(creds.accessToken);
+
+  const res = await fetch(
+    `https://${creds.domain}/admin/api/2024-01/pages.json?limit=250&fields=id,title,handle,published_at`,
+    { headers }
+  );
+  if (!res.ok) throw new Error(`Shopify 页面列表获取失败: ${res.status}`);
+  const { pages } = await res.json();
+  return pages || [];
+}
+
 export async function updateShopifyPage(
   integrationId: string,
   pageId: number,

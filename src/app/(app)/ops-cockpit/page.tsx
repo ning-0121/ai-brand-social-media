@@ -36,6 +36,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { DataSyncBar } from "@/components/ops/data-sync-bar";
 
 interface Goal {
   id: string;
@@ -294,6 +295,9 @@ export default function OpsCockpitPage() {
         }
       />
 
+      {/* Shopify data sync status */}
+      <DataSyncBar />
+
       {/* ═══ Task Execution Progress ═══ */}
       {tasks.length > 0 && (() => {
         const done = tasks.filter(t => t.execution_status === "auto_executed" || t.execution_status === "completed").length;
@@ -303,10 +307,22 @@ export default function OpsCockpitPage() {
         const approval = tasks.filter(t => t.execution_status === "awaiting_approval").length;
         const total = tasks.length;
         const progressPct = total > 0 ? Math.round(((done + failed) / total) * 100) : 0;
+        // All tasks still pending = likely never executed (credit exhaustion)
+        const allPending = pending === total && total > 0;
 
         return (
           <Card>
-            <CardContent className="p-4">
+            <CardContent className="p-4 space-y-3">
+              {allPending && (
+                <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
+                  <div>
+                    <span className="font-medium">任务从未执行</span> — 最常见原因：
+                    <span className="font-medium"> OpenRouter 或 Anthropic API 余额不足</span>。
+                    请前往 <a href="https://openrouter.ai/credits" target="_blank" rel="noopener" className="underline">openrouter.ai/credits</a> 充值后再点击「执行今日任务」。
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">任务执行进度</span>
@@ -392,11 +408,56 @@ export default function OpsCockpitPage() {
           )}
 
           {tasks.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                <Sparkles className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
-                今日没有计划任务<br />
-                <span className="text-xs">先设定目标，再生成周计划</span>
+            <Card>
+              <CardContent className="py-8 px-6">
+                <p className="text-sm font-semibold mb-5 text-center">今日没有任务 — 按以下步骤启动</p>
+                <div className="space-y-4">
+                  {[
+                    {
+                      step: "1",
+                      title: "同步店铺数据",
+                      desc: "先从上方同步条同步 Shopify 订单，确保 AI 有真实数据可分析",
+                      color: "bg-orange-100 text-orange-600",
+                    },
+                    {
+                      step: "2",
+                      title: "AI 诊断 → 设定目标",
+                      desc: "切换到「运营目标」标签 → 点击「AI 诊断建议目标」→ 采纳目标",
+                      color: "bg-purple-100 text-purple-600",
+                    },
+                    {
+                      step: "3",
+                      title: "生成本周执行计划",
+                      desc: "点击上方「生成店铺周计划」或「生成社媒周计划」，AI 会按目标排任务",
+                      color: "bg-blue-100 text-blue-600",
+                    },
+                    {
+                      step: "4",
+                      title: "执行今日任务",
+                      desc: "点击「执行今日任务」，AI 自动写 SEO、生成内容、推送到 Shopify",
+                      color: "bg-green-100 text-green-600",
+                    },
+                  ].map((s) => (
+                    <div key={s.step} className="flex items-start gap-3">
+                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.color}`}>
+                        {s.step}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{s.title}</p>
+                        <p className="text-xs text-muted-foreground">{s.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6 flex gap-2 justify-center">
+                  <Button size="sm" variant="outline" onClick={() => setActiveTab("goals")}>
+                    <Brain className="mr-1.5 h-3.5 w-3.5" /> 去设定目标
+                  </Button>
+                  <Button size="sm" onClick={() => handleGeneratePlan("store")} disabled={!!generatingModule}>
+                    {generatingModule === "store" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+                    生成店铺周计划
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ) : (
@@ -420,7 +481,18 @@ export default function OpsCockpitPage() {
                       </div>
                       {task.description && <p className="text-xs text-muted-foreground">{task.description}</p>}
                       {task.target_product_name && <p className="text-[10px] text-muted-foreground">商品: {task.target_product_name}</p>}
-                      {task.execution_result && (
+                      {/* Show error reason for failed tasks */}
+                      {task.execution_status === "failed" && task.execution_result && (
+                        <div className="mt-1.5 rounded-md bg-red-50 border border-red-200 px-2.5 py-1.5 text-[11px] text-red-700">
+                          <span className="font-medium">失败原因：</span>
+                          {typeof task.execution_result.error === "string"
+                            ? task.execution_result.error
+                            : typeof task.execution_result.message === "string"
+                              ? task.execution_result.message
+                              : "AI 调用失败（可能是 API 余额不足，请检查 OpenRouter/Anthropic 账户）"}
+                        </div>
+                      )}
+                      {task.execution_result && task.execution_status !== "failed" && (
                         <div className="mt-2">
                           <TaskResultRenderer
                             taskType={task.task_type}

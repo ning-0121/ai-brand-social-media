@@ -1,11 +1,20 @@
 import { callLLM } from "../llm";
 import type { ContentSkill, SkillInputData, SkillResult } from "../types";
 
+/**
+ * campaign_page — 轻量促销承接页（老版，只生成页面）。
+ *
+ * 新工作流请用:
+ *   - flash_sale_planner   — 完整活动策划（四阶段/FOMO/定价）
+ *   - landing_page         — CRO 结构完整的承接页（上折公式/紧迫感/JSON-LD）
+ *
+ * 保留本 skill 仅为向后兼容（content-warehouse 仍在引用）。
+ */
 export const campaignPageSkill: ContentSkill = {
   id: "campaign_page",
-  name: "活动承接页",
+  name: "轻量活动页（旧版）",
   category: "page",
-  description: "生成促销活动的承接页 HTML（限时折扣、新品首发、节日活动等）",
+  description: "⚠️ 旧版，新项目建议用 flash_sale_planner + landing_page 组合",
   icon: "Megaphone",
   color: "red",
   estimated_cost: { text: 0.03, image: 0 },
