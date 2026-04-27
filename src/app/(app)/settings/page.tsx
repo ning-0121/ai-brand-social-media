@@ -199,8 +199,9 @@ export default function SettingsPage() {
     }
   };
 
-  // Handle sync — actually calls the Shopify sync API
+  // Handle sync — Shopify only; other platforms pull data live
   const handleSync = async (integration: Integration) => {
+    if (integration.platform !== "shopify") return;
     setSyncing(integration.id);
     try {
       const res = await fetch("/api/shopify", {
@@ -214,9 +215,9 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(`同步失败: ${data.error || res.status}`);
+        toast.error(`同步失败: ${data.error || res.status}`);
       } else {
-        alert(`同步完成: ${data.synced_products || 0} 商品, ${data.synced_orders || 0} 订单, ${data.synced_customers || 0} 客户`);
+        toast.success(`同步完成: ${data.synced_products || 0} 商品, ${data.synced_orders || 0} 订单, ${data.synced_customers || 0} 客户`);
       }
       refresh();
     } catch {
@@ -362,20 +363,32 @@ export default function SettingsPage() {
                           </div>
                           <Separator />
                           <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1"
-                              onClick={() => handleSync(connected)}
-                              disabled={syncing === connected.id}
-                            >
-                              {syncing === connected.id ? (
-                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                              ) : (
+                            {platform.oauth ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => { window.location.href = `/api/oauth/${platform.id}/start`; }}
+                              >
                                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                              )}
-                              同步
-                            </Button>
+                                重新授权
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => handleSync(connected)}
+                                disabled={syncing === connected.id}
+                              >
+                                {syncing === connected.id ? (
+                                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                                )}
+                                同步
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"

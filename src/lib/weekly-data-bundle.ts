@@ -83,6 +83,17 @@ export interface WeeklyDataBundle {
     declared_winners: number;
     avg_winner_conversion_rate: number | null;
   };
+  /** GA4 网站流量（如果已连接） */
+  ga4: {
+    connected: boolean;
+    sessions_30d: number;
+    users_30d: number;
+    new_users_30d: number;
+    bounce_rate: number;          // 0~100，百分比
+    avg_session_duration_sec: number;
+    page_views_30d: number;
+    top_sources: Array<{ source: string; medium: string; sessions: number }>;
+  } | null;
 }
 
 function startOfDay(d: Date): string { return d.toISOString().split("T")[0]; }
@@ -303,7 +314,32 @@ export async function getWeeklyDataBundle(): Promise<WeeklyDataBundle> {
       declared_winners: declared.length,
       avg_winner_conversion_rate: avgWinnerRate,
     },
+    ga4: await fetchGA4Summary(),
   };
+}
+
+/** 从 GA4 API 抓取 30 天流量摘要（静默失败） */
+async function fetchGA4Summary(): Promise<WeeklyDataBundle["ga4"]> {
+  try {
+    const { getGA4Overview, getGA4TrafficSources } = await import("./ga4-api");
+    const [overview, sources] = await Promise.all([
+      getGA4Overview(30),
+      getGA4TrafficSources(30),
+    ]);
+    if (!overview) return { connected: false, sessions_30d: 0, users_30d: 0, new_users_30d: 0, bounce_rate: 0, avg_session_duration_sec: 0, page_views_30d: 0, top_sources: [] };
+    return {
+      connected: true,
+      sessions_30d: overview.sessions,
+      users_30d: overview.users,
+      new_users_30d: overview.newUsers,
+      bounce_rate: overview.bounceRate,
+      avg_session_duration_sec: overview.avgSessionDuration,
+      page_views_30d: overview.pageViews,
+      top_sources: (sources || []).slice(0, 5),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** 格式化为 LLM-friendly 文本块 */
@@ -346,5 +382,34 @@ export function formatBundleForPrompt(b: WeeklyDataBundle): string {
   lines.push(``);
   lines.push(`=== A/B 测试历史 ===`);
   lines.push(`累计 ${b.ab_outcomes.total_variants} 组，已宣告 ${b.ab_outcomes.declared_winners} 个 winner${b.ab_outcomes.avg_winner_conversion_rate !== null ? `，平均 winner 转化率 ${(b.ab_outcomes.avg_winner_conversion_rate * 100).toFixed(2)}%` : ""}`);
+  lines.push(``);
+
+  // GA4 流量数据（如果已连接）
+  if (b.ga4?.connected) {
+    const g = b.ga4;
+    const bounceLabel = g.bounce_rate > 80 ? "🔴 严重偏高" : g.bounce_rate > 60 ? "🟡 偏高" : "🟢 正常";
+    const dur = g.avg_session_duration_sec < 60
+      ? `${Math.round(g.avg_session_duration_sec)}秒`
+      : `${Math.floor(g.avg_session_duration_sec / 60)}分${Math.round(g.avg_session_duration_sec % 60)}秒`;
+    lines.push(`=== GA4 网站流量（近 30 天）===`);
+    lines.push(`访客 UV: ${g.users_30d}（新访客 ${g.new_users_30d}，回访 ${g.users_30d - g.new_users_30d}）`);
+    lines.push(`页面浏览 PV: ${g.page_views_30d} · 访问次数: ${g.sessions_30d} · 人均 PV: ${g.sessions_30d > 0 ? (g.page_views_30d / g.sessions_30d).toFixed(1) : "N/A"}`);
+    lines.push(`跳出率: ${g.bounce_rate.toFixed(1)}% ${bounceLabel} — 超过 70% 说明落地页内容/加载速度/CTA 需要优化`);
+    lines.push(`平均停留时长: ${dur}`);
+    if (g.top_sources.length > 0) {
+      lines.push(`流量来源: ${g.top_sources.map(s => `${s.source}/${s.medium}(${s.sessions}次)`).join(" · ")}`);
+    }
+    // 给 AI 的行动信号
+    if (g.bounce_rate > 80) {
+      lines.push(`⚠️ 跳出率严重偏高 (${g.bounce_rate.toFixed(1)}%)，AI 需重点生成落地页优化、首屏内容改写、CTA 强化方案`);
+    }
+    if (g.new_users_30d / Math.max(g.users_30d, 1) > 0.85) {
+      lines.push(`⚠️ 新访客占比 ${((g.new_users_30d / g.users_30d) * 100).toFixed(0)}%，老访客极少——需增强站内回购引导/邮件留存`);
+    }
+  } else {
+    lines.push(`=== GA4 流量 ===`);
+    lines.push(`未连接 GA4，无法获取网站流量数据`);
+  }
+
   return lines.join("\n");
 }

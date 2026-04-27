@@ -188,35 +188,35 @@ export function GA4Widget() {
           </div>
         ) : overview ? (
           <>
-            {/* 4 KPI 格 */}
+            {/* 4 KPI 格：用电商运营熟悉的叫法 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <MetricBox
+                icon={<Users className="h-3.5 w-3.5 text-purple-500" />}
+                label="访客数 UV"
+                value={fmt(overview.users)}
+                sub={`新访客 ${fmt(overview.newUsers)}`}
+                color="text-purple-600"
+              />
+              <MetricBox
                 icon={<Activity className="h-3.5 w-3.5 text-blue-500" />}
-                label="会话数"
-                value={fmt(overview.sessions)}
-                sub="Sessions"
+                label="浏览量 PV"
+                value={fmt(overview.pageViews)}
+                sub={`访问 ${fmt(overview.sessions)} 次`}
                 color="text-blue-600"
               />
               <MetricBox
-                icon={<Users className="h-3.5 w-3.5 text-purple-500" />}
-                label="用户数"
-                value={fmt(overview.users)}
-                sub={`新用户 ${fmt(overview.newUsers)}`}
-                color="text-purple-600"
+                icon={<TrendingUp className="h-3.5 w-3.5 text-green-500" />}
+                label="停留时长"
+                value={fmtDuration(overview.avgSessionDuration)}
+                sub="平均每次访问"
+                color="text-green-600"
               />
               <MetricBox
                 icon={<MousePointerClick className="h-3.5 w-3.5 text-amber-500" />}
                 label="跳出率"
                 value={`${overview.bounceRate.toFixed(1)}%`}
-                sub={overview.bounceRate < 50 ? "良好" : overview.bounceRate < 70 ? "一般" : "偏高"}
+                sub={overview.bounceRate < 50 ? "✓ 良好" : overview.bounceRate < 70 ? "一般" : "偏高，需优化"}
                 color={overview.bounceRate < 50 ? "text-green-600" : overview.bounceRate < 70 ? "text-amber-600" : "text-red-600"}
-              />
-              <MetricBox
-                icon={<TrendingUp className="h-3.5 w-3.5 text-green-500" />}
-                label="平均时长"
-                value={fmtDuration(overview.avgSessionDuration)}
-                sub={`页面浏览 ${fmt(overview.pageViews)}`}
-                color="text-green-600"
               />
             </div>
 

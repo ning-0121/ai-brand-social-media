@@ -319,15 +319,15 @@ export default function DashboardPage() {
         />
       </KPICardGrid>
 
+      {/* GA4 Analytics — right after KPI cards */}
+      <GA4Widget />
+
       <KPIComparisonCard />
 
       <DailyBriefing />
 
       {/* Auto-Ops Engine Status */}
       <AutoOpsStatusCard />
-
-      {/* GA4 Analytics */}
-      <GA4Widget />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
         {/* Revenue chart */}
