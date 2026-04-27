@@ -15,6 +15,7 @@ import {
   Loader2,
   ArrowRight,
   RefreshCw,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HealthScoreRing } from "./health-score-ring";
@@ -32,6 +33,7 @@ const CATEGORY_CONFIG: Record<
   inventory: { label: "库存", icon: Box, color: "text-orange-500" },
   sales: { label: "销售", icon: TrendingDown, color: "text-green-500" },
   content: { label: "内容", icon: FileText, color: "text-pink-500" },
+  traffic: { label: "流量", icon: Globe, color: "text-yellow-500" },
 };
 
 function CategoryScoreCard({
@@ -286,8 +288,19 @@ export function DailyBriefing() {
         )}
 
         {topFindings.length === 0 && (
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            所有问题已处理，店铺状态良好！
+          <div className="text-center py-4 space-y-2">
+            {summary.overall_health >= 80 ? (
+              <p className="text-sm text-muted-foreground">所有问题已处理，店铺状态良好！</p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  当前无待处理发现，但健康分仅 {summary.overall_health}。
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  点「重新诊断」获取最新问题清单。
+                </p>
+              </>
+            )}
           </div>
         )}
       </CardContent>
