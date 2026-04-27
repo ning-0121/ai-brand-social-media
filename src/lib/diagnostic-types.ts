@@ -1,4 +1,4 @@
-export type FindingCategory = "seo" | "product" | "inventory" | "sales" | "content";
+export type FindingCategory = "seo" | "product" | "inventory" | "sales" | "content" | "traffic";
 export type FindingSeverity = "critical" | "high" | "medium" | "low";
 export type FindingStatus = "open" | "in_progress" | "resolved" | "dismissed";
 
@@ -10,7 +10,7 @@ export interface AffectedEntity {
 }
 
 export interface RecommendedAction {
-  action_type: "seo_update" | "product_edit" | "inventory_update" | "content_publish" | "workflow_launch" | "info_only";
+  action_type: "seo_update" | "product_edit" | "inventory_update" | "content_publish" | "workflow_launch" | "info_only" | "landing_page" | "detail_page" | "winback_email" | "post";
   agent_name?: string;
   task_type?: string;
   workflow_template?: string;
@@ -40,6 +40,7 @@ export interface DiagnosticSummary {
   inventory_score: number;
   sales_score: number;
   content_score: number;
+  traffic_score?: number;
   total_findings: number;
   critical: number;
   high: number;

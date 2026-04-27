@@ -231,7 +231,7 @@ export function DailyBriefing() {
         <div className="flex gap-6">
           <HealthScoreRing score={summary.overall_health} />
 
-          <div className="flex-1 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="flex-1 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             <CategoryScoreCard
               category="seo"
               score={summary.seo_score}
@@ -256,6 +256,11 @@ export function DailyBriefing() {
               category="content"
               score={summary.content_score}
               findingCount={categoryFindingCount("content")}
+            />
+            <CategoryScoreCard
+              category="traffic"
+              score={summary.traffic_score ?? 100}
+              findingCount={categoryFindingCount("traffic")}
             />
           </div>
         </div>

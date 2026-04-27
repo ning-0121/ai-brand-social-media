@@ -55,6 +55,76 @@ export async function runDiagnostic(
       console.error("Sales diagnostic failed:", salesResult.reason);
     }
 
+    // 3b. GA4 流量诊断 — 规则引擎直接生成 findings（不走 LLM）
+    try {
+      const { getGA4Overview, getGA4TrafficSources } = await import("./ga4-api");
+      const [ga4Overview, ga4Sources] = await Promise.allSettled([
+        getGA4Overview(30),
+        getGA4TrafficSources(30),
+      ]);
+      const overview = ga4Overview.status === "fulfilled" ? ga4Overview.value : null;
+      const sources = ga4Sources.status === "fulfilled" ? ga4Sources.value : [];
+
+      if (overview) {
+        // 高跳出率
+        if (overview.bounceRate > 70) {
+          const severity = overview.bounceRate > 85 ? "critical" : "high";
+          const topSource = sources?.[0];
+          rawFindings.push({
+            category: "traffic",
+            severity,
+            title: `跳出率 ${overview.bounceRate.toFixed(1)}% — 落地页需要优化`,
+            description: `过去 30 天访客跳出率达 ${overview.bounceRate.toFixed(1)}%，远超行业均值 40~60%。意味着每 10 个访客有 ${Math.round(overview.bounceRate / 10)} 个进来就走了，流量大量浪费。${topSource ? `最大流量来源 ${topSource.source}/${topSource.medium} 带来 ${topSource.sessions} 次访问。` : ""}建议：优化首屏内容、增加明确 CTA、提升页面加载速度。`,
+            recommended_action_type: "landing_page",
+            recommended_action_label: "生成落地页优化方案",
+          });
+        }
+
+        // 低停留时长
+        if (overview.avgSessionDuration < 60 && overview.sessions > 10) {
+          rawFindings.push({
+            category: "traffic",
+            severity: "medium",
+            title: `平均停留 ${Math.round(overview.avgSessionDuration)}秒 — 内容吸引力不足`,
+            description: `访客平均只停留 ${Math.round(overview.avgSessionDuration)} 秒就离开，说明页面内容未能快速吸引用户。建议优化产品描述首段、增加图片/视频、强化价值主张。`,
+            recommended_action_type: "detail_page",
+            recommended_action_label: "优化产品详情页内容",
+          });
+        }
+
+        // 新访客占比过高（缺乏回访）
+        const returnRate = overview.users > 0 ? ((overview.users - overview.newUsers) / overview.users) * 100 : 0;
+        if (returnRate < 10 && overview.users > 20) {
+          rawFindings.push({
+            category: "traffic",
+            severity: "medium",
+            title: `老访客仅 ${returnRate.toFixed(0)}% — 用户留存需加强`,
+            description: `30 天内 ${overview.users} 个访客中仅 ${overview.users - overview.newUsers} 人是回访，留存率 ${returnRate.toFixed(0)}%。应通过邮件/社媒推送把访客变成回头客。`,
+            recommended_action_type: "winback_email",
+            recommended_action_label: "生成邮件留存方案",
+          });
+        }
+
+        // 流量来源过于单一
+        if (sources && sources.length > 0) {
+          const totalSessions = sources.reduce((s, src) => s + src.sessions, 0);
+          const topSourcePct = totalSessions > 0 ? (sources[0].sessions / totalSessions) * 100 : 0;
+          if (topSourcePct > 75 && totalSessions > 20) {
+            rawFindings.push({
+              category: "traffic",
+              severity: "medium",
+              title: `流量来源单一 — ${sources[0].source} 占 ${topSourcePct.toFixed(0)}%`,
+              description: `近 30 天 ${topSourcePct.toFixed(0)}% 的流量来自 ${sources[0].source}/${sources[0].medium}，过度依赖单一渠道有断流风险。建议拓展 Instagram、TikTok、邮件等渠道。`,
+              recommended_action_type: "post",
+              recommended_action_label: "生成多渠道内容方案",
+            });
+          }
+        }
+      }
+    } catch (ga4Err) {
+      console.warn("GA4 diagnostic skipped:", ga4Err);
+    }
+
     // 4. 加载商品用于匹配
     const products = (await getProducts()) || [];
     const productById = new Map<string, { id: string; name: string; shopify_product_id?: number }>(
@@ -252,6 +322,7 @@ function computeSummary(findings: RawFinding[]): DiagnosticSummary {
     inventory: { issues: 0, weight: 0 },
     sales: { issues: 0, weight: 0 },
     content: { issues: 0, weight: 0 },
+    traffic: { issues: 0, weight: 0 },
   };
 
   const severityWeight = { critical: 10, high: 5, medium: 2, low: 1 };
@@ -272,9 +343,10 @@ function computeSummary(findings: RawFinding[]): DiagnosticSummary {
   const inventory_score = scoreFor("inventory");
   const sales_score = scoreFor("sales");
   const content_score = scoreFor("content");
+  const traffic_score = scoreFor("traffic");
 
   const overall_health = Math.round(
-    (seo_score * 0.25 + product_score * 0.2 + inventory_score * 0.2 + sales_score * 0.2 + content_score * 0.15)
+    (seo_score * 0.2 + product_score * 0.2 + inventory_score * 0.15 + sales_score * 0.2 + content_score * 0.1 + traffic_score * 0.15)
   );
 
   return {
@@ -284,6 +356,7 @@ function computeSummary(findings: RawFinding[]): DiagnosticSummary {
     inventory_score,
     sales_score,
     content_score,
+    traffic_score,
     total_findings: findings.length,
     ...counts,
   };
