@@ -55,6 +55,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   inventory: "库存",
   sales: "销售",
   content: "内容",
+  traffic: "流量",
 };
 
 function GeneratedContentPreview({ content }: { content: Record<string, unknown> }) {
@@ -122,19 +123,18 @@ export function FindingCard({ finding, onExecute, onDismiss }: FindingCardProps)
     setExecuting(true);
     try {
       const result = await onExecute(finding.id);
-      // Only update status if backend actually succeeded
       if (result && typeof result === "object" && "success" in result && result.success) {
         setLocalStatus("in_progress");
         if ("generated_content" in result) {
           setGeneratedContent((result as { generated_content: Record<string, unknown> }).generated_content);
         }
+        toast.success("已提交执行，前往「执行进度」查看");
       } else {
         const errorMsg = (result as { error?: string })?.error || "执行失败";
-        alert(`执行失败: ${errorMsg}`);
+        toast.error(`执行失败: ${errorMsg}`);
       }
-    } catch {
-      toast.error("执行失败，请重试");
-      alert("执行失败，请重试");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "执行失败，请重试");
     }
     setExecuting(false);
   };

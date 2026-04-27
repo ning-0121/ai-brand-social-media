@@ -78,6 +78,7 @@ function DiagnosticTab() {
   const [report, setReport] = useState<DiagnosticReportWithFindings | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [bulkExecuting, setBulkExecuting] = useState(false);
   const [tab, setTab] = useState("all");
 
   const fetchReport = async () => {
@@ -105,6 +106,7 @@ function DiagnosticTab() {
       });
       const data = await res.json();
       if (data.report) setReport(data.report);
+      toast.success("诊断完成");
     } catch {
       toast.error("运行诊断失败");
     }
@@ -117,7 +119,9 @@ function DiagnosticTab() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "execute_finding", finding_id: findingId }),
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "执行失败");
+    return data;
   };
 
   const handleDismiss = async (findingId: string) => {
@@ -126,17 +130,36 @@ function DiagnosticTab() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "dismiss_finding", finding_id: findingId }),
     });
+    await fetchReport();
   };
 
   const handleBulkExecute = async (severity: string) => {
-    if (!report) return;
-    const findings = report.findings.filter(
+    if (!report || bulkExecuting) return;
+    const targets = report.findings.filter(
       (f) => f.status === "open" && f.severity === severity && f.recommended_action.action_type !== "info_only"
     );
-    for (const f of findings) {
-      await handleExecute(f.id);
+    if (targets.length === 0) {
+      toast.info("当前没有可执行的紧急问题（可能已全部处理或尚未生成）");
+      return;
+    }
+    setBulkExecuting(true);
+    let success = 0;
+    let failed = 0;
+    for (const f of targets) {
+      try {
+        await handleExecute(f.id);
+        success++;
+      } catch {
+        failed++;
+      }
     }
     await fetchReport();
+    setBulkExecuting(false);
+    if (failed === 0) {
+      toast.success(`已提交 ${success} 个紧急方案，请前往「执行进度」查看`);
+    } else {
+      toast.warning(`${success} 个已提交，${failed} 个失败`);
+    }
   };
 
   if (loading) {
@@ -241,9 +264,14 @@ function DiagnosticTab() {
                 variant="destructive"
                 className="ml-auto h-7 text-xs"
                 onClick={() => handleBulkExecute("critical")}
+                disabled={bulkExecuting}
               >
-                <Play className="mr-1 h-3 w-3" />
-                一键执行全部紧急项
+                {bulkExecuting ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : (
+                  <Play className="mr-1 h-3 w-3" />
+                )}
+                {bulkExecuting ? "提交中..." : "一键执行全部紧急项"}
               </Button>
             </div>
           )}
