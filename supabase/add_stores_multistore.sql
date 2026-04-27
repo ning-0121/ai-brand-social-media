@@ -52,7 +52,6 @@ ALTER TABLE diagnostic_findings  ADD COLUMN IF NOT EXISTS store_id UUID REFERENC
 ALTER TABLE ops_daily_tasks      ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id);
 ALTER TABLE ops_goals            ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id);
 ALTER TABLE brand_guides         ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id);
-ALTER TABLE weekly_plans         ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id);
 
 -- 4. 把现有 products/orders 关联到已有 store（通过 integrations.id 反查）
 UPDATE products p
