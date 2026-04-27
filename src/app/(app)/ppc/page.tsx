@@ -158,7 +158,7 @@ export default function PPCPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-mono font-medium">"{s.keyword}"</span>
+                  <span className="text-sm font-mono font-medium">&quot;{s.keyword}&quot;</span>
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                     {s.type === "reduce" ? "降价" :
                      s.type === "increase" ? "提价" :
